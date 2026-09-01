@@ -350,8 +350,13 @@ def cadastro_simples_form(slug, item_id=None):
 
     if request.method == "POST":
         nome = request.form.get("nome", "").strip()
+        erro = None
         if not nome:
-            flash("Informe o nome.", "erro")
+            erro = "Informe o nome."
+        elif repo.nome_simples_existe(cfg["tabela"], nome, ignorar_id=item_id):
+            erro = f"Já existe {cfg['singular']} com esse nome."
+        if erro:
+            flash(erro, "erro")
             return render_template("cadastro_simples_form.html", ativo="cadastro_simples", slug=slug,
                                    singular=cfg["singular"], acao_novo=cfg["acao_novo"],
                                    item={"id": item_id, "nome": nome})

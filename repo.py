@@ -201,10 +201,25 @@ def obter_simples(tabela, item_id):
         return dict(l) if l else None
 
 
-def criar_simples(tabela, nome):
+def nome_simples_existe(tabela, nome, ignorar_id=None):
+    """True se já há um registro com esse nome (sem diferenciar maiúsc./acentuação de caixa)."""
     assert tabela in _TABELAS_SIMPLES
     nome = (nome or "").strip()
     if not nome:
+        return False
+    sql = f"SELECT 1 FROM {tabela} WHERE nome = ? COLLATE NOCASE"
+    params = [nome]
+    if ignorar_id:
+        sql += " AND id <> ?"
+        params.append(ignorar_id)
+    with conexao() as con:
+        return con.execute(sql, params).fetchone() is not None
+
+
+def criar_simples(tabela, nome):
+    assert tabela in _TABELAS_SIMPLES
+    nome = (nome or "").strip()
+    if not nome or nome_simples_existe(tabela, nome):
         return None
     with conexao() as con:
         cur = con.execute(f"INSERT INTO {tabela} (nome) VALUES (?)", (nome,))
@@ -216,11 +231,12 @@ def criar_simples(tabela, nome):
 def renomear_simples(tabela, item_id, nome):
     assert tabela in _TABELAS_SIMPLES
     nome = (nome or "").strip()
-    if not nome:
-        return
+    if not nome or nome_simples_existe(tabela, nome, ignorar_id=item_id):
+        return False
     with conexao() as con:
         con.execute(f"UPDATE {tabela} SET nome = ? WHERE id = ?", (nome, item_id))
     fazer_backup()
+    return True
 
 
 def excluir_simples(tabela, item_id):
