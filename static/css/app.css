@@ -304,11 +304,10 @@ table.lista tr.apolice-vencida td:first-child { box-shadow: inset 3px 0 0 #a5201
 
 /* subtítulo de seção dentro de um cartão (ex.: tabelas de comissão / repasse) */
 .titulo-secao {
-  margin: 22px 0 10px; padding-bottom: 6px; font-size: 14px; font-weight: 700;
+  margin: 26px 0 10px; padding-bottom: 6px; font-size: 14px; font-weight: 700;
   color: var(--laranja-hover); border-bottom: 2px solid var(--laranja-fraco);
 }
 .titulo-secao span { font-weight: 600; color: var(--texto-suave); font-size: 12.5px; }
-.titulo-secao:first-child { margin-top: 4px; }
 
 /* ---------- tabelas de comissão / repasse (mesmo padrão) ---------- */
 .tab-fluxo td { padding: 8px 10px; vertical-align: middle; }
