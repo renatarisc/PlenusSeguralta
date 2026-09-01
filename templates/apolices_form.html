@@ -5,8 +5,13 @@
 {% set pode_gerar = not a.id or not tem_parcela_paga %}
 {% set pode_gerar_comissao = not ((a.comissoes or []) | selectattr('valor_recebido') | list) %}
 {% set pode_gerar_repasse = not ((a.repasses or []) | selectattr('valor_recebido') | list) %}
+{% macro nome_cliente() -%}
+{%- set ns = namespace(n='') -%}
+{%- for c in clientes if c.id|string == a.cliente_id|string -%}{%- set ns.n = c.nome -%}{%- endfor -%}
+{{- ns.n -}}
+{%- endmacro %}
 {% block titulo %}{{ 'Editar apólice' if a.id else 'Nova apólice' }}{% endblock %}
-{% block cabecalho %}{{ 'Editar apólice' if a.id else 'Nova apólice' }}{% endblock %}
+{% block cabecalho %}{{ 'Editar apólice' if a.id else 'Nova apólice' }}{% set _cli = nome_cliente() %}{% if a.id and _cli %} · <span style="color:var(--texto-suave);font-weight:600">{{ _cli }}</span>{% endif %}{% endblock %}
 
 {% block acoes %}
 <button type="button" class="btn btn--linha" data-ler-pdf
