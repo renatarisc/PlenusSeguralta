@@ -6,12 +6,42 @@ inserido**.
 
 ## Rodar
 
+**Desenvolvimento** (uma pessoa, com auto-reload):
+
 ```bash
 venv\Scripts\python.exe app.py
 ```
 
+**Uso compartilhado / produção** (servidor waitress, sem debug):
+
+```bash
+venv\Scripts\python.exe servir.py
+```
+
 - No PC: <http://localhost:5000>
-- No celular (mesma rede Wi-Fi): `http://IP-DO-PC:5000`
+- Nas outras máquinas: `http://<IP-ou-nome-Tailscale>:5000`
+
+No **primeiro acesso** o sistema pede para criar o usuário administrador. Depois, todo
+mundo precisa de login (menu **Usuários** para cadastrar as demais pessoas). O segredo da
+sessão fica em `plenus_secret.key` (fora do git — não apagar). Para servir por HTTPS,
+suba com a variável `PLENUS_HTTPS=1` para o cookie de sessão virar `Secure`.
+
+### Compartilhar entre 2 computadores com Tailscale
+
+1. Instale o **Tailscale** (tailscale.com/download) nos 3 pontos: o PC que vai ser o
+   servidor e as 2 máquinas das usuárias. Faça login com a **mesma conta** (ative 2FA nessa
+   conta) — ou use "Share" para convidar a outra conta.
+2. No PC servidor, deixe o Plenus rodando: `venv\Scripts\python.exe servir.py`
+   (deixe essa janela aberta, ou registre como serviço/Tarefa Agendada no logon).
+3. Descubra o nome/IP Tailscale do servidor: `tailscale ip -4` (ou o nome em
+   `tailscale status`). Ex.: `100.x.y.z` ou `pc-servidor`.
+4. Nas outras máquinas, abra no navegador `http://100.x.y.z:5000` (ou `http://pc-servidor:5000`
+   se o MagicDNS estiver ligado). Pronto — as duas usam ao mesmo tempo, tudo liberado.
+5. (Opcional, HTTPS) no servidor: `tailscale serve --bg 5000` → dá uma URL `https://…ts.net`.
+   Nesse caso rode o Plenus com `set PLENUS_HTTPS=1 && venv\Scripts\python.exe servir.py`.
+
+**Regra do SQLite:** só o PC servidor roda o app e é dono do `plenus.db`. As outras máquinas
+**não** rodam o `servir.py` nem abrem o `.db` — só acessam pelo navegador.
 
 ## Stack
 
@@ -29,9 +59,13 @@ venv\Scripts\python.exe app.py
 | Arquivo | Papel |
 |---|---|
 | `app.py` | rotas Flask |
+| `servir.py` | servidor de produção (waitress) para uso compartilhado |
 | `db.py` | conexão, esquema, migração, backup |
 | `repo.py` | consultas por entidade |
 | `validacao.py` | CPF / CEP / e-mail / telefone (validação do servidor) |
+| `seguranca.py` | secret key, hash de senha, throttle de login |
+| `leitura_pdf*.py` | "Ler apólice" (extração de PDF) |
+| `notificacoes.py`, `verificar_vencimentos.py` | aviso de vencimento por WhatsApp |
 | `templates/` | páginas (`base.html` = layout + menu + ícones) |
 | `static/` | `css/app.css`, `js/app.js` (máscaras, validação, UF↔Cidade), `dados/municipios.json` |
 
