@@ -719,6 +719,7 @@ def estender_serie_saida(serie_id, meses=12):
             linha.pop("id", None)
             linha["data_vencimento"] = add_meses(base["data_vencimento"], k) or base["data_vencimento"]
             linha["data_pagamento"] = None
+            linha["numero_parcela"] = None   # extensão não herda o "k/n" da última parcela
             ids.append(_inserir_saida(con, linha))
     fazer_backup()
     return ids

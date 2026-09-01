@@ -74,24 +74,6 @@
     </div>
   </div>
 
-  {% if s.serie_id %}
-  <div class="cartao">
-    <h2>Série</h2>
-    <p style="margin:0 0 12px;color:var(--texto-suave)">Esta saída faz parte de uma série de lançamentos.</p>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <form method="post" action="{{ url_for('saida_serie_estender', saida_id=s.id) }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button class="btn btn--linha" type="submit">{{ icone('mais') }} Estender +12 meses</button>
-      </form>
-      <form method="post" action="{{ url_for('saida_serie_excluir', saida_id=s.id) }}"
-            onsubmit="return confirm('Excluir as ocorrências futuras desta série que ainda não foram pagas?')">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button class="btn btn--perigo" type="submit">{{ icone('lixo') }} Excluir ocorrências futuras (não pagas)</button>
-      </form>
-    </div>
-  </div>
-  {% endif %}
-
   {% else %}
   <div class="cartao">
     <h2>Lançamentos</h2>
@@ -155,6 +137,24 @@
     <button class="btn btn--primario" type="submit">Salvar</button>
   </div>
 </form>
+
+{% if s.id and s.serie_id %}
+<div class="cartao">
+  <h2>Série</h2>
+  <p style="margin:0 0 12px;color:var(--texto-suave)">Esta saída faz parte de uma série de lançamentos.</p>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <form method="post" action="{{ url_for('saida_serie_estender', saida_id=s.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn--linha" type="submit">{{ icone('mais') }} Estender +12 meses</button>
+    </form>
+    <form method="post" action="{{ url_for('saida_serie_excluir', saida_id=s.id) }}"
+          onsubmit="return confirm('Excluir as ocorrências futuras desta série que ainda não foram pagas?')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn--perigo" type="submit">{{ icone('lixo') }} Excluir ocorrências futuras (não pagas)</button>
+    </form>
+  </div>
+</div>
+{% endif %}
 
 <template id="tpl-lancamento">
   <tr class="lancamento">
