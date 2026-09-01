@@ -142,6 +142,7 @@ CREATE TABLE IF NOT EXISTS saida (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     descricao TEXT NOT NULL,
     categoria_id INTEGER REFERENCES categoria_saida(id),
+    forma_pagamento_id INTEGER REFERENCES forma_pagamento(id),
     valor REAL,
     data_vencimento TEXT,          -- ISO AAAA-MM-DD
     data_pagamento TEXT,           -- NULL = ainda não paga
@@ -211,7 +212,8 @@ _COLUNAS_ESPERADAS = {
         "atualizado_em": "TEXT NOT NULL DEFAULT (datetime('now'))",
     },
     "saida": {
-        "descricao": "TEXT", "categoria_id": "INTEGER", "valor": "REAL",
+        "descricao": "TEXT", "categoria_id": "INTEGER", "forma_pagamento_id": "INTEGER",
+        "valor": "REAL",
         "data_vencimento": "TEXT", "data_pagamento": "TEXT", "numero_parcela": "TEXT",
         "fixo_mensal": "INTEGER NOT NULL DEFAULT 0", "serie_id": "TEXT",
         "criado_em": "TEXT NOT NULL DEFAULT (datetime('now'))",

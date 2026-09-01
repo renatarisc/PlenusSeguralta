@@ -601,8 +601,8 @@ def eventos_agenda_todos():
 
 # ---------- fluxo de caixa: saídas ----------
 
-_COLS_SAIDA = ("descricao", "categoria_id", "valor", "data_vencimento", "data_pagamento",
-               "numero_parcela", "fixo_mensal", "serie_id")
+_COLS_SAIDA = ("descricao", "categoria_id", "forma_pagamento_id", "valor",
+               "data_vencimento", "data_pagamento", "numero_parcela", "fixo_mensal", "serie_id")
 
 
 def _para_int(v):
@@ -616,6 +616,7 @@ def _valores_saida(dados):
     return [
         (dados.get("descricao") or "").strip() or None,
         _para_int(dados.get("categoria_id")),
+        _para_int(dados.get("forma_pagamento_id")),
         para_decimal(dados.get("valor")),
         (dados.get("data_vencimento") or "").strip() or None,
         (dados.get("data_pagamento") or "").strip() or None,
@@ -734,10 +735,13 @@ def _status_saida(s, hoje):
 def listar_saidas(mes=None, status=None, categoria_id=None, busca=None):
     with conexao() as con:
         linhas = [dict(l) for l in con.execute(
-            "SELECT s.id, s.descricao, s.categoria_id, s.valor, s.data_vencimento, "
-            "       s.data_pagamento, s.numero_parcela, s.fixo_mensal, s.serie_id, "
-            "       s.criado_em, s.atualizado_em, c.nome AS categoria "
-            "FROM saida s LEFT JOIN categoria_saida c ON c.id = s.categoria_id "
+            "SELECT s.id, s.descricao, s.categoria_id, s.forma_pagamento_id, s.valor, "
+            "       s.data_vencimento, s.data_pagamento, s.numero_parcela, s.fixo_mensal, "
+            "       s.serie_id, s.criado_em, s.atualizado_em, "
+            "       c.nome AS categoria, fp.nome AS forma_pagamento "
+            "FROM saida s "
+            "LEFT JOIN categoria_saida c ON c.id = s.categoria_id "
+            "LEFT JOIN forma_pagamento fp ON fp.id = s.forma_pagamento_id "
             "ORDER BY COALESCE(s.data_vencimento, ''), s.id"
         ).fetchall()]
     hoje = date.today().isoformat()

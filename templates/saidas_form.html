@@ -19,11 +19,11 @@
   <div class="cartao">
     <h2>Dados da saída</h2>
     <div class="grade">
-      <div class="campo c-8">
+      <div class="campo c-6">
         <label for="descricao">Descrição *</label>
         <input id="descricao" name="descricao" required autofocus value="{{ s.descricao or '' }}">
       </div>
-      <div class="campo c-4">
+      <div class="campo c-3">
         <label for="categoria_id">Categoria
           <a class="link-abrir" href="{{ url_for('cadastro_simples_form', slug='categoria-saida') }}" target="_blank" rel="noopener">＋ nova</a>
         </label>
@@ -31,6 +31,17 @@
           <option value="">—</option>
           {% for c in categorias %}
           <option value="{{ c.id }}" {{ 'selected' if s.categoria_id|string == c.id|string }}>{{ c.nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="campo c-3">
+        <label for="forma_pagamento_id">Forma de pagamento
+          <a class="link-abrir" href="{{ url_for('cadastro_simples_form', slug='forma-pagamento') }}" target="_blank" rel="noopener">＋ nova</a>
+        </label>
+        <select id="forma_pagamento_id" name="forma_pagamento_id">
+          <option value="">—</option>
+          {% for f in formas %}
+          <option value="{{ f.id }}" {{ 'selected' if s.forma_pagamento_id|string == f.id|string }}>{{ f.nome }}</option>
           {% endfor %}
         </select>
       </div>

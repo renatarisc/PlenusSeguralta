@@ -537,8 +537,8 @@ def _ler_pdf(alvo):
 
 # ---------- Financeiro: Saídas (fluxo de caixa) ----------
 
-_CAMPOS_SAIDA = ("descricao", "categoria_id", "valor", "data_vencimento", "data_pagamento",
-                 "numero_parcela", "fixo_mensal", "serie_id")
+_CAMPOS_SAIDA = ("descricao", "categoria_id", "forma_pagamento_id", "valor",
+                 "data_vencimento", "data_pagamento", "numero_parcela", "fixo_mensal", "serie_id")
 
 
 def _saida_para_form(s):
@@ -566,6 +566,11 @@ def saidas_lista():
                            categorias=repo.categorias_saida(), MESES=_MESES)
 
 
+def _selects_saida():
+    return {"categorias": repo.categorias_saida(),
+            "formas": repo.listar_simples("forma_pagamento")}
+
+
 @app.route("/financeiro/saidas/nova", methods=["GET", "POST"])
 @app.route("/financeiro/saidas/<int:saida_id>", methods=["GET", "POST"])
 def saida_form(saida_id=None):
@@ -581,8 +586,7 @@ def saida_form(saida_id=None):
             for e in erros:
                 flash(e, "erro")
             return render_template("saidas_form.html", ativo="saidas_lista",
-                                   saida={**dados, "id": saida_id},
-                                   categorias=repo.categorias_saida())
+                                   saida={**dados, "id": saida_id}, **_selects_saida())
         if saida_id:
             repo.atualizar_saida(saida_id, dados)
             flash("Saída atualizada.", "ok")
@@ -594,7 +598,7 @@ def saida_form(saida_id=None):
         return redirect(url_for("saidas_lista"))
 
     return render_template("saidas_form.html", ativo="saidas_lista",
-                           saida=_saida_para_form(saida), categorias=repo.categorias_saida())
+                           saida=_saida_para_form(saida), **_selects_saida())
 
 
 @app.route("/financeiro/saidas/<int:saida_id>/excluir", methods=["POST"])
