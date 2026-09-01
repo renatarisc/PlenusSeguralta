@@ -73,22 +73,26 @@
   if (btnGerar) {
     btnGerar.addEventListener("click", () => {
       const qtd = parseInt(document.getElementById("ger_qtd").value, 10);
-      const total = num(document.getElementById("ger_total").value);
+      const valorInf = num(document.getElementById("ger_total").value);
       const data1 = document.getElementById("ger_data1").value;
+      const modo = (document.getElementById("ger_modo") || {}).value || "parcela";
       if (!qtd || qtd < 1) { alert("Informe a quantidade de parcelas."); return; }
       if (linhas().length && !confirm("Substituir as parcelas atuais?")) return;
 
       corpo.innerHTML = "";
-      const base = total ? Math.floor((total / qtd) * 100) / 100 : 0;
+      // "por parcela": mesmo valor em todas. "total": divide, última absorve o arredondamento.
+      const base = modo === "total" && valorInf ? Math.floor((valorInf / qtd) * 100) / 100 : valorInf;
       let acumulado = 0;
       for (let i = 1; i <= qtd; i++) {
         let valor = base;
-        acumulado += base;
-        if (i === qtd && total) valor = Math.round((total - (acumulado - base)) * 100) / 100;
+        if (modo === "total" && valorInf) {
+          acumulado += base;
+          if (i === qtd) valor = Math.round((valorInf - (acumulado - base)) * 100) / 100;
+        }
         novaLinha({
           ident: i + "/" + qtd,
           data: data1 ? addMeses(data1, i - 1) : "",
-          valor: total ? fmt(valor) : "",
+          valor: valorInf ? fmt(valor) : "",
         });
       }
       atualizarResumo();

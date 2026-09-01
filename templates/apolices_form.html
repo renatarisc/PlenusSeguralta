@@ -118,9 +118,16 @@
         <label for="ger_qtd">Qtd.</label>
         <input id="ger_qtd" type="number" min="1" max="120">
       </div>
-      <div class="campo c-3">
-        <label for="ger_total">Valor total (R$)</label>
+      <div class="campo c-2">
+        <label for="ger_total">Valor (R$)</label>
         <input id="ger_total" inputmode="decimal" data-num>
+      </div>
+      <div class="campo c-3">
+        <label for="ger_modo">Esse valor é</label>
+        <select id="ger_modo">
+          <option value="parcela">por parcela (repete)</option>
+          <option value="total">o total (dividir)</option>
+        </select>
       </div>
       <div class="campo c-3">
         <label for="ger_data1">1ª data</label>
