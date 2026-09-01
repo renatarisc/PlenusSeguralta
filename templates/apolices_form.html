@@ -278,7 +278,7 @@
 
     {# ---------- repasse parcelado: duas tabelas ---------- #}
     <div id="comissao-parcelado" {{ 'hidden' if not a.comissao_parcelada }}>
-      <h3 style="margin:16px 0 6px;font-size:13px;color:var(--texto-suave)">Comissão — a corretora recebe da seguradora</h3>
+      <h3 class="titulo-secao">Comissão <span>— a corretora recebe da seguradora</span></h3>
       {% if pode_gerar_comissao %}
       <div class="gerador">
         <div class="grade">
@@ -317,7 +317,7 @@
         <span class="dica" id="total-comissoes" style="margin-left:10px"></span>
       </div>
 
-      <h3 style="margin:20px 0 6px;font-size:13px;color:var(--texto-suave)">Repasses — a Plenus recebe da corretora</h3>
+      <h3 class="titulo-secao">Repasses <span>— a Plenus recebe da corretora</span></h3>
       {% if pode_gerar_repasse %}
       <div class="gerador">
         <div class="grade">
