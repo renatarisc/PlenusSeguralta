@@ -20,6 +20,9 @@ venv\Scripts\python.exe app.py
   snapshot de backup em `backups/` antes de toda gravação
 - UF × Cidade: dataset do IBGE embutido em `static/dados/municipios.json`
 - CEP: validação + autofill via ViaCEP; CPF: validação mód. 11
+- **Ler apólice**: `leitura_pdf.py` extrai campos de um PDF (PyMuPDF; cai para OCR com
+  Tesseract em PDF digitalizado). Precisa do Tesseract instalado
+  (`C:\Program Files\Tesseract-OCR\`) para o caminho OCR.
 
 ## Estrutura
 
