@@ -55,6 +55,7 @@
             <a class="btn btn--linha btn--mini" href="{{ url_for('cliente_form', cliente_id=c.id) }}">{{ icone('lapis') }}</a>
             <form method="post" action="{{ url_for('cliente_excluir', cliente_id=c.id) }}"
                   onsubmit="return confirm('Excluir o cliente {{ c.nome }}?')">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button class="btn btn--perigo btn--mini" type="submit">{{ icone('lixo') }}</button>
             </form>
           </td>

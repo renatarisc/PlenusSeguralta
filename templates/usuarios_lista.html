@@ -25,6 +25,7 @@
             {% if u.id != usuario_atual.id %}
             <form method="post" action="{{ url_for('usuario_excluir', uid=u.id) }}"
                   onsubmit="return confirm('Excluir o usuário {{ u.nome }}?')">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button class="btn btn--perigo btn--mini" type="submit">{{ icone('lixo') }}</button>
             </form>
             {% endif %}

@@ -24,6 +24,7 @@
 
 <form class="form" method="post" novalidate
       action="{{ url_for('apolice_form', apolice_id=a.id) if a.id else url_for('apolice_form') }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
   <div class="cartao">
     <h2>Dados da apólice</h2>

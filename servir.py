@@ -9,11 +9,15 @@ Fica ouvindo em http://0.0.0.0:5000 (todas as interfaces, inclusive a do Tailsca
 Ctrl+C para parar.
 """
 
+import os
+
 from waitress import serve
 
 from app import app
 
 if __name__ == "__main__":
-    porta = 5000
-    print(f"Plenus no ar em http://0.0.0.0:{porta}  (Ctrl+C para parar)")
-    serve(app, host="0.0.0.0", port=porta, threads=8)
+    host = os.environ.get("PLENUS_BIND", "0.0.0.0")   # no VPS use 127.0.0.1 (só o proxy alcança)
+    porta = int(os.environ.get("PLENUS_PORTA", "5000"))
+    threads = int(os.environ.get("PLENUS_THREADS", "8"))
+    print(f"Plenus no ar em http://{host}:{porta}  ({threads} threads, Ctrl+C para parar)")
+    serve(app, host=host, port=porta, threads=threads, ident="Plenus")

@@ -26,7 +26,8 @@
     const fd = new FormData();
     fd.append("arquivo", f);
 
-    fetch(botao.dataset.endpoint, { method: "POST", body: fd })
+    const csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || "";
+    fetch(botao.dataset.endpoint, { method: "POST", body: fd, headers: { "X-CSRFToken": csrf } })
       .then((r) => r.json())
       .then((res) => {
         const campos = (res && res.campos) || {};

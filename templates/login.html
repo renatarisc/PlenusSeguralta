@@ -21,6 +21,7 @@
     {% endwith %}
 
     <form class="form" method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="campo">
         <label for="login">Login</label>
         <input id="login" name="login" autofocus autocomplete="username" value="{{ login }}">

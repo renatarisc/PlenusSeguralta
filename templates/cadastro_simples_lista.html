@@ -22,6 +22,7 @@
             <a class="btn btn--linha btn--mini" href="{{ url_for('cadastro_simples_form', slug=slug, item_id=it.id) }}">{{ icone('lapis') }}</a>
             <form method="post" action="{{ url_for('cadastro_simples_excluir', slug=slug, item_id=it.id) }}"
                   onsubmit="return confirm('Excluir “{{ it.nome }}”?')">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button class="btn btn--perigo btn--mini" type="submit">{{ icone('lixo') }}</button>
             </form>
           </td>

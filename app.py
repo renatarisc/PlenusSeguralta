@@ -9,6 +9,8 @@ import sqlite3
 from datetime import timedelta
 
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
+from flask_wtf.csrf import CSRFProtect
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 import db
 import repo
@@ -20,15 +22,42 @@ from validacao import (
     validar_apolice, preparar_parcelas,
 )
 
+_HTTPS = os.environ.get("PLENUS_HTTPS") == "1"
+
 app = Flask(__name__)
 app.secret_key = seguranca.obter_secret_key()
 app.config.update(
     MAX_CONTENT_LENGTH=20 * 1024 * 1024,          # PDF de apólice: teto de 20 MB
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
-    SESSION_COOKIE_SECURE=os.environ.get("PLENUS_HTTPS") == "1",  # ligar quando servir por HTTPS
+    SESSION_COOKIE_SECURE=_HTTPS,                 # cookie só por HTTPS quando PLENUS_HTTPS=1
     PERMANENT_SESSION_LIFETIME=timedelta(days=7),
+    WTF_CSRF_TIME_LIMIT=None,                     # token vale enquanto a sessão durar
 )
+
+# atrás de um proxy reverso (Caddy/nginx): confia nos cabeçalhos X-Forwarded-*
+if os.environ.get("PLENUS_ATRAS_DE_PROXY") == "1":
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+
+csrf = CSRFProtect(app)
+
+
+@app.after_request
+def _cabecalhos_seguranca(resp):
+    resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+    resp.headers.setdefault("X-Frame-Options", "DENY")
+    resp.headers.setdefault("Referrer-Policy", "same-origin")
+    resp.headers.setdefault(
+        "Content-Security-Policy",
+        "default-src 'self'; img-src 'self' data:; "
+        "style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; "
+        "connect-src 'self' https://viacep.com.br; "
+        "form-action 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'",
+    )
+    if _HTTPS:
+        resp.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+    return resp
+
 
 DIAS_ALERTA_VIGENCIA = 20  # <= N dias p/ vencer -> destaque vermelho + aviso no painel
 
@@ -133,7 +162,7 @@ def login():
     return render_template("login.html", login="")
 
 
-@app.route("/sair")
+@app.route("/sair", methods=["POST"])
 def sair():
     session.clear()
     flash("Sessão encerrada.", "ok")

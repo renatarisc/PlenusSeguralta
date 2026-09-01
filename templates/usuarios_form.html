@@ -10,6 +10,7 @@
 {% block conteudo %}
 <form class="form" method="post"
       action="{{ url_for('usuario_form', uid=u.id) if u.id else url_for('usuario_form') }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <div class="cartao">
     <div class="grade">
       <div class="campo c-6">

@@ -97,6 +97,7 @@
             <a class="btn btn--linha btn--mini" href="{{ url_for('apolice_form', apolice_id=a.id) }}">{{ icone('lapis') }}</a>
             <form method="post" action="{{ url_for('apolice_excluir', apolice_id=a.id) }}"
                   onsubmit="return confirm('Excluir a apólice {{ a.numero_apolice or a.id }}?')">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button class="btn btn--perigo btn--mini" type="submit">{{ icone('lixo') }}</button>
             </form>
           </td>
