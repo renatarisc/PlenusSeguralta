@@ -102,6 +102,19 @@
     atualizarResumo();
   };
 
+  // ---- link do OneDrive: mantém o "abrir ↗" apontando pro valor digitado ----
+  const linkIn = document.getElementById("link_onedrive");
+  const linkAbrir = document.getElementById("link_onedrive_abrir");
+  if (linkIn && linkAbrir) {
+    const syncLink = () => {
+      const v = linkIn.value.trim();
+      linkAbrir.hidden = !v;
+      if (v) linkAbrir.href = v;
+    };
+    linkIn.addEventListener("input", syncLink);
+    syncLink();
+  }
+
   // ---- "enviada = Sim" preenche a data com hoje, se estiver vazia ----
   document.querySelectorAll("[data-par-data]").forEach((sel) => {
     sel.addEventListener("change", () => {

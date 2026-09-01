@@ -158,6 +158,8 @@ a { color: inherit; text-decoration: none; }
 .foi-preenchido { background: var(--laranja-fraco); transition: background .4s; }
 .campo .dica { font-size: 11px; color: var(--texto-suave); }
 .campo .dica--erro { color: var(--erro); }
+.link-abrir { margin-left: 8px; font-weight: 700; color: var(--laranja-hover); text-decoration: underline; }
+.link-abrir[hidden] { display: none; }
 
 /* larguras de coluna no grid de 12 */
 .c-2 { grid-column: span 2; } .c-3 { grid-column: span 3; } .c-4 { grid-column: span 4; }

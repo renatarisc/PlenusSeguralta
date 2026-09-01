@@ -172,7 +172,11 @@
         </select>
       </div>
       <div class="campo c-9">
-        <label for="link_onedrive">Link da pasta no OneDrive (PDFs do seguro)</label>
+        <label for="link_onedrive">
+          Link da pasta no OneDrive (PDFs do seguro)
+          <a id="link_onedrive_abrir" class="link-abrir" target="_blank" rel="noopener"
+             href="{{ a.link_onedrive or '#' }}" {{ 'hidden' if not a.link_onedrive }}>abrir ↗</a>
+        </label>
         <input id="link_onedrive" name="link_onedrive" type="url" placeholder="https://..."
                value="{{ a.link_onedrive or '' }}">
       </div>
