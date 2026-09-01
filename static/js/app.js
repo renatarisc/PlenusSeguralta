@@ -113,7 +113,7 @@
           const set = (id, v) => { const el = document.getElementById(id); if (el && v && !el.value) el.value = v; };
           set("end_rua", j.logradouro);
           set("end_bairro", j.bairro);
-          set("end_complemento", j.complemento);
+          // complemento: não preencher — o do ViaCEP é a faixa de numeração do CEP, não o do cliente
           if (selUF && j.uf) {
             selUF.value = j.uf;
             preencherCidades(j.uf, j.localidade);

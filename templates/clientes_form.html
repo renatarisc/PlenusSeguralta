@@ -57,7 +57,7 @@
         <label for="end_numero">Número</label>
         <input id="end_numero" name="end_numero" value="{{ c.end_numero or '' }}">
       </div>
-      <div class="campo c-4">
+      <div class="campo c-2">
         <label for="end_complemento">Complemento</label>
         <input id="end_complemento" name="end_complemento" value="{{ c.end_complemento or '' }}">
       </div>
@@ -65,13 +65,13 @@
         <label for="end_bairro">Bairro</label>
         <input id="end_bairro" name="end_bairro" value="{{ c.end_bairro or '' }}">
       </div>
-      <div class="campo c-2">
+      <div class="campo c-3">
         <label for="end_estado">Estado</label>
         <select id="end_estado" name="end_estado" data-uf data-valor="{{ c.end_estado or '' }}">
           <option value="">UF</option>
         </select>
       </div>
-      <div class="campo c-2">
+      <div class="campo c-3">
         <label for="end_cidade">Cidade</label>
         <select id="end_cidade" name="end_cidade" data-cidade data-valor="{{ c.end_cidade or '' }}">
           <option value="">—</option>
