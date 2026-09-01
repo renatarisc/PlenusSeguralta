@@ -25,6 +25,13 @@
     return dt.getFullYear() + "-" + z(dt.getMonth() + 1) + "-" + z(dt.getDate());
   }
 
+  function enviarForm(el) {
+    const f = el.form || el.closest("form");
+    if (!f) return;
+    if (f.requestSubmit) f.requestSubmit();
+    else f.submit();
+  }
+
   // ---------- alterna único / parcelado ----------
   const chk = document.getElementById("comissao_parcelada");
   const boxUnico = document.getElementById("comissao-unico");
@@ -89,9 +96,12 @@
       const bEdit = e.target.closest("[data-editar]");
       if (bEdit) {
         const tr = bEdit.closest("tr.fluxo-linha");
+        if (tr.classList.contains("linha-liberada")) {   // 2º clique = já é "Salvar"
+          enviarForm(bEdit);
+          return;
+        }
         destravar(tr);
         tr.classList.add("linha-liberada");
-        bEdit.type = "submit";                 // agora salva a apólice inteira
         bEdit.classList.replace("btn--linha", "btn--primario");
         bEdit.textContent = "Salvar";
         bEdit.title = "Salvar a apólice";

@@ -108,9 +108,13 @@
     const bEdit = e.target.closest("[data-editar-lancamento]");
     if (bEdit) {
       const tr = bEdit.closest("tr.lancamento");
+      if (tr.classList.contains("linha-liberada")) {   // 2º clique = já é "Salvar"
+        const f = bEdit.form || bEdit.closest("form");
+        if (f) { f.requestSubmit ? f.requestSubmit() : f.submit(); }
+        return;
+      }
       destravar(tr);
       tr.classList.add("linha-liberada");
-      bEdit.type = "submit";                  // agora salva a saída inteira
       bEdit.classList.replace("btn--linha", "btn--primario");
       bEdit.textContent = "Salvar";
       bEdit.title = "Salvar";
