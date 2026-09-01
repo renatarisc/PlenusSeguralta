@@ -227,6 +227,32 @@ def contar_apolices_do_cliente(cliente_id):
         return con.execute("SELECT COUNT(*) FROM apolice WHERE cliente_id = ?", (cliente_id,)).fetchone()[0]
 
 
+# ---------- números do painel ----------
+
+def resumo_painel():
+    with conexao() as con:
+        um = lambda sql: con.execute(sql).fetchone()[0]
+        return {
+            "clientes": um("SELECT COUNT(*) FROM cliente"),
+            "apolices": um("SELECT COUNT(*) FROM apolice"),
+            "seguradoras": um("SELECT COUNT(*) FROM seguradora"),
+            "premio_liquido_total": um("SELECT COALESCE(SUM(premio_liquido), 0) FROM apolice"),
+            "quiver_sim": um("SELECT COUNT(*) FROM apolice WHERE COALESCE(lancado_quiver, 0) = 1"),
+        }
+
+
+def apolices_por_tipo():
+    """[{nome, qtd}] ordenado da maior qtd pra menor; apólice sem tipo vira '(sem tipo)'."""
+    with conexao() as con:
+        linhas = con.execute(
+            "SELECT COALESCE(t.nome, '(sem tipo)') AS nome, COUNT(*) AS qtd "
+            "  FROM apolice a LEFT JOIN tipo_seguro t ON t.id = a.tipo_seguro_id "
+            " GROUP BY COALESCE(t.nome, '(sem tipo)') "
+            " ORDER BY qtd DESC, nome COLLATE NOCASE"
+        ).fetchall()
+        return [dict(l) for l in linhas]
+
+
 def apolices_por_vencer(limite_dias):
     """Apólices com vigência a <= limite_dias do fim (inclui as já vencidas), da mais urgente
     pra menos. Cada item ganha o campo dias_restantes (negativo = já venceu)."""

@@ -58,6 +58,8 @@ def _injeta_alertas():
 @app.route("/")
 def dashboard():
     return render_template("dashboard.html", ativo="dashboard",
+                           resumo=repo.resumo_painel(),
+                           por_tipo=repo.apolices_por_tipo(),
                            vencendo=repo.apolices_por_vencer(DIAS_ALERTA_VIGENCIA))
 
 
