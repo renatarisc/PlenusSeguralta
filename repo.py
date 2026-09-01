@@ -3,6 +3,8 @@
 Cada função abre sua própria conexão (via db.conexao) e devolve dicts / listas de dicts.
 """
 
+import unicodedata
+
 from db import conexao, fazer_backup
 from validacao import so_digitos, para_decimal, dias_ate_data
 
@@ -12,6 +14,12 @@ def _int_ou_none(v):
         return int(v)
     except (TypeError, ValueError):
         return None
+
+
+def _sem_acento_minusculo(texto):
+    """Normaliza p/ busca: minúsculo e sem acento ('José' -> 'jose')."""
+    nfkd = unicodedata.normalize("NFKD", texto or "")
+    return "".join(c for c in nfkd if not unicodedata.combining(c)).casefold()
 
 # ---------- cliente ----------
 
@@ -34,19 +42,23 @@ def _valores_cliente(dados):
 
 def listar_clientes(busca=None):
     with conexao() as con:
-        if busca:
-            like = f"%{busca.strip()}%"
-            linhas = con.execute(
-                "SELECT id, nome, cpf, end_cidade, end_estado, tel_ddd, tel_numero, email "
-                "FROM cliente WHERE nome LIKE ? OR cpf LIKE ? ORDER BY nome COLLATE NOCASE",
-                (like, f"%{so_digitos(busca)}%"),
-            ).fetchall()
-        else:
-            linhas = con.execute(
-                "SELECT id, nome, cpf, end_cidade, end_estado, tel_ddd, tel_numero, email "
-                "FROM cliente ORDER BY nome COLLATE NOCASE"
-            ).fetchall()
-        return [dict(l) for l in linhas]
+        linhas = [dict(l) for l in con.execute(
+            "SELECT id, nome, cpf, end_cidade, end_estado, tel_ddd, tel_numero, email "
+            "FROM cliente ORDER BY nome COLLATE NOCASE"
+        ).fetchall()]
+
+    termo = (busca or "").strip()
+    if not termo:
+        return linhas
+
+    # filtro em Python: nome sem acento/maiúsculas; CPF só se a busca tiver dígitos
+    alvo = _sem_acento_minusculo(termo)
+    digitos = so_digitos(termo)
+    return [
+        c for c in linhas
+        if alvo in _sem_acento_minusculo(c["nome"])
+        or (digitos and digitos in (c["cpf"] or ""))
+    ]
 
 
 def obter_cliente(cliente_id):
