@@ -94,7 +94,23 @@
           {% endfor %}
         </select>
       </div>
+
+      <div class="campo c-3">
+        <label for="aviso_vigencia_ok">Cliente avisado (renovação)</label>
+        <select id="aviso_vigencia_ok" name="aviso_vigencia_ok" data-par-data="aviso_vigencia_ok_em">
+          <option value="0" {{ 'selected' if not a.aviso_vigencia_ok }}>Não</option>
+          <option value="1" {{ 'selected' if a.aviso_vigencia_ok }}>Sim</option>
+        </select>
+      </div>
+      <div class="campo c-3">
+        <label for="aviso_vigencia_ok_em">Data do aviso</label>
+        <input id="aviso_vigencia_ok_em" name="aviso_vigencia_ok_em" type="date"
+               value="{{ a.aviso_vigencia_ok_em or '' }}">
+      </div>
     </div>
+    <p class="dica" style="margin-top:4px">
+      Enquanto for "Não", o Plenus manda e-mail todo dia lembrando de avisar o cliente da renovação.
+    </p>
   </div>
 
   <div class="cartao" id="card-veiculo" hidden>
@@ -241,23 +257,7 @@
         <input id="cartao_enviado_data" name="cartao_enviado_data" type="date"
                value="{{ a.cartao_enviado_data or '' }}">
       </div>
-
-      <div class="campo c-3">
-        <label for="aviso_vigencia_ok">Cliente avisado (renovação)</label>
-        <select id="aviso_vigencia_ok" name="aviso_vigencia_ok" data-par-data="aviso_vigencia_ok_em">
-          <option value="0" {{ 'selected' if not a.aviso_vigencia_ok }}>Não</option>
-          <option value="1" {{ 'selected' if a.aviso_vigencia_ok }}>Sim</option>
-        </select>
-      </div>
-      <div class="campo c-3">
-        <label for="aviso_vigencia_ok_em">Data do aviso</label>
-        <input id="aviso_vigencia_ok_em" name="aviso_vigencia_ok_em" type="date"
-               value="{{ a.aviso_vigencia_ok_em or '' }}">
-      </div>
     </div>
-    <p class="dica" style="margin-top:4px">
-      Enquanto for "Não", o Plenus manda e-mail todo dia lembrando de avisar o cliente da renovação.
-    </p>
   </div>
 
   <div class="rodape-form">
