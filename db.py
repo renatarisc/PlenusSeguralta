@@ -64,6 +64,11 @@ CREATE TABLE IF NOT EXISTS seguradora (
     nome TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS categoria_saida (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nome TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS apolice (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     cliente_id INTEGER REFERENCES cliente(id),
@@ -136,7 +141,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS ix_notif_parcela_unico
 CREATE TABLE IF NOT EXISTS saida (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     descricao TEXT NOT NULL,
-    categoria TEXT,
+    categoria_id INTEGER REFERENCES categoria_saida(id),
     valor REAL,
     data_vencimento TEXT,          -- ISO AAAA-MM-DD
     data_pagamento TEXT,           -- NULL = ainda não paga
@@ -176,6 +181,7 @@ _COLUNAS_ESPERADAS = {
     "tipo_seguro": {"nome": "TEXT"},
     "forma_pagamento": {"nome": "TEXT"},
     "seguradora": {"nome": "TEXT"},
+    "categoria_saida": {"nome": "TEXT"},
     "apolice": {
         "cliente_id": "INTEGER", "seguradora_id": "INTEGER",
         "tipo_seguro_id": "INTEGER", "numero_apolice": "TEXT",
@@ -205,7 +211,7 @@ _COLUNAS_ESPERADAS = {
         "atualizado_em": "TEXT NOT NULL DEFAULT (datetime('now'))",
     },
     "saida": {
-        "descricao": "TEXT", "categoria": "TEXT", "valor": "REAL",
+        "descricao": "TEXT", "categoria_id": "INTEGER", "valor": "REAL",
         "data_vencimento": "TEXT", "data_pagamento": "TEXT", "numero_parcela": "TEXT",
         "fixo_mensal": "INTEGER NOT NULL DEFAULT 0", "serie_id": "TEXT",
         "criado_em": "TEXT NOT NULL DEFAULT (datetime('now'))",

@@ -73,6 +73,8 @@ _CADASTROS_SIMPLES = {
                         "singular": "forma de pagamento", "acao_novo": "Nova forma de pagamento"},
     "seguradora": {"tabela": "seguradora", "titulo": "Seguradoras",
                    "singular": "seguradora", "acao_novo": "Nova seguradora"},
+    "categoria-saida": {"tabela": "categoria_saida", "titulo": "Categorias de Saída",
+                        "singular": "categoria de saída", "acao_novo": "Nova categoria de saída"},
 }
 
 # disponível em todo template (máscaras na exibição, itens do menu)
@@ -91,6 +93,7 @@ app.jinja_env.globals["MENU"] = [
     {"rota": "clientes_lista", "texto": "Clientes", "icone": "clientes"},
     {"rota": "apolices", "texto": "Apólices", "icone": "apolices"},
     {"rota": "saidas_lista", "texto": "Saídas", "icone": "saida", "divisoria_antes": True},
+    {"rota": "cadastro_simples", "texto": "Categorias de Saída", "icone": "tag", "slug": "categoria-saida"},
     {"rota": "cadastro_simples", "texto": "Seguradoras", "icone": "predio", "slug": "seguradora", "divisoria_antes": True},
     {"rota": "cadastro_simples", "texto": "Tipos de Seguro", "icone": "tag", "slug": "tipo-seguro"},
     {"rota": "cadastro_simples", "texto": "Formas de Pagamento", "icone": "pagamento", "slug": "forma-pagamento"},
@@ -534,7 +537,7 @@ def _ler_pdf(alvo):
 
 # ---------- Financeiro: Saídas (fluxo de caixa) ----------
 
-_CAMPOS_SAIDA = ("descricao", "categoria", "valor", "data_vencimento", "data_pagamento",
+_CAMPOS_SAIDA = ("descricao", "categoria_id", "valor", "data_vencimento", "data_pagamento",
                  "numero_parcela", "fixo_mensal", "serie_id")
 
 
@@ -552,14 +555,14 @@ def saidas_lista():
     if mes not in range(1, 13):
         mes = None
     status = request.args.get("status", "")
-    categoria = request.args.get("categoria", "")
+    categoria_id = request.args.get("categoria_id", type=int)
     busca = request.args.get("busca", "").strip()
     saidas = repo.listar_saidas(mes=mes, status=status or None,
-                                categoria=categoria or None, busca=busca or None)
+                                categoria_id=categoria_id or None, busca=busca or None)
     total = sum(s["valor"] or 0 for s in saidas)
     return render_template("saidas_lista.html", ativo="saidas_lista",
                            saidas=saidas, total=total, resumo=repo.resumo_saidas(),
-                           mes=mes, status=status, categoria=categoria, busca=busca,
+                           mes=mes, status=status, categoria_id=categoria_id, busca=busca,
                            categorias=repo.categorias_saida(), MESES=_MESES)
 
 

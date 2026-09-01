@@ -24,12 +24,15 @@
         <input id="descricao" name="descricao" required autofocus value="{{ s.descricao or '' }}">
       </div>
       <div class="campo c-4">
-        <label for="categoria">Categoria</label>
-        <input id="categoria" name="categoria" list="lista-categorias" value="{{ s.categoria or '' }}"
-               placeholder="ex.: Aluguel, Folha, Impostos">
-        <datalist id="lista-categorias">
-          {% for c in categorias %}<option value="{{ c }}">{% endfor %}
-        </datalist>
+        <label for="categoria_id">Categoria
+          <a class="link-abrir" href="{{ url_for('cadastro_simples_form', slug='categoria-saida') }}" target="_blank" rel="noopener">＋ nova</a>
+        </label>
+        <select id="categoria_id" name="categoria_id">
+          <option value="">—</option>
+          {% for c in categorias %}
+          <option value="{{ c.id }}" {{ 'selected' if s.categoria_id|string == c.id|string }}>{{ c.nome }}</option>
+          {% endfor %}
+        </select>
       </div>
 
       <div class="campo c-3">
@@ -49,7 +52,6 @@
         <input id="numero_parcela" name="numero_parcela" value="{{ s.numero_parcela or '' }}" placeholder="ex.: 3/6">
       </div>
     </div>
-    <p class="dica" style="margin-top:4px">Deixe a data do pagamento em branco enquanto a saída não foi paga.</p>
   </div>
 
   {% if not s.id %}

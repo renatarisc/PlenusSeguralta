@@ -183,7 +183,7 @@ def excluir_cliente(cliente_id):
 
 # ---------- cadastros simples (tipo_seguro, forma_pagamento) - só nome ----------
 
-_TABELAS_SIMPLES = {"tipo_seguro", "forma_pagamento", "seguradora"}
+_TABELAS_SIMPLES = {"tipo_seguro", "forma_pagamento", "seguradora", "categoria_saida"}
 
 
 def listar_simples(tabela):
@@ -601,14 +601,21 @@ def eventos_agenda_todos():
 
 # ---------- fluxo de caixa: saídas ----------
 
-_COLS_SAIDA = ("descricao", "categoria", "valor", "data_vencimento", "data_pagamento",
+_COLS_SAIDA = ("descricao", "categoria_id", "valor", "data_vencimento", "data_pagamento",
                "numero_parcela", "fixo_mensal", "serie_id")
+
+
+def _para_int(v):
+    try:
+        return int(str(v).strip())
+    except (TypeError, ValueError):
+        return None
 
 
 def _valores_saida(dados):
     return [
         (dados.get("descricao") or "").strip() or None,
-        (dados.get("categoria") or "").strip() or None,
+        _para_int(dados.get("categoria_id")),
         para_decimal(dados.get("valor")),
         (dados.get("data_vencimento") or "").strip() or None,
         (dados.get("data_pagamento") or "").strip() or None,
@@ -724,10 +731,14 @@ def _status_saida(s, hoje):
     return "vencido" if d < 0 else "a_pagar"
 
 
-def listar_saidas(mes=None, status=None, categoria=None, busca=None):
+def listar_saidas(mes=None, status=None, categoria_id=None, busca=None):
     with conexao() as con:
         linhas = [dict(l) for l in con.execute(
-            "SELECT * FROM saida ORDER BY COALESCE(data_vencimento, ''), id"
+            "SELECT s.id, s.descricao, s.categoria_id, s.valor, s.data_vencimento, "
+            "       s.data_pagamento, s.numero_parcela, s.fixo_mensal, s.serie_id, "
+            "       s.criado_em, s.atualizado_em, c.nome AS categoria "
+            "FROM saida s LEFT JOIN categoria_saida c ON c.id = s.categoria_id "
+            "ORDER BY COALESCE(s.data_vencimento, ''), s.id"
         ).fetchall()]
     hoje = date.today().isoformat()
     for s in linhas:
@@ -738,8 +749,8 @@ def listar_saidas(mes=None, status=None, categoria=None, busca=None):
         linhas = [s for s in linhas if (s.get("data_vencimento") or "")[5:7] == f"{int(mes):02d}"]
     if status in ("pago", "a_pagar", "vencido"):
         linhas = [s for s in linhas if s["status"] == status]
-    if categoria:
-        linhas = [s for s in linhas if (s.get("categoria") or "") == categoria]
+    if categoria_id:
+        linhas = [s for s in linhas if s.get("categoria_id") == int(categoria_id)]
     termo = (busca or "").strip()
     if termo:
         alvo = _sem_acento_minusculo(termo)
@@ -748,11 +759,8 @@ def listar_saidas(mes=None, status=None, categoria=None, busca=None):
 
 
 def categorias_saida():
-    with conexao() as con:
-        return [r[0] for r in con.execute(
-            "SELECT DISTINCT categoria FROM saida WHERE categoria IS NOT NULL AND categoria <> '' "
-            "ORDER BY categoria COLLATE NOCASE"
-        ).fetchall()]
+    """Lista o cadastro de categorias de saída ([{id, nome}])."""
+    return listar_simples("categoria_saida")
 
 
 def saidas_a_pagar(limite_dias):

@@ -51,17 +51,17 @@
     </div>
     <div class="campo c-3">
       <label for="f-cat">Categoria</label>
-      <select id="f-cat" name="categoria">
+      <select id="f-cat" name="categoria_id">
         <option value="">Todas</option>
         {% for c in categorias %}
-        <option value="{{ c }}" {{ 'selected' if categoria == c }}>{{ c }}</option>
+        <option value="{{ c.id }}" {{ 'selected' if categoria_id == c.id }}>{{ c.nome }}</option>
         {% endfor %}
       </select>
     </div>
   </div>
   <div class="filtros__acoes">
     <button class="btn btn--primario" type="submit">{{ icone('busca') }} Buscar</button>
-    {% if busca or mes or status or categoria %}
+    {% if busca or mes or status or categoria_id %}
     <a class="btn btn--linha" href="{{ url_for('saidas_lista') }}">Limpar</a>
     {% endif %}
   </div>
@@ -132,7 +132,7 @@
   </div>
   {% else %}
   <p class="vazio">
-    {% if busca or mes or status or categoria %}Nenhuma saída encontrada para o filtro.
+    {% if busca or mes or status or categoria_id %}Nenhuma saída encontrada para o filtro.
     {% else %}Nenhuma saída cadastrada ainda.{% endif %}
   </p>
   {% endif %}
