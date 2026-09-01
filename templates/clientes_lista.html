@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block titulo %}Clientes{% endblock %}
+
+{% block acoes %}
+<a class="btn btn--primario" href="{{ url_for('cliente_form') }}">{{ icone('mais') }} Novo cliente</a>
+{% endblock %}
+
+{% block conteudo %}
+<form class="busca" method="get">
+  <div class="busca__campo">
+    {{ icone('busca') }}
+    <input type="text" name="busca" value="{{ busca }}" placeholder="Buscar por nome ou CPF...">
+  </div>
+  <button class="btn btn--linha" type="submit">Buscar</button>
+  {% if busca %}<a class="btn btn--linha" href="{{ url_for('clientes_lista') }}">Limpar</a>{% endif %}
+</form>
+
+<div class="cartao" style="padding:0">
+  {% if clientes %}
+  <div class="tabela-wrap">
+    <table class="lista">
+      <thead>
+        <tr><th>Nome</th><th>CPF</th><th>Cidade/UF</th><th>Telefone</th><th>E-mail</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for c in clientes %}
+        <tr>
+          <td><a href="{{ url_for('cliente_form', cliente_id=c.id) }}" style="font-weight:600;color:var(--laranja-hover)">{{ c.nome }}</a></td>
+          <td>{{ c.cpf|cpf if c.cpf else '—' }}</td>
+          <td>{{ (c.end_cidade ~ (' / ' ~ c.end_estado if c.end_estado else '')) if c.end_cidade else '—' }}</td>
+          <td>{{ telefone(c.tel_ddd, c.tel_numero) or '—' }}</td>
+          <td>{{ c.email or '—' }}</td>
+          <td class="acoes">
+            <a class="btn btn--linha btn--mini" href="{{ url_for('cliente_form', cliente_id=c.id) }}">{{ icone('lapis') }}</a>
+            <form method="post" action="{{ url_for('cliente_excluir', cliente_id=c.id) }}"
+                  onsubmit="return confirm('Excluir o cliente {{ c.nome }}?')">
+              <button class="btn btn--perigo btn--mini" type="submit">{{ icone('lixo') }}</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="vazio">{{ 'Nenhum cliente encontrado para a busca.' if busca else 'Nenhum cliente cadastrado ainda.' }}</p>
+  {% endif %}
+</div>
+{% endblock %}

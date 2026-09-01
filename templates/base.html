@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{% block titulo %}Plenus{% endblock %} · SEGURALTA</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+</head>
+<body>
+
+{# ---------- ícones (SVG inline) ---------- #}
+{% macro icone(nome) -%}
+{% set svgs = {
+  'painel':    '<path d="M3 3h8v8H3zM13 3h8v5h-8zM13 10h8v11h-8zM3 13h8v8H3z"/>',
+  'clientes':  '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
+  'apolices':  '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>',
+  'tag':       '<path d="M20.59 13.41 13.42 20.6a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><circle cx="7" cy="7" r="1.4" fill="currentColor"/>',
+  'pagamento': '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/>',
+  'menu':      '<path d="M4 6h16M4 12h16M4 18h16"/>',
+  'x':         '<path d="M18 6 6 18M6 6l12 12"/>',
+  'busca':     '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
+  'mais':      '<path d="M12 5v14M5 12h14"/>',
+  'lapis':     '<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
+  'lixo':      '<path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/>',
+  'voltar':    '<path d="M19 12H5M12 19l-7-7 7-7"/>',
+} %}
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">{{ svgs.get(nome, '')|safe }}</svg>
+{%- endmacro %}
+
+<div class="app" id="app">
+  <aside class="barra" id="barra">
+    <div class="barra__topo">
+      <div class="marca">
+        <span class="marca__pico">▲</span>
+        <span class="marca__nome">SEGURALTA</span>
+      </div>
+      <button class="barra__fechar" onclick="fecharMenuMobile()" aria-label="Fechar menu">{{ icone('x') }}</button>
+    </div>
+    <nav class="nav">
+      {% for m in MENU %}
+      {% set href = url_for(m.rota, slug=m.slug) if m.slug else url_for(m.rota) %}
+      {% set atv = (ativo == m.rota and (not m.slug or m.slug == request.view_args.get('slug'))) %}
+      <a class="nav__item {{ 'nav__item--ativo' if atv }}" href="{{ href }}" title="{{ m.texto }}">
+        <span class="nav__icone">{{ icone(m.icone) }}</span>
+        <span class="nav__texto">{{ m.texto }}</span>
+      </a>
+      {% endfor %}
+    </nav>
+    <button class="barra__recolher" onclick="alternarRecolhido()" title="Recolher/expandir">
+      <span class="nav__icone">{{ icone('menu') }}</span>
+      <span class="nav__texto">Recolher menu</span>
+    </button>
+  </aside>
+
+  <div class="conteudo">
+    <header class="topo">
+      <button class="topo__menu" onclick="abrirMenuMobile()" aria-label="Abrir menu">{{ icone('menu') }}</button>
+      <h1 class="topo__titulo">{% block cabecalho %}{{ self.titulo() }}{% endblock %}</h1>
+      <div class="topo__acoes">{% block acoes %}{% endblock %}</div>
+    </header>
+
+    {% with mensagens = get_flashed_messages(with_categories=true) %}
+      {% if mensagens %}
+      <div class="flash">
+        {% for categoria, msg in mensagens %}
+        <div class="flash__item flash__item--{{ categoria }}">{{ msg }}</div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    {% endwith %}
+
+    <main class="pagina">{% block conteudo %}{% endblock %}</main>
+  </div>
+
+  <div class="overlay" id="overlay" onclick="fecharMenuMobile()"></div>
+</div>
+
+<script>
+  const app = document.getElementById("app");
+  function abrirMenuMobile()  { app.classList.add("menu-aberto"); }
+  function fecharMenuMobile() { app.classList.remove("menu-aberto"); }
+  function alternarRecolhido() {
+    const r = app.classList.toggle("recolhido");
+    try { localStorage.setItem("plenus.menuRecolhido", r ? "1" : "0"); } catch (e) {}
+  }
+  try { if (localStorage.getItem("plenus.menuRecolhido") === "1") app.classList.add("recolhido"); } catch (e) {}
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% set c = cliente or {} %}
+{% block titulo %}{{ 'Editar cliente' if c.id else 'Novo cliente' }}{% endblock %}
+{% block cabecalho %}{{ 'Editar cliente' if c.id else 'Novo cliente' }}{% endblock %}
+
+{% block acoes %}
+<a class="btn btn--linha" href="{{ url_for('clientes_lista') }}">{{ icone('voltar') }} Voltar</a>
+{% endblock %}
+
+{% block conteudo %}
+<form class="form" method="post" novalidate
+      action="{{ url_for('cliente_form', cliente_id=c.id) if c.id else url_for('cliente_form') }}">
+
+  <div class="cartao">
+    <h2>Dados pessoais</h2>
+    <div class="grade">
+      <div class="campo c-6">
+        <label for="nome">Nome *</label>
+        <input id="nome" name="nome" required value="{{ c.nome or '' }}">
+      </div>
+      <div class="campo c-3">
+        <label for="data_nascimento">Data de nascimento</label>
+        <input id="data_nascimento" name="data_nascimento" type="date" value="{{ c.data_nascimento or '' }}">
+      </div>
+      <div class="campo c-3">
+        <label for="sexo">Sexo</label>
+        <select id="sexo" name="sexo">
+          <option value="">—</option>
+          {% for v in ['Feminino', 'Masculino', 'Outro'] %}
+          <option value="{{ v }}" {{ 'selected' if c.sexo == v }}>{{ v }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="campo c-4">
+        <label for="cpf">CPF</label>
+        <input id="cpf" name="cpf" inputmode="numeric" data-mask="cpf" data-valida="cpf"
+               placeholder="000.000.000-00" value="{{ c.cpf|cpf if c.cpf else '' }}">
+        <span class="dica" data-dica="cpf"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="cartao">
+    <h2>Endereço</h2>
+    <div class="grade">
+      <div class="campo c-3">
+        <label for="end_cep">CEP</label>
+        <input id="end_cep" name="end_cep" inputmode="numeric" data-mask="cep" data-valida="cep" data-cep
+               placeholder="00000-000" value="{{ c.end_cep|cep if c.end_cep else '' }}">
+        <span class="dica" data-dica="cep"></span>
+      </div>
+      <div class="campo c-7">
+        <label for="end_rua">Rua</label>
+        <input id="end_rua" name="end_rua" value="{{ c.end_rua or '' }}">
+      </div>
+      <div class="campo c-2">
+        <label for="end_numero">Número</label>
+        <input id="end_numero" name="end_numero" value="{{ c.end_numero or '' }}">
+      </div>
+      <div class="campo c-4">
+        <label for="end_complemento">Complemento</label>
+        <input id="end_complemento" name="end_complemento" value="{{ c.end_complemento or '' }}">
+      </div>
+      <div class="campo c-4">
+        <label for="end_bairro">Bairro</label>
+        <input id="end_bairro" name="end_bairro" value="{{ c.end_bairro or '' }}">
+      </div>
+      <div class="campo c-2">
+        <label for="end_estado">Estado</label>
+        <select id="end_estado" name="end_estado" data-uf data-valor="{{ c.end_estado or '' }}">
+          <option value="">UF</option>
+        </select>
+      </div>
+      <div class="campo c-2">
+        <label for="end_cidade">Cidade</label>
+        <select id="end_cidade" name="end_cidade" data-cidade data-valor="{{ c.end_cidade or '' }}">
+          <option value="">—</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="cartao">
+    <h2>Contato</h2>
+    <div class="grade">
+      <div class="campo c-2">
+        <label for="tel_ddd">DDD</label>
+        <input id="tel_ddd" name="tel_ddd" inputmode="numeric" data-mask="ddd" maxlength="2"
+               placeholder="21" value="{{ c.tel_ddd or '' }}">
+      </div>
+      <div class="campo c-3">
+        <label for="tel_numero">Telefone</label>
+        <input id="tel_numero" name="tel_numero" inputmode="numeric" data-mask="telefone"
+               placeholder="90000-0000" value="{{ c.tel_numero or '' }}">
+      </div>
+      <div class="campo c-7">
+        <label for="email">E-mail</label>
+        <input id="email" name="email" type="text" data-valida="email"
+               placeholder="nome@exemplo.com" value="{{ c.email or '' }}">
+        <span class="dica" data-dica="email"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="rodape-form">
+    <a class="btn btn--linha" href="{{ url_for('clientes_lista') }}">Cancelar</a>
+    <button class="btn btn--primario" type="submit">Salvar</button>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+{% endblock %}
