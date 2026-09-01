@@ -32,13 +32,26 @@
     else f.submit();
   }
 
-  // ---------- alterna único / parcelado ----------
+  // ---------- alterna único / parcelado + janela (dialog) ----------
   const chk = document.getElementById("comissao_parcelada");
   const boxUnico = document.getElementById("comissao-unico");
   const boxParc = document.getElementById("comissao-parcelado");
+  const dlg = document.getElementById("dlg-comissao");
+
+  function abrirDlg() { if (dlg && !dlg.open) (dlg.showModal ? dlg.showModal() : dlg.show()); }
+  function fecharDlg() { if (dlg && dlg.open) dlg.close(); }
+
+  const btnAbrir = document.getElementById("btn-abrir-comissao");
+  if (btnAbrir) btnAbrir.addEventListener("click", abrirDlg);
+  document.querySelectorAll("[data-fechar-comissao]").forEach((b) =>
+    b.addEventListener("click", fecharDlg));
+
   if (chk && boxUnico && boxParc) {
     const sync = () => { boxUnico.hidden = chk.checked; boxParc.hidden = !chk.checked; };
-    chk.addEventListener("change", sync);
+    chk.addEventListener("change", () => {
+      sync();
+      if (chk.checked) abrirDlg(); else fecharDlg();
+    });
     sync();
   }
 

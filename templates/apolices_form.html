@@ -276,8 +276,24 @@
       </div>
     </div>
 
-    {# ---------- repasse parcelado: duas tabelas ---------- #}
-    <div id="comissao-parcelado" {{ 'hidden' if not a.comissao_parcelada }}>
+    {# ---------- repasse parcelado: resumo + botão que abre a janela ---------- #}
+    <div id="comissao-parcelado" {{ 'hidden' if not a.comissao_parcelada }} style="margin-top:12px">
+      <button type="button" class="btn btn--primario" id="btn-abrir-comissao">
+        {{ icone('apolices') }} Abrir tabelas de comissão
+      </button>
+      <span class="dica" id="resumo-comissao-parcelada" style="margin-left:10px">
+        {{ (a.comissoes or [])|length }} lançamento(s) de comissão ·
+        {{ (a.repasses or [])|length }} repasse(s)
+      </span>
+    </div>
+
+    {# ---------- a janela (dialog) com as duas tabelas ---------- #}
+    <dialog id="dlg-comissao" class="dlg">
+      <div class="dlg__cab">
+        <strong>Comissão parcelada (repasse mensal)</strong>
+        <button type="button" class="btn btn--linha btn--mini" data-fechar-comissao title="Fechar">{{ icone('x') }}</button>
+      </div>
+      <div class="dlg__corpo">
       <h3 class="titulo-secao">Comissão <span>— a corretora recebe da seguradora</span></h3>
       {% if pode_gerar_comissao %}
       <div class="gerador">
@@ -355,7 +371,12 @@
         <button type="button" class="btn btn--linha" id="btn-add-repasse">{{ icone('mais') }} Adicionar mês</button>
         <span class="dica" id="total-repasses" style="margin-left:10px"></span>
       </div>
-    </div>
+      </div>{# .dlg__corpo #}
+      <div class="dlg__rodape">
+        <button type="button" class="btn btn--linha" data-fechar-comissao>Fechar</button>
+        <button type="submit" class="btn btn--primario">Salvar</button>
+      </div>
+    </dialog>
   </div>
 
   <div class="cartao">
