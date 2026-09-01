@@ -180,6 +180,13 @@ table.lista tr.apolice-vencida td:first-child { box-shadow: inset 3px 0 0 #a5201
 .busca__campo svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: var(--texto-suave); }
 .busca__campo input { padding-left: 32px; }
 
+/* ---------- painel de filtros (lista de apólices) ---------- */
+.filtros .grade { align-items: end; }
+.campo-busca { position: relative; }
+.campo-busca svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: var(--texto-suave); pointer-events: none; }
+.campo-busca input { padding-left: 34px; }
+.filtros__acoes { display: flex; gap: 8px; margin-top: 14px; }
+
 /* ---------- overlay do menu mobile ---------- */
 .overlay { display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, .4); z-index: 40; }
 
