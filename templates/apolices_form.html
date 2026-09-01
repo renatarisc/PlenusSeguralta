@@ -220,43 +220,138 @@
         <input id="comissao_percentual" name="comissao_percentual" inputmode="decimal" data-num
                value="{{ a.comissao_percentual or '' }}">
       </div>
-      <div class="campo c-3">
-        <button type="button" class="btn btn--primario" id="btn-calc-seg-receber">
-          Calcular pelo % do prêmio líquido
-        </button>
+      <div class="campo c-9">
+        <label class="check">
+          <input type="checkbox" id="comissao_parcelada" name="comissao_parcelada" value="1"
+                 {{ 'checked' if a.comissao_parcelada }}>
+          Comissão em parcelas (repasse mensal) — usa as duas tabelas abaixo
+        </label>
       </div>
-      <div class="campo c-3">
-        <label for="comissao_valor_seguralta_receber">SEGURALTA — a receber (R$)</label>
-        <input id="comissao_valor_seguralta_receber" name="comissao_valor_seguralta_receber"
-               inputmode="decimal" data-num value="{{ a.comissao_valor_seguralta_receber or '' }}">
+    </div>
+
+    {# ---------- repasse único: os 4 valores achatados ---------- #}
+    <div id="comissao-unico" {{ 'hidden' if a.comissao_parcelada }}>
+      <div class="grade" style="align-items:end;margin-top:12px">
+        <div class="campo c-3">
+          <button type="button" class="btn btn--primario" id="btn-calc-seg-receber">
+            Calcular pelo % do prêmio líquido
+          </button>
+        </div>
+        <div class="campo c-3">
+          <label for="comissao_valor_seguralta_receber">SEGURALTA — a receber (R$)</label>
+          <input id="comissao_valor_seguralta_receber" name="comissao_valor_seguralta_receber"
+                 inputmode="decimal" data-num value="{{ a.comissao_valor_seguralta_receber or '' }}">
+        </div>
+        <div class="campo c-3">
+          <label for="comissao_valor_seguralta_recebido">SEGURALTA — recebido (R$)</label>
+          <input id="comissao_valor_seguralta_recebido" name="comissao_valor_seguralta_recebido"
+                 inputmode="decimal" data-num value="{{ a.comissao_valor_seguralta_recebido or '' }}">
+        </div>
+        <div class="campo c-3"></div>
+
+        <div class="campo c-3">
+          <button type="button" class="btn btn--primario" id="btn-calc-plenus-receber">
+            Calcular 75% do recebido SEGURALTA
+          </button>
+        </div>
+        <div class="campo c-3">
+          <label for="comissao_valor_plenus_receber">Plenus — a receber (R$)</label>
+          <input id="comissao_valor_plenus_receber" name="comissao_valor_plenus_receber"
+                 inputmode="decimal" data-num value="{{ a.comissao_valor_plenus_receber or '' }}">
+        </div>
+        <div class="campo c-3">
+          <label for="comissao_valor_plenus_recebido">Plenus — recebido (R$)</label>
+          <input id="comissao_valor_plenus_recebido" name="comissao_valor_plenus_recebido"
+                 inputmode="decimal" data-num value="{{ a.comissao_valor_plenus_recebido or '' }}">
+        </div>
+        <div class="campo c-3">
+          <label for="data_plenus_recebido">Plenus — data do recebimento</label>
+          <input id="data_plenus_recebido" name="data_plenus_recebido" type="date"
+                 value="{{ a.data_plenus_recebido or '' }}">
+        </div>
       </div>
-      <div class="campo c-3">
-        <label for="comissao_valor_seguralta_recebido">SEGURALTA — recebido (R$)</label>
-        <input id="comissao_valor_seguralta_recebido" name="comissao_valor_seguralta_recebido"
-               inputmode="decimal" data-num value="{{ a.comissao_valor_seguralta_recebido or '' }}">
+    </div>
+
+    {# ---------- repasse parcelado: duas tabelas ---------- #}
+    <div id="comissao-parcelado" {{ 'hidden' if not a.comissao_parcelada }}>
+      <h3 style="margin:16px 0 6px;font-size:13px;color:var(--texto-suave)">Comissão — a corretora recebe da seguradora</h3>
+      <div class="gerador">
+        <div class="grade">
+          <div class="campo c-2"><label for="ger_com_qtd">Qtd. de meses</label>
+            <input id="ger_com_qtd" type="number" min="1" max="120"></div>
+          <div class="campo c-2"><label for="ger_com_valor">Previsto (R$)</label>
+            <input id="ger_com_valor" inputmode="decimal" data-num></div>
+          <div class="campo c-3"><label for="ger_com_data1">1ª data</label>
+            <input id="ger_com_data1" type="date"></div>
+          <div class="campo c-2"><button type="button" class="btn btn--primario" id="btn-gerar-comissoes">Gerar tabela</button></div>
+        </div>
+      </div>
+      <div class="tabela-wrap">
+        <table class="lista tab-fluxo" id="tab-comissoes">
+          <thead><tr><th style="width:16%">Parcela</th><th style="width:22%">Previsto (R$)</th>
+              <th style="width:22%">Recebido (R$)</th><th style="width:24%">Data</th><th style="width:16%"></th></tr></thead>
+          <tbody id="corpo-comissoes">
+            {% for c in a.comissoes or [] %}
+            <tr class="fluxo-linha">
+              <td><input name="comissao_parcela" value="{{ c.parcela or '' }}"></td>
+              <td><input name="comissao_previsto" inputmode="decimal" data-num value="{{ c.valor_previsto or '' }}"></td>
+              <td><input name="comissao_recebido" inputmode="decimal" data-num value="{{ c.valor_recebido or '' }}"></td>
+              <td><input name="comissao_data" type="date" value="{{ c.data or '' }}"></td>
+              <td class="acoes">
+                <button type="button" class="btn btn--linha btn--mini" data-editar title="Liberar edição">{{ icone('lapis') }}</button>
+                <button type="button" class="btn btn--perigo btn--mini" data-remover title="Remover">{{ icone('x') }}</button>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div style="padding:8px 0 0">
+        <button type="button" class="btn btn--linha" id="btn-add-comissao">{{ icone('mais') }} Adicionar mês</button>
+        <span class="dica" id="total-comissoes" style="margin-left:10px"></span>
       </div>
 
-      <div class="grade__linha" aria-hidden="true"></div>
-
-      <div class="campo c-3">
-        <button type="button" class="btn btn--primario" id="btn-calc-plenus-receber">
-          Calcular 75% do recebido SEGURALTA
-        </button>
+      <h3 style="margin:20px 0 6px;font-size:13px;color:var(--texto-suave)">Repasses — a Plenus recebe da corretora</h3>
+      <div class="gerador">
+        <div class="grade">
+          <div class="campo c-2"><label for="ger_rep_qtd">Qtd. de meses</label>
+            <input id="ger_rep_qtd" type="number" min="1" max="120"></div>
+          <div class="campo c-2"><label for="ger_rep_valor">Valor (R$)</label>
+            <input id="ger_rep_valor" inputmode="decimal" data-num></div>
+          <div class="campo c-3"><label for="ger_rep_data1">1ª data</label>
+            <input id="ger_rep_data1" type="date"></div>
+          <div class="campo c-2"><button type="button" class="btn btn--primario" id="btn-gerar-repasses">Gerar tabela</button></div>
+        </div>
       </div>
-      <div class="campo c-3">
-        <label for="comissao_valor_plenus_receber">Plenus — a receber (R$)</label>
-        <input id="comissao_valor_plenus_receber" name="comissao_valor_plenus_receber"
-               inputmode="decimal" data-num value="{{ a.comissao_valor_plenus_receber or '' }}">
+      <div class="tabela-wrap">
+        <table class="lista tab-fluxo" id="tab-repasses">
+          <thead><tr><th style="width:16%">Parcela</th><th style="width:22%">Valor (R$)</th>
+              <th style="width:22%">Status</th><th style="width:24%">Data pgto</th><th style="width:16%"></th></tr></thead>
+          <tbody id="corpo-repasses">
+            {% for r in a.repasses or [] %}
+            <tr class="fluxo-linha">
+              <td><input name="repasse_parcela" value="{{ r.parcela or '' }}"></td>
+              <td><input name="repasse_valor" inputmode="decimal" data-num value="{{ r.valor or '' }}"></td>
+              <td>
+                <select name="repasse_status">
+                  <option value="pendente" {{ 'selected' if (r.status or 'pendente') == 'pendente' }}>Pendente</option>
+                  <option value="liberado" {{ 'selected' if r.status == 'liberado' }}>Liberado</option>
+                  <option value="pago" {{ 'selected' if r.status == 'pago' }}>Pago</option>
+                </select>
+              </td>
+              <td><input name="repasse_data" type="date" value="{{ r.data_pagamento or '' }}"></td>
+              <td class="acoes">
+                <button type="button" class="btn btn--linha btn--mini" data-editar title="Liberar edição">{{ icone('lapis') }}</button>
+                <button type="button" class="btn btn--perigo btn--mini" data-remover title="Remover">{{ icone('x') }}</button>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
       </div>
-      <div class="campo c-3">
-        <label for="comissao_valor_plenus_recebido">Plenus — recebido (R$)</label>
-        <input id="comissao_valor_plenus_recebido" name="comissao_valor_plenus_recebido"
-               inputmode="decimal" data-num value="{{ a.comissao_valor_plenus_recebido or '' }}">
-      </div>
-      <div class="campo c-3">
-        <label for="data_plenus_recebido">Plenus — data do recebimento</label>
-        <input id="data_plenus_recebido" name="data_plenus_recebido" type="date"
-               value="{{ a.data_plenus_recebido or '' }}">
+      <div style="padding:8px 0 0">
+        <button type="button" class="btn btn--linha" id="btn-add-repasse">{{ icone('mais') }} Adicionar mês</button>
+        <span class="dica" id="total-repasses" style="margin-left:10px"></span>
       </div>
     </div>
   </div>
@@ -337,9 +432,42 @@
     </td>
   </tr>
 </template>
+
+<template id="tpl-comissao">
+  <tr class="fluxo-linha">
+    <td><input name="comissao_parcela"></td>
+    <td><input name="comissao_previsto" inputmode="decimal" data-num></td>
+    <td><input name="comissao_recebido" inputmode="decimal" data-num></td>
+    <td><input name="comissao_data" type="date"></td>
+    <td class="acoes">
+      <button type="button" class="btn btn--linha btn--mini" data-editar title="Liberar edição">{{ icone('lapis') }}</button>
+      <button type="button" class="btn btn--perigo btn--mini" data-remover title="Remover">{{ icone('x') }}</button>
+    </td>
+  </tr>
+</template>
+
+<template id="tpl-repasse">
+  <tr class="fluxo-linha">
+    <td><input name="repasse_parcela"></td>
+    <td><input name="repasse_valor" inputmode="decimal" data-num></td>
+    <td>
+      <select name="repasse_status">
+        <option value="pendente" selected>Pendente</option>
+        <option value="liberado">Liberado</option>
+        <option value="pago">Pago</option>
+      </select>
+    </td>
+    <td><input name="repasse_data" type="date"></td>
+    <td class="acoes">
+      <button type="button" class="btn btn--linha btn--mini" data-editar title="Liberar edição">{{ icone('lapis') }}</button>
+      <button type="button" class="btn btn--perigo btn--mini" data-remover title="Remover">{{ icone('x') }}</button>
+    </td>
+  </tr>
+</template>
 {% endblock %}
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/apolice.js') }}"></script>
+<script src="{{ url_for('static', filename='js/comissao.js') }}"></script>
 <script src="{{ url_for('static', filename='js/ler_pdf.js') }}"></script>
 {% endblock %}

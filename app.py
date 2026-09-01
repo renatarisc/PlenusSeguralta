@@ -19,7 +19,8 @@ import seguranca
 from validacao import (
     formatar_cpf, formatar_cep, formatar_telefone, validar_cliente,
     formatar_numero, formatar_moeda, formatar_data_br, dias_ate_data,
-    validar_apolice, preparar_parcelas, validar_saida, preparar_lancamentos_saida,
+    validar_apolice, preparar_parcelas, preparar_comissoes, preparar_repasses,
+    validar_saida, preparar_lancamentos_saida,
 )
 
 _HTTPS = os.environ.get("PLENUS_HTTPS") == "1"
@@ -394,7 +395,7 @@ _CAMPOS_APOLICE = (
     "forma_pagamento_id", "comissao_percentual",
     "comissao_valor_seguralta_receber", "comissao_valor_plenus_receber",
     "comissao_valor_seguralta_recebido", "comissao_valor_plenus_recebido",
-    "data_plenus_recebido",
+    "data_plenus_recebido", "comissao_parcelada",
     "lancado_quiver", "link_onedrive",
     "veiculo_placa", "veiculo_descricao",
     "aviso_vigencia_ok", "aviso_vigencia_ok_em",
@@ -413,6 +414,11 @@ def _apolice_para_form(ap, parcelas=None):
         ap[campo] = formatar_numero(ap.get(campo))
     fonte = parcelas if parcelas is not None else ap.get("parcelas", [])
     ap["parcelas"] = [{**p, "valor": formatar_numero(p.get("valor"))} for p in fonte]
+    ap["comissoes"] = [{**c, "valor_previsto": formatar_numero(c.get("valor_previsto")),
+                        "valor_recebido": formatar_numero(c.get("valor_recebido"))}
+                       for c in (ap.get("comissoes") or [])]
+    ap["repasses"] = [{**r, "valor": formatar_numero(r.get("valor"))}
+                      for r in (ap.get("repasses") or [])]
     return ap
 
 
@@ -460,18 +466,36 @@ def apolice_form(apolice_id=None):
             request.form.getlist("parcela_paga"),
             request.form.getlist("parcela_aviso"),
         )
+        comissoes, erros_com = preparar_comissoes(
+            request.form.getlist("comissao_parcela"),
+            request.form.getlist("comissao_previsto"),
+            request.form.getlist("comissao_recebido"),
+            request.form.getlist("comissao_data"),
+        )
+        repasses, erros_rep = preparar_repasses(
+            request.form.getlist("repasse_parcela"),
+            request.form.getlist("repasse_valor"),
+            request.form.getlist("repasse_status"),
+            request.form.getlist("repasse_data"),
+        )
+        if not dados.get("comissao_parcelada"):  # modo "único": ignora as tabelas
+            comissoes, repasses = [], []
         erros = validar_apolice(dados) + erros_parcelas
+        if dados.get("comissao_parcelada"):
+            erros += erros_com + erros_rep
         if erros:
             for e in erros:
                 flash(e, "erro")
-            apolice = _apolice_para_form({**dados, "id": apolice_id}, parcelas=parcelas)
+            apolice = _apolice_para_form(
+                {**dados, "id": apolice_id, "comissoes": comissoes, "repasses": repasses},
+                parcelas=parcelas)
             return render_template("apolices_form.html", ativo="apolices",
                                    apolice=apolice, **_dados_form_apolice())
         if apolice_id:
-            repo.atualizar_apolice(apolice_id, dados, parcelas)
+            repo.atualizar_apolice(apolice_id, dados, parcelas, comissoes, repasses)
             flash("Apólice atualizada.", "ok")
         else:
-            apolice_id = repo.criar_apolice(dados, parcelas)
+            apolice_id = repo.criar_apolice(dados, parcelas, comissoes, repasses)
             flash("Apólice cadastrada.", "ok")
         return redirect(url_for("apolices"))
 

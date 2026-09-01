@@ -255,7 +255,7 @@ _COLS_APOLICE = (
     "forma_pagamento_id", "comissao_percentual",
     "comissao_valor_seguralta_receber", "comissao_valor_plenus_receber",
     "comissao_valor_seguralta_recebido", "comissao_valor_plenus_recebido",
-    "data_plenus_recebido",
+    "data_plenus_recebido", "comissao_parcelada",
     "lancado_quiver", "link_onedrive",
     "veiculo_placa", "veiculo_descricao",
     "aviso_vigencia_ok", "aviso_vigencia_ok_em",
@@ -285,6 +285,7 @@ def _valores_apolice(dados):
         para_decimal(dados.get("comissao_valor_seguralta_recebido")),
         para_decimal(dados.get("comissao_valor_plenus_recebido")),
         (dados.get("data_plenus_recebido") or "").strip() or None,
+        _sim_nao(dados.get("comissao_parcelada")),
         _sim_nao(dados.get("lancado_quiver")),
         (dados.get("link_onedrive") or "").strip() or None,
         (dados.get("veiculo_placa") or "").strip().upper() or None,
@@ -311,6 +312,30 @@ def _inserir_parcelas(con, apolice_id, parcelas):
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             (apolice_id, p.get("identificacao"), p.get("data"), p.get("valor"),
              paga, pago_em, aviso, aviso_em),
+        )
+
+
+def _inserir_comissoes(con, apolice_id, linhas):
+    for i, c in enumerate(linhas or []):
+        con.execute(
+            "INSERT INTO apolice_comissao "
+            "(apolice_id, parcela, valor_previsto, valor_recebido, data, ordem) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (apolice_id, c.get("parcela"), c.get("valor_previsto"),
+             c.get("valor_recebido"), c.get("data"), i),
+        )
+
+
+def _inserir_repasses(con, apolice_id, linhas):
+    for i, r in enumerate(linhas or []):
+        st = (r.get("status") or "pendente").strip().lower()
+        if st not in ("pendente", "liberado", "pago"):
+            st = "pendente"
+        con.execute(
+            "INSERT INTO apolice_repasse "
+            "(apolice_id, parcela, valor, status, data_pagamento, ordem) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (apolice_id, r.get("parcela"), r.get("valor"), st, r.get("data_pagamento"), i),
         )
 
 
@@ -421,6 +446,16 @@ def obter_apolice(apolice_id):
             "FROM apolice_parcela WHERE apolice_id = ? ORDER BY COALESCE(data, ''), id",
             (apolice_id,),
         ).fetchall()]
+        ap["comissoes"] = [dict(x) for x in con.execute(
+            "SELECT id, parcela, valor_previsto, valor_recebido, data "
+            "FROM apolice_comissao WHERE apolice_id = ? ORDER BY ordem, id",
+            (apolice_id,),
+        ).fetchall()]
+        ap["repasses"] = [dict(x) for x in con.execute(
+            "SELECT id, parcela, valor, status, data_pagamento "
+            "FROM apolice_repasse WHERE apolice_id = ? ORDER BY ordem, id",
+            (apolice_id,),
+        ).fetchall()]
         return ap
 
 
@@ -451,7 +486,7 @@ def marcar_aviso_vigencia(apolice_id, ok):
     fazer_backup()
 
 
-def criar_apolice(dados, parcelas):
+def criar_apolice(dados, parcelas, comissoes=None, repasses=None):
     with conexao() as con:
         marcadores = ", ".join("?" for _ in _COLS_APOLICE)
         cur = con.execute(
@@ -460,11 +495,13 @@ def criar_apolice(dados, parcelas):
         )
         novo_id = cur.lastrowid
         _inserir_parcelas(con, novo_id, parcelas)
+        _inserir_comissoes(con, novo_id, comissoes)
+        _inserir_repasses(con, novo_id, repasses)
     fazer_backup()
     return novo_id
 
 
-def atualizar_apolice(apolice_id, dados, parcelas):
+def atualizar_apolice(apolice_id, dados, parcelas, comissoes=None, repasses=None):
     with conexao() as con:
         atrib = ", ".join(f"{c} = ?" for c in _COLS_APOLICE)
         con.execute(
@@ -473,6 +510,10 @@ def atualizar_apolice(apolice_id, dados, parcelas):
         )
         con.execute("DELETE FROM apolice_parcela WHERE apolice_id = ?", (apolice_id,))
         _inserir_parcelas(con, apolice_id, parcelas)
+        con.execute("DELETE FROM apolice_comissao WHERE apolice_id = ?", (apolice_id,))
+        _inserir_comissoes(con, apolice_id, comissoes)
+        con.execute("DELETE FROM apolice_repasse WHERE apolice_id = ?", (apolice_id,))
+        _inserir_repasses(con, apolice_id, repasses)
     fazer_backup()
 
 

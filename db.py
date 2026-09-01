@@ -87,6 +87,7 @@ CREATE TABLE IF NOT EXISTS apolice (
     comissao_valor_seguralta_recebido REAL,  -- lançado à mão
     comissao_valor_plenus_recebido REAL,     -- lançado à mão
     data_plenus_recebido TEXT,               -- data em que a Plenus recebeu (ISO)
+    comissao_parcelada INTEGER NOT NULL DEFAULT 0,  -- 1 = repasse mensal (usa apolice_comissao/apolice_repasse)
     lancado_quiver INTEGER NOT NULL DEFAULT 0,   -- 0 = não, 1 = sim
     link_onedrive TEXT,
     veiculo_placa TEXT,                          -- só p/ seguro de automóvel
@@ -111,6 +112,28 @@ CREATE TABLE IF NOT EXISTS apolice_parcela (
     pago_em TEXT,                       -- data ISO em que foi marcada como paga
     aviso_ok INTEGER NOT NULL DEFAULT 0,  -- 1 = cliente já foi avisado desse boleto (para o e-mail diário)
     aviso_ok_em TEXT
+);
+
+-- comissão parcelada: o que a corretora recebe da seguradora, mês a mês
+CREATE TABLE IF NOT EXISTS apolice_comissao (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    apolice_id INTEGER NOT NULL REFERENCES apolice(id) ON DELETE CASCADE,
+    parcela TEXT,                 -- rótulo livre ("1", "4"...), pode repetir
+    valor_previsto REAL,
+    valor_recebido REAL,
+    data TEXT,                    -- ISO
+    ordem INTEGER NOT NULL DEFAULT 0
+);
+
+-- comissão parcelada: o que a Plenus recebe da corretora (repasse), mês a mês
+CREATE TABLE IF NOT EXISTS apolice_repasse (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    apolice_id INTEGER NOT NULL REFERENCES apolice(id) ON DELETE CASCADE,
+    parcela TEXT,
+    valor REAL,
+    status TEXT NOT NULL DEFAULT 'pendente',   -- pendente | liberado | pago
+    data_pagamento TEXT,
+    ordem INTEGER NOT NULL DEFAULT 0
 );
 
 -- registro de aviso de vencimento já enviado (pra não repetir o mesmo marco)
@@ -196,6 +219,7 @@ _COLUNAS_ESPERADAS = {
         "comissao_valor_seguralta_receber": "REAL", "comissao_valor_plenus_receber": "REAL",
         "comissao_valor_seguralta_recebido": "REAL", "comissao_valor_plenus_recebido": "REAL",
         "data_plenus_recebido": "TEXT",
+        "comissao_parcelada": "INTEGER NOT NULL DEFAULT 0",
         "lancado_quiver": "INTEGER NOT NULL DEFAULT 0", "link_onedrive": "TEXT",
         "veiculo_placa": "TEXT", "veiculo_descricao": "TEXT",
         "aviso_vigencia_ok": "INTEGER NOT NULL DEFAULT 0", "aviso_vigencia_ok_em": "TEXT",
@@ -208,6 +232,15 @@ _COLUNAS_ESPERADAS = {
         "apolice_id": "INTEGER", "identificacao": "TEXT", "data": "TEXT", "valor": "REAL",
         "paga": "INTEGER NOT NULL DEFAULT 0", "pago_em": "TEXT",
         "aviso_ok": "INTEGER NOT NULL DEFAULT 0", "aviso_ok_em": "TEXT",
+    },
+    "apolice_comissao": {
+        "apolice_id": "INTEGER", "parcela": "TEXT", "valor_previsto": "REAL",
+        "valor_recebido": "REAL", "data": "TEXT", "ordem": "INTEGER NOT NULL DEFAULT 0",
+    },
+    "apolice_repasse": {
+        "apolice_id": "INTEGER", "parcela": "TEXT", "valor": "REAL",
+        "status": "TEXT NOT NULL DEFAULT 'pendente'", "data_pagamento": "TEXT",
+        "ordem": "INTEGER NOT NULL DEFAULT 0",
     },
     "notificacao_parcela": {
         "parcela_id": "INTEGER", "marco": "INTEGER", "data_vencimento": "TEXT",

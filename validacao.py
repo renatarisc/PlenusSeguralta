@@ -162,6 +162,53 @@ def preparar_parcelas(identificacoes, datas, valores, pagas=None, avisos=None):
     return parcelas, erros
 
 
+def preparar_comissoes(parcelas, previstos, recebidos, datas):
+    """Tabela "Comissão" (corretora recebe da seguradora). Listas paralelas do form.
+    Devolve (linhas, erros) — {parcela, valor_previsto(float|None), valor_recebido, data}."""
+    linhas, erros = [], []
+    z = zip_longest(parcelas or [], previstos or [], recebidos or [], datas or [], fillvalue="")
+    n = 0
+    for parc, prev, receb, data in z:
+        parc = (parc or "").strip()
+        prev_txt = (prev or "").strip()
+        receb_txt = (receb or "").strip()
+        data = (data or "").strip()
+        if not (parc or prev_txt or receb_txt or data):
+            continue
+        n += 1
+        vp, vr = para_decimal(prev_txt), para_decimal(receb_txt)
+        if prev_txt and vp is None:
+            erros.append(f"Comissão {n}: previsto inválido.")
+        if receb_txt and vr is None:
+            erros.append(f"Comissão {n}: recebido inválido.")
+        linhas.append({"parcela": parc or None, "valor_previsto": vp,
+                       "valor_recebido": vr, "data": data or None})
+    return linhas, erros
+
+
+def preparar_repasses(parcelas, valores, status, datas):
+    """Tabela "Repasses" (Plenus recebe da corretora). Listas paralelas do form.
+    Devolve (linhas, erros) — {parcela, valor(float|None), status, data_pagamento}."""
+    linhas, erros = [], []
+    z = zip_longest(parcelas or [], valores or [], status or [], datas or [], fillvalue="")
+    n = 0
+    for parc, valor, st, data in z:
+        parc = (parc or "").strip()
+        valor_txt = (valor or "").strip()
+        st = (st or "pendente").strip().lower()
+        data = (data or "").strip()
+        if not (parc or valor_txt or data) and st in ("", "pendente"):
+            continue
+        n += 1
+        v = para_decimal(valor_txt)
+        if valor_txt and v is None:
+            erros.append(f"Repasse {n}: valor inválido.")
+        linhas.append({"parcela": parc or None, "valor": v,
+                       "status": st if st in ("pendente", "liberado", "pago") else "pendente",
+                       "data_pagamento": data or None})
+    return linhas, erros
+
+
 # ---------- validação do formulário de apólice ----------
 
 def validar_apolice(dados):

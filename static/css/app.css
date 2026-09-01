@@ -302,6 +302,29 @@ table.lista tr.apolice-vencida td:first-child { box-shadow: inset 3px 0 0 #a5201
   background: #f3f9f3; border-color: #cfe3cf; color: var(--texto-suave); pointer-events: none;
 }
 
+/* ---------- tabelas de comissão / repasse (mesmo padrão) ---------- */
+.tab-fluxo td { padding: 8px 10px; vertical-align: middle; }
+.tab-fluxo tbody td input,
+.tab-fluxo tbody td select {
+  width: 100%; font: inherit; font-size: 13.5px; padding: 8px 10px;
+  border: 1px solid var(--linha); border-radius: var(--raio);
+  background: var(--branco); color: var(--texto);
+}
+.tab-fluxo tbody td input:focus-visible,
+.tab-fluxo tbody td select:focus-visible {
+  outline: none; border-color: var(--laranja); box-shadow: 0 0 0 3px var(--laranja-fraco);
+}
+.tab-fluxo td.acoes { text-align: center; }
+.tab-fluxo [data-editar] { display: none; }
+.tab-fluxo tr.linha-travada [data-editar] { display: inline-flex; }
+.tab-fluxo tr.linha-travada [data-remover] { display: none; }
+.tab-fluxo tr.linha-travada td { background: #e7f3e7; }
+.tab-fluxo tr.linha-travada td:first-child { box-shadow: inset 3px 0 0 #5a9367; }
+.tab-fluxo tr.linha-travada input,
+.tab-fluxo tr.linha-travada select {
+  background: #f3f9f3; border-color: #cfe3cf; color: var(--texto-suave); pointer-events: none;
+}
+
 /* ---------- barra de busca ---------- */
 .busca { display: flex; gap: 8px; align-items: center; margin-bottom: 14px; max-width: 420px; }
 .busca__campo { position: relative; flex: 1; }
