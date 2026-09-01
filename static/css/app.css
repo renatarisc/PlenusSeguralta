@@ -213,22 +213,36 @@ table.lista tr.apolice-vencida td:first-child { box-shadow: inset 3px 0 0 #a5201
 }
 .tag-venc--fim { background: var(--erro); color: #fff; border-color: var(--erro); }
 
-/* parcela já paga: fica discreta no formulário */
-table.lista tr.parcela--paga input,
-table.lista tr.parcela--paga select { color: var(--texto-suave); }
-table.lista tr.parcela--paga td:first-child input { text-decoration: line-through; }
+/* ---------- tabela de parcelas: campos no mesmo padrão dos formulários ---------- */
+#tab-parcelas td { padding: 8px 10px; vertical-align: middle; }
+#tab-parcelas tbody td input,
+#tab-parcelas tbody td select {
+  width: 100%; font: inherit; font-size: 13.5px; padding: 8px 10px;
+  border: 1px solid var(--linha); border-radius: var(--raio);
+  background: var(--branco); color: var(--texto);
+}
+#tab-parcelas tbody td input:focus-visible,
+#tab-parcelas tbody td select:focus-visible {
+  outline: none; border-color: var(--laranja); box-shadow: 0 0 0 3px var(--laranja-fraco);
+}
+#tab-parcelas td.acoes { text-align: center; }
 
-/* parcela vencida e ainda não paga: mesmo destaque vermelho do painel */
-table.lista tr.parcela--atrasada td { background: var(--erro-fraco); }
-table.lista tr.parcela--atrasada td:first-child { box-shadow: inset 3px 0 0 var(--erro); }
-table.lista tr.parcela--atrasada input,
-table.lista tr.parcela--atrasada select { border-color: #f0ccc9; }
+/* parcela já paga: fica discreta */
+#tab-parcelas tr.parcela--paga input,
+#tab-parcelas tr.parcela--paga select { color: var(--texto-suave); }
+#tab-parcelas tr.parcela--paga td:first-child input { text-decoration: line-through; }
+
+/* parcela vencida e não paga: destaque vermelho (igual ao painel) */
+#tab-parcelas tr.parcela--atrasada td { background: var(--erro-fraco); }
+#tab-parcelas tr.parcela--atrasada td:first-child { box-shadow: inset 3px 0 0 var(--erro); }
+#tab-parcelas tr.parcela--atrasada input,
+#tab-parcelas tr.parcela--atrasada select { border-color: #f0ccc9; }
 
 /* parcela perto de vencer (<=10 dias) e não paga: amarelo */
-table.lista tr.parcela--perto td { background: #fef0ad; }
-table.lista tr.parcela--perto td:first-child { box-shadow: inset 3px 0 0 #d99a00; }
-table.lista tr.parcela--perto input,
-table.lista tr.parcela--perto select { border-color: #ecd067; }
+#tab-parcelas tr.parcela--perto td { background: #fef0ad; }
+#tab-parcelas tr.parcela--perto td:first-child { box-shadow: inset 3px 0 0 #d99a00; }
+#tab-parcelas tr.parcela--perto input,
+#tab-parcelas tr.parcela--perto select { border-color: #ecd067; }
 
 /* ---------- barra de busca ---------- */
 .busca { display: flex; gap: 8px; align-items: center; margin-bottom: 14px; max-width: 420px; }
