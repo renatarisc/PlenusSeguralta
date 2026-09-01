@@ -1,5 +1,8 @@
 {% extends "base.html" %}
 {% set a = apolice or {} %}
+{# o gerador substitui todas as parcelas: some quando já há parcela paga #}
+{% set tem_parcela_paga = (a.parcelas or []) | selectattr('paga') | list | length > 0 %}
+{% set pode_gerar = not a.id or not tem_parcela_paga %}
 {% block titulo %}{{ 'Editar apólice' if a.id else 'Nova apólice' }}{% endblock %}
 {% block cabecalho %}{{ 'Editar apólice' if a.id else 'Nova apólice' }}{% endblock %}
 
@@ -140,6 +143,7 @@
 
   <div class="cartao">
     <h2>Parcelas</h2>
+    {% if pode_gerar %}
     <div class="gerador">
       <div class="grade">
         <div class="campo c-2">
@@ -166,6 +170,11 @@
         </div>
       </div>
     </div>
+    {% else %}
+    <p class="dica" style="margin:-4px 0 12px">
+      Já há parcela paga nesta apólice — o gerador foi ocultado. Use <strong>Adicionar parcela</strong> para incluir novas.
+    </p>
+    {% endif %}
 
     <div class="tabela-wrap">
       <table class="lista" id="tab-parcelas">
