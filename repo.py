@@ -119,6 +119,13 @@ def listar_simples(tabela):
         ).fetchall()]
 
 
+def obter_simples(tabela, item_id):
+    assert tabela in _TABELAS_SIMPLES
+    with conexao() as con:
+        l = con.execute(f"SELECT id, nome FROM {tabela} WHERE id = ?", (item_id,)).fetchone()
+        return dict(l) if l else None
+
+
 def criar_simples(tabela, nome):
     assert tabela in _TABELAS_SIMPLES
     nome = (nome or "").strip()

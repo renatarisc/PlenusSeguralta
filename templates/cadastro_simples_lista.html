@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block titulo %}{{ titulo }}{% endblock %}
+
+{% block acoes %}
+<a class="btn btn--primario" href="{{ url_for('cadastro_simples_form', slug=slug) }}">
+  {{ icone('mais') }} {{ acao_novo }}
+</a>
+{% endblock %}
+
+{% block conteudo %}
+<div class="cartao" style="padding:0">
+  {% if itens %}
+  <div class="tabela-wrap">
+    <table class="lista">
+      <thead><tr><th>Nome</th><th></th></tr></thead>
+      <tbody>
+        {% for it in itens %}
+        <tr>
+          <td><a href="{{ url_for('cadastro_simples_form', slug=slug, item_id=it.id) }}"
+                 style="font-weight:600;color:var(--laranja-hover)">{{ it.nome }}</a></td>
+          <td class="acoes">
+            <a class="btn btn--linha btn--mini" href="{{ url_for('cadastro_simples_form', slug=slug, item_id=it.id) }}">{{ icone('lapis') }}</a>
+            <form method="post" action="{{ url_for('cadastro_simples_excluir', slug=slug, item_id=it.id) }}"
+                  onsubmit="return confirm('Excluir “{{ it.nome }}”?')">
+              <button class="btn btn--perigo btn--mini" type="submit">{{ icone('lixo') }}</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="vazio">Nada cadastrado ainda.</p>
+  {% endif %}
+</div>
+{% endblock %}

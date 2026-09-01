@@ -25,9 +25,12 @@ db.inicializar_db()
 
 # slug na URL  <->  nome da tabela  (cadastros simples de "só nome")
 _CADASTROS_SIMPLES = {
-    "tipo-seguro": {"tabela": "tipo_seguro", "titulo": "Tipos de Seguro", "singular": "tipo de seguro"},
-    "forma-pagamento": {"tabela": "forma_pagamento", "titulo": "Formas de Pagamento", "singular": "forma de pagamento"},
-    "seguradora": {"tabela": "seguradora", "titulo": "Seguradoras", "singular": "seguradora"},
+    "tipo-seguro": {"tabela": "tipo_seguro", "titulo": "Tipos de Seguro",
+                    "singular": "tipo de seguro", "acao_novo": "Novo tipo de seguro"},
+    "forma-pagamento": {"tabela": "forma_pagamento", "titulo": "Formas de Pagamento",
+                        "singular": "forma de pagamento", "acao_novo": "Nova forma de pagamento"},
+    "seguradora": {"tabela": "seguradora", "titulo": "Seguradoras",
+                   "singular": "seguradora", "acao_novo": "Nova seguradora"},
 }
 
 # disponível em todo template (máscaras na exibição, itens do menu)
@@ -118,7 +121,7 @@ def cliente_ler_pdf():
     return _ler_pdf("cliente")
 
 
-# ---------- Cadastros simples (Tipos de Seguro / Formas de Pagamento) ----------
+# ---------- Cadastros simples (Seguradoras / Tipos de Seguro / Formas de Pagamento) ----------
 
 @app.route("/cadastros/<slug>")
 def cadastro_simples(slug):
@@ -126,22 +129,40 @@ def cadastro_simples(slug):
     if not cfg:
         flash("Cadastro não encontrado.", "erro")
         return redirect(url_for("dashboard"))
-    return render_template("cadastro_simples.html", ativo="cadastro_simples", slug=slug,
-                           titulo=cfg["titulo"], singular=cfg["singular"],
+    return render_template("cadastro_simples_lista.html", ativo="cadastro_simples", slug=slug,
+                           titulo=cfg["titulo"], singular=cfg["singular"], acao_novo=cfg["acao_novo"],
                            itens=repo.listar_simples(cfg["tabela"]))
 
 
-@app.route("/cadastros/<slug>/salvar", methods=["POST"])
-def cadastro_simples_salvar(slug):
+@app.route("/cadastros/<slug>/novo", methods=["GET", "POST"])
+@app.route("/cadastros/<slug>/<int:item_id>", methods=["GET", "POST"])
+def cadastro_simples_form(slug, item_id=None):
     cfg = _CADASTROS_SIMPLES.get(slug)
-    if cfg:
-        item_id = request.form.get("id")
-        nome = request.form.get("nome", "")
+    if not cfg:
+        flash("Cadastro não encontrado.", "erro")
+        return redirect(url_for("dashboard"))
+
+    if request.method == "POST":
+        nome = request.form.get("nome", "").strip()
+        if not nome:
+            flash("Informe o nome.", "erro")
+            return render_template("cadastro_simples_form.html", ativo="cadastro_simples", slug=slug,
+                                   singular=cfg["singular"], acao_novo=cfg["acao_novo"],
+                                   item={"id": item_id, "nome": nome})
         if item_id:
-            repo.renomear_simples(cfg["tabela"], int(item_id), nome)
-        elif nome.strip():
+            repo.renomear_simples(cfg["tabela"], item_id, nome)
+            flash("Alteração salva.", "ok")
+        else:
             repo.criar_simples(cfg["tabela"], nome)
-    return redirect(url_for("cadastro_simples", slug=slug))
+            flash("Cadastrado.", "ok")
+        return redirect(url_for("cadastro_simples", slug=slug))
+
+    item = repo.obter_simples(cfg["tabela"], item_id) if item_id else None
+    if item_id and not item:
+        flash("Registro não encontrado.", "erro")
+        return redirect(url_for("cadastro_simples", slug=slug))
+    return render_template("cadastro_simples_form.html", ativo="cadastro_simples", slug=slug,
+                           singular=cfg["singular"], acao_novo=cfg["acao_novo"], item=item)
 
 
 @app.route("/cadastros/<slug>/<int:item_id>/excluir", methods=["POST"])
@@ -149,6 +170,7 @@ def cadastro_simples_excluir(slug, item_id):
     cfg = _CADASTROS_SIMPLES.get(slug)
     if cfg:
         repo.excluir_simples(cfg["tabela"], item_id)
+        flash("Excluído.", "ok")
     return redirect(url_for("cadastro_simples", slug=slug))
 
 

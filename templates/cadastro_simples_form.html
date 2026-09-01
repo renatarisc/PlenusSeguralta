@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% set it = item or {} %}
+{% block titulo %}{{ ('Editar ' ~ singular) if it.id else acao_novo }}{% endblock %}
+{% block cabecalho %}{{ ('Editar ' ~ singular) if it.id else acao_novo }}{% endblock %}
+
+{% block acoes %}
+<a class="btn btn--linha" href="{{ url_for('cadastro_simples', slug=slug) }}">{{ icone('voltar') }} Voltar</a>
+{% endblock %}
+
+{% block conteudo %}
+<form class="form" method="post"
+      action="{{ url_for('cadastro_simples_form', slug=slug, item_id=it.id) if it.id else url_for('cadastro_simples_form', slug=slug) }}">
+  <div class="cartao">
+    <div class="grade">
+      <div class="campo c-6">
+        <label for="nome">Nome</label>
+        <input id="nome" name="nome" required autofocus value="{{ it.nome or '' }}">
+      </div>
+    </div>
+  </div>
+  <div class="rodape-form">
+    <a class="btn btn--linha" href="{{ url_for('cadastro_simples', slug=slug) }}">Cancelar</a>
+    <button class="btn btn--primario" type="submit">Salvar</button>
+  </div>
+</form>
+{% endblock %}
