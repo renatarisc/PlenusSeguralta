@@ -4,6 +4,9 @@
 {% block cabecalho %}{{ 'Editar cliente' if c.id else 'Novo cliente' }}{% endblock %}
 
 {% block acoes %}
+{% if c.id %}
+<a class="btn btn--linha" href="{{ url_for('apolices', cliente=c.id) }}">{{ icone('apolices') }} Apólices ({{ qtd_apolices }})</a>
+{% endif %}
 <button type="button" class="btn btn--linha" data-ler-pdf
         data-endpoint="{{ url_for('cliente_ler_pdf') }}">{{ icone('apolices') }} Ler apólice</button>
 <a class="btn btn--linha" href="{{ url_for('clientes_lista') }}">{{ icone('voltar') }} Voltar</a>

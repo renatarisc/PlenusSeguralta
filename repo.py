@@ -160,20 +160,27 @@ def _inserir_parcelas(con, apolice_id, parcelas):
         )
 
 
-def listar_apolices():
+def listar_apolices(cliente_id=None):
+    sql = """SELECT a.id, a.numero_apolice, a.vigencia_inicio, a.vigencia_fim,
+                    a.premio_liquido, a.lancado_quiver,
+                    c.nome AS cliente_nome, t.nome AS tipo_seguro_nome,
+                    s.nome AS seguradora_nome
+               FROM apolice a
+               LEFT JOIN cliente c     ON c.id = a.cliente_id
+               LEFT JOIN tipo_seguro t ON t.id = a.tipo_seguro_id
+               LEFT JOIN seguradora s  ON s.id = a.seguradora_id"""
+    params = ()
+    if cliente_id:
+        sql += " WHERE a.cliente_id = ?"
+        params = (cliente_id,)
+    sql += " ORDER BY a.criado_em DESC, a.id DESC"
     with conexao() as con:
-        linhas = con.execute(
-            """SELECT a.id, a.numero_apolice, a.vigencia_inicio, a.vigencia_fim,
-                      a.premio_liquido, a.lancado_quiver,
-                      c.nome AS cliente_nome, t.nome AS tipo_seguro_nome,
-                      s.nome AS seguradora_nome
-                 FROM apolice a
-                 LEFT JOIN cliente c     ON c.id = a.cliente_id
-                 LEFT JOIN tipo_seguro t ON t.id = a.tipo_seguro_id
-                 LEFT JOIN seguradora s  ON s.id = a.seguradora_id
-                ORDER BY a.criado_em DESC, a.id DESC"""
-        ).fetchall()
-        return [dict(l) for l in linhas]
+        return [dict(l) for l in con.execute(sql, params).fetchall()]
+
+
+def contar_apolices_do_cliente(cliente_id):
+    with conexao() as con:
+        return con.execute("SELECT COUNT(*) FROM apolice WHERE cliente_id = ?", (cliente_id,)).fetchone()[0]
 
 
 def obter_apolice(apolice_id):

@@ -85,7 +85,9 @@ def cliente_form(cliente_id=None):
     if cliente_id and not cliente:
         flash("Cliente não encontrado.", "erro")
         return redirect(url_for("clientes_lista"))
-    return render_template("clientes_form.html", ativo="clientes_lista", cliente=cliente)
+    qtd_apolices = repo.contar_apolices_do_cliente(cliente_id) if cliente_id else 0
+    return render_template("clientes_form.html", ativo="clientes_lista", cliente=cliente,
+                           qtd_apolices=qtd_apolices)
 
 
 @app.route("/clientes/<int:cliente_id>/excluir", methods=["POST"])
@@ -167,8 +169,11 @@ def _dados_form_apolice():
 
 @app.route("/apolices")
 def apolices():
+    cliente_id = request.args.get("cliente", type=int)
+    cliente = repo.obter_cliente(cliente_id) if cliente_id else None
     return render_template("apolices_lista.html", ativo="apolices",
-                           apolices=repo.listar_apolices())
+                           apolices=repo.listar_apolices(cliente_id=cliente_id),
+                           cliente_filtro=cliente)
 
 
 @app.route("/apolices/nova", methods=["GET", "POST"])
@@ -200,6 +205,10 @@ def apolice_form(apolice_id=None):
     if apolice_id and not apolice:
         flash("Apólice não encontrada.", "erro")
         return redirect(url_for("apolices"))
+    if apolice is None:
+        cliente_id = request.args.get("cliente", type=int)
+        if cliente_id and repo.obter_cliente(cliente_id):
+            apolice = {"cliente_id": cliente_id}
     return render_template("apolices_form.html", ativo="apolices",
                            apolice=_apolice_para_form(apolice), **_dados_form_apolice())
 
