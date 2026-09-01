@@ -16,7 +16,9 @@
     const n = parseFloat(v);
     return isNaN(n) ? 0 : n;
   }
-  const fmt = (n) => n.toFixed(2).replace(".", ",");
+  // 3048.16 -> "3.048,16" (ponto no milhar, vírgula no decimal)
+  const fmt = (n) =>
+    (Number(n) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   function addMeses(iso, k) {
     const p = iso.split("-").map(Number);
