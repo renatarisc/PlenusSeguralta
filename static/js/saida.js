@@ -118,19 +118,6 @@
     });
   }
 
-  const btn12 = document.getElementById("btn-mais12");
-  if (btn12) {
-    btn12.addEventListener("click", () => {
-      const base = ultimaPreenchida();
-      const d = base ? campo(base, "saida_data").value : "";
-      const v = base ? campo(base, "saida_valor").value : "";
-      for (let i = 1; i <= 12; i++) {
-        novaLinha({ data: d ? addMeses(d, i) : "", valor: v || "" });
-      }
-      atualizarResumo();
-    });
-  }
-
   const btnGerar = document.getElementById("btn-gerar-lancamentos");
   if (btnGerar) {
     btnGerar.addEventListener("click", () => {
