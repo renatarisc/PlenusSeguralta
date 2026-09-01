@@ -108,14 +108,14 @@
         return true;
       }
       el.value = valor;
-      if (el.value === String(valor)) return true;
+      if (el.value === String(valor)) { el.dispatchEvent(new Event("change")); return true; }
       // casa pelo texto visível da opção (ex.: seguradora "Porto Seguro")
       const n = normal(valor);
       const opt = [...el.options].find((o) => {
         const to = normal(o.textContent);
         return to && (to === n || to.includes(n) || n.includes(to));
       });
-      if (opt) { el.value = opt.value; return true; }
+      if (opt) { el.value = opt.value; el.dispatchEvent(new Event("change")); return true; }
       return false;
     }
 

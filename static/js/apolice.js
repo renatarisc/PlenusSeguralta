@@ -102,6 +102,23 @@
     atualizarResumo();
   };
 
+  // ---- card "Veículo" só aparece para seguro de automóvel ----
+  const selTipo = document.getElementById("tipo_seguro_id");
+  const cardVeiculo = document.getElementById("card-veiculo");
+  if (selTipo && cardVeiculo) {
+    const ehAuto = () => {
+      const txt = (selTipo.options[selTipo.selectedIndex] || {}).text || "";
+      return /autom[óo]vel|ve[íi]culo|autom[óo]tiv|carro|moto\b|frota/i.test(txt);
+    };
+    const jaTemDados = ["veiculo_placa", "veiculo_descricao"].some((n) => {
+      const el = document.getElementById(n);
+      return el && el.value.trim();
+    });
+    const sync = () => { cardVeiculo.hidden = !(ehAuto() || jaTemDados); };
+    selTipo.addEventListener("change", sync);
+    sync();
+  }
+
   // ---- link do OneDrive: mantém o "abrir ↗" apontando pro valor digitado ----
   const linkIn = document.getElementById("link_onedrive");
   const linkAbrir = document.getElementById("link_onedrive_abrir");

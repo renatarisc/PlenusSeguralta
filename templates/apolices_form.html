@@ -96,6 +96,23 @@
     </div>
   </div>
 
+  <div class="cartao" id="card-veiculo" hidden>
+    <h2>Veículo</h2>
+    <div class="grade">
+      <div class="campo c-3">
+        <label for="veiculo_placa">Placa</label>
+        <input id="veiculo_placa" name="veiculo_placa" maxlength="8" autocapitalize="characters"
+               style="text-transform:uppercase" placeholder="ABC1D23"
+               value="{{ a.veiculo_placa or '' }}">
+      </div>
+      <div class="campo c-9">
+        <label for="veiculo_descricao">Veículo (marca / modelo / ano)</label>
+        <input id="veiculo_descricao" name="veiculo_descricao"
+               placeholder="Ex.: VW Nivus Highline 2023" value="{{ a.veiculo_descricao or '' }}">
+      </div>
+    </div>
+  </div>
+
   <div class="cartao">
     <h2>Parcelas</h2>
     <div class="grade" style="align-items:flex-end;margin-bottom:12px">

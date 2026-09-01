@@ -126,6 +126,15 @@ def extrair_campos_apolice(texto):
     if _dinheiro(cval):
         c["comissao_valor"] = _dinheiro(cval)
 
+    # veículo (seguro de automóvel)
+    placa = _achar(t, r"placa[^A-Z0-9]{0,10}([A-Z]{3}[- ]?\d[A-Z0-9]\d{2})") \
+        or _achar(t, r"\b([A-Z]{3}[- ]?\d[A-Z0-9]\d{2})\b")
+    if placa:
+        c["veiculo_placa"] = re.sub(r"[ \-]", "", placa).upper()
+    veic = _achar(t, r"(?:ve[íi]culo|marca\s*/?\s*modelo|modelo)\s*[:\-]\s*([A-Za-z0-9À-ÿ /.\-]{4,60})")
+    if veic:
+        c["veiculo_descricao"] = veic.strip(" .-")
+
     c["parcelas"] = _parcelas(t)
     return c
 
