@@ -204,6 +204,31 @@ def validar_saida(dados):
     return erros
 
 
+def preparar_lancamentos_saida(datas, valores, parcelas, pagamentos):
+    """Listas paralelas (request.form.getlist) da tabela de lançamentos da saída.
+    Ignora linhas totalmente vazias. Devolve (linhas, erros) — cada linha é um dict
+    {data_vencimento, valor(float|None), numero_parcela, data_pagamento}."""
+    linhas, erros = [], []
+    z = zip_longest(datas or [], valores or [], parcelas or [], pagamentos or [], fillvalue="")
+    n = 0
+    for data, valor, parcela, pago in z:
+        data = (data or "").strip()
+        valor_txt = (valor or "").strip()
+        parcela = (parcela or "").strip()
+        pago = (pago or "").strip()
+        if not (data or valor_txt or parcela or pago):
+            continue
+        n += 1
+        v = para_decimal(valor_txt)
+        if valor_txt and v is None:
+            erros.append(f"Lançamento {n}: valor numérico inválido.")
+        linhas.append({
+            "data_vencimento": data or None, "valor": v,
+            "numero_parcela": parcela or None, "data_pagamento": pago or None,
+        })
+    return linhas, erros
+
+
 # ---------- validação do formulário de cliente ----------
 
 def validar_cliente(dados):

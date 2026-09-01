@@ -19,7 +19,7 @@ import seguranca
 from validacao import (
     formatar_cpf, formatar_cep, formatar_telefone, validar_cliente,
     formatar_numero, formatar_moeda, formatar_data_br, dias_ate_data,
-    validar_apolice, preparar_parcelas, validar_saida,
+    validar_apolice, preparar_parcelas, validar_saida, preparar_lancamentos_saida,
 )
 
 _HTTPS = os.environ.get("PLENUS_HTTPS") == "1"
@@ -537,10 +537,6 @@ def _ler_pdf(alvo):
 
 # ---------- Financeiro: Saídas (fluxo de caixa) ----------
 
-_CAMPOS_SAIDA = ("descricao", "categoria_id", "forma_pagamento_id", "valor",
-                 "data_vencimento", "data_pagamento", "numero_parcela", "fixo_mensal", "serie_id")
-
-
 def _saida_para_form(s):
     if s is None:
         return None
@@ -580,21 +576,46 @@ def saida_form(saida_id=None):
         return redirect(url_for("saidas_lista"))
 
     if request.method == "POST":
-        dados = {k: request.form.get(k, "") for k in _CAMPOS_SAIDA}
-        erros = validar_saida(dados)
+        comum = {
+            "descricao": request.form.get("descricao", ""),
+            "categoria_id": request.form.get("categoria_id", ""),
+            "forma_pagamento_id": request.form.get("forma_pagamento_id", ""),
+            "fixo_mensal": "1" if request.form.get("fixo_mensal") else "0",
+        }
+
+        if saida_id:  # edição: uma saída, campos planos
+            dados = {**comum,
+                     "valor": request.form.get("valor", ""),
+                     "data_vencimento": request.form.get("data_vencimento", ""),
+                     "data_pagamento": request.form.get("data_pagamento", ""),
+                     "numero_parcela": request.form.get("numero_parcela", ""),
+                     "serie_id": request.form.get("serie_id", "")}
+            erros = validar_saida(dados)
+            if erros:
+                for e in erros:
+                    flash(e, "erro")
+                return render_template("saidas_form.html", ativo="saidas_lista",
+                                       saida={**dados, "id": saida_id}, **_selects_saida())
+            repo.atualizar_saida(saida_id, dados)
+            flash("Saída atualizada.", "ok")
+            return redirect(url_for("saidas_lista"))
+
+        # criação: um ou vários lançamentos a partir da tabela
+        linhas, erros = preparar_lancamentos_saida(
+            request.form.getlist("saida_data"),
+            request.form.getlist("saida_valor"),
+            request.form.getlist("saida_parcela"),
+            request.form.getlist("saida_pago_em"))
+        erros = validar_saida(comum) + erros
+        if not linhas:
+            erros.append("Adicione ao menos um lançamento.")
         if erros:
             for e in erros:
                 flash(e, "erro")
             return render_template("saidas_form.html", ativo="saidas_lista",
-                                   saida={**dados, "id": saida_id}, **_selects_saida())
-        if saida_id:
-            repo.atualizar_saida(saida_id, dados)
-            flash("Saída atualizada.", "ok")
-        else:
-            modo = request.form.get("repeticao", "unica")
-            qtd = request.form.get("repeticao_qtd", type=int) or 1
-            repo.criar_saidas(dados, modo=modo, qtd=qtd)
-            flash("Saída cadastrada.", "ok")
+                                   saida={**comum, "lancamentos": linhas}, **_selects_saida())
+        ids = repo.criar_saidas_lote(comum, linhas)
+        flash(f"{len(ids)} lançamentos cadastrados." if len(ids) > 1 else "Saída cadastrada.", "ok")
         return redirect(url_for("saidas_lista"))
 
     return render_template("saidas_form.html", ativo="saidas_lista",

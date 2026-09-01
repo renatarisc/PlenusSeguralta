@@ -633,29 +633,22 @@ def _inserir_saida(con, dados):
     return cur.lastrowid
 
 
-def criar_saidas(dados, modo="unica", qtd=1):
-    """modo: 'unica' | 'parcelada' | 'fixo'. Gera 1..N linhas de saída.
+def criar_saidas_lote(comum, linhas):
+    """`comum`: dict com os campos que valem para todos os lançamentos
+    (descricao, categoria_id, forma_pagamento_id, fixo_mensal).
+    `linhas`: lista de dicts {data_vencimento, valor, numero_parcela, data_pagamento}.
+    Cria uma saída por linha; todas compartilham um serie_id quando há mais de uma.
     Devolve a lista de ids criados."""
-    qtd = max(1, int(qtd or 1))
-    if modo == "unica":
-        qtd = 1
-    serie = None if qtd == 1 else secrets.token_hex(8)
-    venc0 = (dados.get("data_vencimento") or "").strip() or None
+    linhas = [l for l in linhas
+              if any((l.get("data_vencimento"), l.get("valor"),
+                      l.get("numero_parcela"), l.get("data_pagamento")))]
+    if not linhas:
+        return []
+    serie = None if len(linhas) == 1 else secrets.token_hex(8)
     ids = []
     with conexao() as con:
-        for k in range(qtd):
-            linha = dict(dados)
-            linha["serie_id"] = serie
-            if venc0:
-                linha["data_vencimento"] = add_meses(venc0, k) or venc0
-            if modo == "parcelada":
-                linha["numero_parcela"] = f"{k + 1}/{qtd}"
-                linha["fixo_mensal"] = 0
-            elif modo == "fixo":
-                linha["numero_parcela"] = None
-                linha["fixo_mensal"] = 1
-            linha["data_pagamento"] = None  # nova série nasce toda em aberto
-            ids.append(_inserir_saida(con, linha))
+        for l in linhas:
+            ids.append(_inserir_saida(con, {**comum, **l, "serie_id": serie}))
     fazer_backup()
     return ids
 
