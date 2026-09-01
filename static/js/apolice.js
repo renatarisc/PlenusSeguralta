@@ -102,6 +102,16 @@
     atualizarResumo();
   };
 
+  // ---- "enviada = Sim" preenche a data com hoje, se estiver vazia ----
+  document.querySelectorAll("[data-par-data]").forEach((sel) => {
+    sel.addEventListener("change", () => {
+      const campoData = document.getElementById(sel.dataset.parData);
+      if (sel.value === "1" && campoData && !campoData.value) {
+        campoData.value = new Date().toISOString().slice(0, 10);
+      }
+    });
+  });
+
   // ---- comissão: valor = prêmio * % / 100 ----
   const btnCalc = document.getElementById("btn-calc-comissao");
   if (btnCalc) {

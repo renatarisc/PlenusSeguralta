@@ -160,6 +160,7 @@ _CAMPOS_APOLICE = (
     "premio_liquido", "iof", "premio_total",
     "forma_pagamento_id", "comissao_percentual", "comissao_valor",
     "lancado_quiver", "link_onedrive",
+    "apolice_enviada", "apolice_enviada_data", "cartao_enviado", "cartao_enviado_data",
 )
 
 

@@ -70,6 +70,10 @@ CREATE TABLE IF NOT EXISTS apolice (
     comissao_valor REAL,
     lancado_quiver INTEGER NOT NULL DEFAULT 0,   -- 0 = não, 1 = sim
     link_onedrive TEXT,
+    apolice_enviada INTEGER NOT NULL DEFAULT 0,
+    apolice_enviada_data TEXT,
+    cartao_enviado INTEGER NOT NULL DEFAULT 0,
+    cartao_enviado_data TEXT,
     criado_em TEXT NOT NULL DEFAULT (datetime('now')),
     atualizado_em TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -118,6 +122,8 @@ _COLUNAS_ESPERADAS = {
         "premio_liquido": "REAL", "iof": "REAL", "premio_total": "REAL",
         "forma_pagamento_id": "INTEGER", "comissao_percentual": "REAL", "comissao_valor": "REAL",
         "lancado_quiver": "INTEGER NOT NULL DEFAULT 0", "link_onedrive": "TEXT",
+        "apolice_enviada": "INTEGER NOT NULL DEFAULT 0", "apolice_enviada_data": "TEXT",
+        "cartao_enviado": "INTEGER NOT NULL DEFAULT 0", "cartao_enviado_data": "TEXT",
         "criado_em": "TEXT NOT NULL DEFAULT (datetime('now'))",
         "atualizado_em": "TEXT NOT NULL DEFAULT (datetime('now'))",
     },

@@ -156,7 +156,12 @@ _COLS_APOLICE = (
     "premio_liquido", "iof", "premio_total",
     "forma_pagamento_id", "comissao_percentual", "comissao_valor",
     "lancado_quiver", "link_onedrive",
+    "apolice_enviada", "apolice_enviada_data", "cartao_enviado", "cartao_enviado_data",
 )
+
+
+def _sim_nao(v):
+    return 1 if str(v or "").strip().lower() in ("1", "sim", "on", "true") else 0
 
 
 def _valores_apolice(dados):
@@ -173,8 +178,12 @@ def _valores_apolice(dados):
         _int_ou_none(dados.get("forma_pagamento_id")),
         para_decimal(dados.get("comissao_percentual")),
         para_decimal(dados.get("comissao_valor")),
-        1 if str(dados.get("lancado_quiver", "")).strip().lower() in ("1", "sim", "on", "true") else 0,
+        _sim_nao(dados.get("lancado_quiver")),
         (dados.get("link_onedrive") or "").strip() or None,
+        _sim_nao(dados.get("apolice_enviada")),
+        (dados.get("apolice_enviada_data") or "").strip() or None,
+        _sim_nao(dados.get("cartao_enviado")),
+        (dados.get("cartao_enviado_data") or "").strip() or None,
     ]
 
 

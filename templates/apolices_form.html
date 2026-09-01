@@ -176,6 +176,31 @@
         <input id="link_onedrive" name="link_onedrive" type="url" placeholder="https://..."
                value="{{ a.link_onedrive or '' }}">
       </div>
+
+      <div class="campo c-3">
+        <label for="apolice_enviada">Apólice enviada</label>
+        <select id="apolice_enviada" name="apolice_enviada" data-par-data="apolice_enviada_data">
+          <option value="0" {{ 'selected' if not a.apolice_enviada }}>Não</option>
+          <option value="1" {{ 'selected' if a.apolice_enviada }}>Sim</option>
+        </select>
+      </div>
+      <div class="campo c-3">
+        <label for="apolice_enviada_data">Data do envio (apólice)</label>
+        <input id="apolice_enviada_data" name="apolice_enviada_data" type="date"
+               value="{{ a.apolice_enviada_data or '' }}">
+      </div>
+      <div class="campo c-3">
+        <label for="cartao_enviado">Cartão enviado</label>
+        <select id="cartao_enviado" name="cartao_enviado" data-par-data="cartao_enviado_data">
+          <option value="0" {{ 'selected' if not a.cartao_enviado }}>Não</option>
+          <option value="1" {{ 'selected' if a.cartao_enviado }}>Sim</option>
+        </select>
+      </div>
+      <div class="campo c-3">
+        <label for="cartao_enviado_data">Data do envio (cartão)</label>
+        <input id="cartao_enviado_data" name="cartao_enviado_data" type="date"
+               value="{{ a.cartao_enviado_data or '' }}">
+      </div>
     </div>
   </div>
 
