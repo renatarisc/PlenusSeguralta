@@ -224,10 +224,10 @@ table.lista tr.parcela--atrasada input,
 table.lista tr.parcela--atrasada select { border-color: #f0ccc9; }
 
 /* parcela perto de vencer (<=10 dias) e não paga: amarelo */
-table.lista tr.parcela--perto td { background: #fef6e0; }
-table.lista tr.parcela--perto td:first-child { box-shadow: inset 3px 0 0 #e0a300; }
+table.lista tr.parcela--perto td { background: #fef0ad; }
+table.lista tr.parcela--perto td:first-child { box-shadow: inset 3px 0 0 #d99a00; }
 table.lista tr.parcela--perto input,
-table.lista tr.parcela--perto select { border-color: #f2dfa0; }
+table.lista tr.parcela--perto select { border-color: #ecd067; }
 
 /* ---------- barra de busca ---------- */
 .busca { display: flex; gap: 8px; align-items: center; margin-bottom: 14px; max-width: 420px; }
