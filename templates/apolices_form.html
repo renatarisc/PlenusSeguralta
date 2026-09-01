@@ -72,17 +72,17 @@
       <div class="campo c-3">
         <label for="premio_liquido">Prêmio líquido (R$)</label>
         <input id="premio_liquido" name="premio_liquido" inputmode="decimal" data-num
-               placeholder="0,00" value="{{ a.premio_liquido or '' }}">
+               value="{{ a.premio_liquido or '' }}">
       </div>
       <div class="campo c-3">
         <label for="iof">IOF (R$)</label>
         <input id="iof" name="iof" inputmode="decimal" data-num
-               placeholder="0,00" value="{{ a.iof or '' }}">
+               value="{{ a.iof or '' }}">
       </div>
       <div class="campo c-3">
         <label for="premio_total">Prêmio total (R$)</label>
         <input id="premio_total" name="premio_total" inputmode="decimal" data-num
-               placeholder="0,00" value="{{ a.premio_total or '' }}">
+               value="{{ a.premio_total or '' }}">
       </div>
       <div class="campo c-3">
         <label for="forma_pagamento_id">Forma de pagamento</label>
@@ -102,13 +102,11 @@
       <div class="campo c-3">
         <label for="veiculo_placa">Placa</label>
         <input id="veiculo_placa" name="veiculo_placa" maxlength="8" autocapitalize="characters"
-               style="text-transform:uppercase" placeholder="ABC1D23"
-               value="{{ a.veiculo_placa or '' }}">
+               style="text-transform:uppercase" value="{{ a.veiculo_placa or '' }}">
       </div>
       <div class="campo c-9">
         <label for="veiculo_descricao">Veículo (marca / modelo / ano)</label>
-        <input id="veiculo_descricao" name="veiculo_descricao"
-               placeholder="Ex.: VW Nivus Highline 2023" value="{{ a.veiculo_descricao or '' }}">
+        <input id="veiculo_descricao" name="veiculo_descricao" value="{{ a.veiculo_descricao or '' }}">
       </div>
     </div>
   </div>
@@ -122,7 +120,7 @@
       </div>
       <div class="campo c-3">
         <label for="ger_total">Valor total (R$)</label>
-        <input id="ger_total" inputmode="decimal" data-num placeholder="0,00">
+        <input id="ger_total" inputmode="decimal" data-num>
       </div>
       <div class="campo c-3">
         <label for="ger_data1">1ª data</label>
@@ -142,9 +140,9 @@
         <tbody id="corpo-parcelas">
           {% for p in a.parcelas or [] %}
           <tr class="parcela">
-            <td><input name="parcela_identificacao" value="{{ p.identificacao or '' }}" placeholder="1/12"></td>
+            <td><input name="parcela_identificacao" value="{{ p.identificacao or '' }}"></td>
             <td><input name="parcela_data" type="date" value="{{ p.data or '' }}"></td>
-            <td><input name="parcela_valor" inputmode="decimal" data-num value="{{ p.valor or '' }}" placeholder="0,00"></td>
+            <td><input name="parcela_valor" inputmode="decimal" data-num value="{{ p.valor or '' }}"></td>
             <td class="acoes"><button type="button" class="btn btn--perigo btn--mini" data-remover-parcela>{{ icone('x') }}</button></td>
           </tr>
           {% endfor %}
@@ -163,12 +161,12 @@
       <div class="campo c-3">
         <label for="comissao_percentual">Percentual (%)</label>
         <input id="comissao_percentual" name="comissao_percentual" inputmode="decimal" data-num
-               placeholder="0,00" value="{{ a.comissao_percentual or '' }}">
+               value="{{ a.comissao_percentual or '' }}">
       </div>
       <div class="campo c-3">
         <label for="comissao_valor">Valor (R$)</label>
         <input id="comissao_valor" name="comissao_valor" inputmode="decimal" data-num
-               placeholder="0,00" value="{{ a.comissao_valor or '' }}">
+               value="{{ a.comissao_valor or '' }}">
       </div>
       <div class="campo c-4" style="justify-content:flex-end">
         <button type="button" class="btn btn--linha" id="btn-calc-comissao">
@@ -233,9 +231,9 @@
 
 <template id="tpl-parcela">
   <tr class="parcela">
-    <td><input name="parcela_identificacao" placeholder="1/12"></td>
+    <td><input name="parcela_identificacao"></td>
     <td><input name="parcela_data" type="date"></td>
-    <td><input name="parcela_valor" inputmode="decimal" data-num placeholder="0,00"></td>
+    <td><input name="parcela_valor" inputmode="decimal" data-num></td>
     <td class="acoes"><button type="button" class="btn btn--perigo btn--mini" data-remover-parcela>{{ icone('x') }}</button></td>
   </tr>
 </template>
