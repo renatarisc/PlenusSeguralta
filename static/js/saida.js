@@ -44,6 +44,21 @@
     return Array.from(corpo.querySelectorAll("tr.lancamento"));
   }
 
+  function campo(tr, nome) {
+    return tr.querySelector('[name="' + nome + '"]');
+  }
+  function preenchida(tr) {
+    return ["saida_data", "saida_valor", "saida_parcela", "saida_pago_em"]
+      .some((n) => campo(tr, n).value.trim());
+  }
+  function ultimaPreenchida() {
+    const ls = linhas();
+    for (let i = ls.length - 1; i >= 0; i--) {
+      if (campo(ls[i], "saida_data").value || campo(ls[i], "saida_valor").value) return ls[i];
+    }
+    return null;
+  }
+
   function atualizarPintura(tr) {
     const data = tr.querySelector('[name="saida_data"]').value;
     const pago = !!tr.querySelector('[name="saida_pago_em"]').value;
@@ -54,15 +69,14 @@
   }
 
   function atualizarResumo() {
-    const ls = linhas();
     let soma = 0;
-    ls.forEach((tr) => {
-      soma += num(tr.querySelector('[name="saida_valor"]').value);
+    let n = 0;
+    linhas().forEach((tr) => {
+      soma += num(campo(tr, "saida_valor").value);
       atualizarPintura(tr);
+      if (preenchida(tr)) n++;
     });
-    resumo.textContent = ls.length
-      ? ls.length + " lançamento(s) · soma R$ " + fmt(soma)
-      : "";
+    resumo.textContent = n ? n + " lançamento(s) · soma R$ " + fmt(soma) : "";
   }
 
   function novaLinha(d) {
@@ -85,11 +99,24 @@
     atualizarResumo();
   });
   corpo.addEventListener("input", (e) => {
-    if (["saida_valor", "saida_data", "saida_pago_em"].indexOf(e.target.name) > -1) atualizarResumo();
+    if (["saida_valor", "saida_data", "saida_pago_em", "saida_parcela"].indexOf(e.target.name) > -1) atualizarResumo();
   });
 
+  // "Adicionar lançamento" sugere o mês seguinte (mesmo dia) e repete o valor da última
+  // linha preenchida — é só sugestão, dá pra alterar.
   const btnAdd = document.getElementById("btn-add-lancamento");
-  if (btnAdd) btnAdd.addEventListener("click", () => { novaLinha(); atualizarResumo(); });
+  if (btnAdd) {
+    btnAdd.addEventListener("click", () => {
+      const base = ultimaPreenchida();
+      let sug = null;
+      if (base) {
+        const d = campo(base, "saida_data").value;
+        sug = { data: d ? addMeses(d, 1) : "", valor: campo(base, "saida_valor").value || "" };
+      }
+      novaLinha(sug);
+      atualizarResumo();
+    });
+  }
 
   const btnGerar = document.getElementById("btn-gerar-lancamentos");
   if (btnGerar) {
