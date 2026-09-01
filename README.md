@@ -35,6 +35,24 @@ venv\Scripts\python.exe app.py
 | `templates/` | páginas (`base.html` = layout + menu + ícones) |
 | `static/` | `css/app.css`, `js/app.js` (máscaras, validação, UF↔Cidade), `dados/municipios.json` |
 
+## Aviso de vencimento de apólice
+
+- Na lista de apólices, quando faltam **≤ 20 dias** para o fim da vigência (ou já venceu),
+  a linha fica destacada em vermelho com uma tarja "vence em Nd".
+- `verificar_vencimentos.py` manda um WhatsApp para um número fixo da corretora quando
+  faltam **10, 5 e 1 dia** (marcos configuráveis). Cada marco dispara uma vez só
+  (registrado em `notificacao_vencimento`).
+- Configuração: copie `plenus_config.exemplo.json` para `plenus_config.json` (fora do git)
+  e preencha `whatsapp.destino` e o provedor. Enquanto `provedor` for `"simulado"`, nada
+  é enviado de verdade — só grava em `notificacoes.log`.
+- Rodar 1x/dia pela **Tarefa Agendada do Windows**:
+
+```bat
+schtasks /create /tn "Plenus - vencimentos" /sc daily /st 08:00 /tr "\"C:\Users\renat\PycharmProjects\plenus_seguralta\venv\Scripts\python.exe\" \"C:\Users\renat\PycharmProjects\plenus_seguralta\verificar_vencimentos.py\""
+```
+
+Teste sem enviar: `venv\Scripts\python.exe verificar_vencimentos.py --seco`
+
 ## Feito
 
 - Cadastro de **Clientes** (dados pessoais, endereço, contato)

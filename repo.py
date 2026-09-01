@@ -226,3 +226,25 @@ def excluir_apolice(apolice_id):
     with conexao() as con:
         con.execute("DELETE FROM apolice WHERE id = ?", (apolice_id,))
     fazer_backup()
+
+
+# ---------- avisos de vencimento (WhatsApp) ----------
+
+def notificacao_ja_enviada(apolice_id, marco, vigencia_fim):
+    with conexao() as con:
+        r = con.execute(
+            "SELECT 1 FROM notificacao_vencimento WHERE apolice_id = ? AND marco = ? AND vigencia_fim IS ?",
+            (apolice_id, marco, vigencia_fim),
+        ).fetchone()
+        return r is not None
+
+
+def registrar_notificacao(apolice_id, marco, vigencia_fim, canal, destino, resultado):
+    with conexao() as con:
+        con.execute(
+            """INSERT OR REPLACE INTO notificacao_vencimento
+                   (apolice_id, marco, vigencia_fim, canal, destino, resultado, enviado_em)
+               VALUES (?, ?, ?, ?, ?, ?, datetime('now'))""",
+            (apolice_id, marco, vigencia_fim, canal, destino, resultado),
+        )
+    fazer_backup()

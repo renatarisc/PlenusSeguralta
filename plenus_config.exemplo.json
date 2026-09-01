@@ -1,0 +1,26 @@
+{
+  "_leia": "Copie este arquivo para plenus_config.json e preencha. O plenus_config.json NÃO vai pro git.",
+  "marcos_dias": [10, 5, 1],
+  "whatsapp": {
+    "provedor": "simulado",
+    "_provedor_opcoes": ["simulado", "zapi", "cloud", "twilio"],
+    "destino": "5521999998888",
+    "_destino": "número fixo da corretora que recebe os avisos (só dígitos, com DDI 55)",
+
+    "zapi": {
+      "base_url": "https://api.z-api.io/instances/SUA_INSTANCIA/token/SEU_TOKEN",
+      "client_token": ""
+    },
+    "cloud": {
+      "phone_number_id": "",
+      "token": "",
+      "template": "",
+      "idioma": "pt_BR"
+    },
+    "twilio": {
+      "account_sid": "",
+      "auth_token": "",
+      "from": "whatsapp:+14155238886"
+    }
+  }
+}

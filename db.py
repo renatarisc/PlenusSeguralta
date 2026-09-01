@@ -79,6 +79,20 @@ CREATE TABLE IF NOT EXISTS apolice_parcela (
     data TEXT,
     valor REAL
 );
+
+-- registro de aviso de vencimento já enviado (pra não repetir o mesmo marco)
+CREATE TABLE IF NOT EXISTS notificacao_vencimento (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    apolice_id INTEGER NOT NULL REFERENCES apolice(id) ON DELETE CASCADE,
+    marco INTEGER NOT NULL,            -- dias que faltavam no marco (10, 5, 1...)
+    vigencia_fim TEXT,                 -- pra reenviar se a vigência mudar
+    canal TEXT,
+    destino TEXT,
+    resultado TEXT,
+    enviado_em TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ix_notif_venc_unico
+    ON notificacao_vencimento (apolice_id, marco, vigencia_fim);
 """
 
 # colunas esperadas por tabela - o migrador acrescenta as que faltarem num banco antigo.
@@ -105,6 +119,11 @@ _COLUNAS_ESPERADAS = {
         "atualizado_em": "TEXT NOT NULL DEFAULT (datetime('now'))",
     },
     "apolice_parcela": {"apolice_id": "INTEGER", "identificacao": "TEXT", "data": "TEXT", "valor": "REAL"},
+    "notificacao_vencimento": {
+        "apolice_id": "INTEGER", "marco": "INTEGER", "vigencia_fim": "TEXT",
+        "canal": "TEXT", "destino": "TEXT", "resultado": "TEXT",
+        "enviado_em": "TEXT NOT NULL DEFAULT (datetime('now'))",
+    },
 }
 
 

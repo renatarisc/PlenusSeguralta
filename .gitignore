@@ -9,3 +9,5 @@ backups/
 .env
 instance/
 amostras_apolice/
+plenus_config.json
+notificacoes.log
