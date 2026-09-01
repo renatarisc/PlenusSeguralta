@@ -86,10 +86,10 @@ app.jinja_env.globals["MENU"] = [
     {"rota": "dashboard", "texto": "Painel", "icone": "painel"},
     {"rota": "clientes_lista", "texto": "Clientes", "icone": "clientes"},
     {"rota": "apolices", "texto": "Apólices", "icone": "apolices"},
-    {"rota": "cadastro_simples", "texto": "Seguradoras", "icone": "predio", "slug": "seguradora"},
+    {"rota": "cadastro_simples", "texto": "Seguradoras", "icone": "predio", "slug": "seguradora", "divisoria_antes": True},
     {"rota": "cadastro_simples", "texto": "Tipos de Seguro", "icone": "tag", "slug": "tipo-seguro"},
     {"rota": "cadastro_simples", "texto": "Formas de Pagamento", "icone": "pagamento", "slug": "forma-pagamento"},
-    {"rota": "usuarios_lista", "texto": "Usuários", "icone": "cadeado"},
+    {"rota": "usuarios_lista", "texto": "Usuários", "icone": "cadeado", "divisoria_antes": True},
 ]
 
 

@@ -43,6 +43,7 @@
     </div>
     <nav class="nav">
       {% for m in MENU %}
+      {% if m.divisoria_antes %}<div class="nav__sep" aria-hidden="true"></div>{% endif %}
       {% set href = url_for(m.rota, slug=m.slug) if m.slug else url_for(m.rota) %}
       {% set atv = (ativo == m.rota and (not m.slug or m.slug == request.view_args.get('slug'))) %}
       <a class="nav__item {{ 'nav__item--ativo' if atv }}" href="{{ href }}" title="{{ m.texto }}">
