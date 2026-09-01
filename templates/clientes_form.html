@@ -4,10 +4,15 @@
 {% block cabecalho %}{{ 'Editar cliente' if c.id else 'Novo cliente' }}{% endblock %}
 
 {% block acoes %}
+<button type="button" class="btn btn--linha" data-ler-pdf
+        data-endpoint="{{ url_for('cliente_ler_pdf') }}">{{ icone('apolices') }} Ler apólice</button>
 <a class="btn btn--linha" href="{{ url_for('clientes_lista') }}">{{ icone('voltar') }} Voltar</a>
 {% endblock %}
 
 {% block conteudo %}
+<input type="file" id="arquivo-pdf" accept="application/pdf" hidden>
+<div class="dica" id="ler-pdf-status" style="margin-bottom:12px"></div>
+
 <form class="form" method="post" novalidate
       action="{{ url_for('cliente_form', cliente_id=c.id) if c.id else url_for('cliente_form') }}">
 
@@ -111,4 +116,5 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+<script src="{{ url_for('static', filename='js/ler_pdf.js') }}"></script>
 {% endblock %}

@@ -48,7 +48,7 @@ a { color: inherit; text-decoration: none; }
   gap: 8px; padding: 16px 14px; border-bottom: 1px solid rgba(255, 255, 255, .08);
 }
 .marca { display: flex; align-items: center; gap: 9px; min-width: 0; }
-.marca__pico { color: var(--laranja); font-size: 15px; line-height: 1; }
+.marca__pico { flex: 0 0 auto; display: block; width: 22px; height: 22px; }
 .marca__nome { display: flex; flex-direction: column; line-height: 1.1; font-weight: 800; letter-spacing: .06em; font-size: 15px; white-space: nowrap; }
 .marca__sub { font-weight: 600; font-size: 9px; letter-spacing: .16em; color: var(--texto-inv-suave); margin-top: 2px; }
 .barra__fechar { display: none; }
@@ -128,6 +128,7 @@ a { color: inherit; text-decoration: none; }
   outline: none; border-color: var(--laranja); box-shadow: 0 0 0 3px var(--laranja-fraco);
 }
 .campo input[aria-invalid="true"] { border-color: var(--erro); }
+.foi-preenchido { background: var(--laranja-fraco); transition: background .4s; }
 .campo .dica { font-size: 11px; color: var(--texto-suave); }
 .campo .dica--erro { color: var(--erro); }
 

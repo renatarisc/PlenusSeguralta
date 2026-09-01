@@ -11,7 +11,7 @@
   <div class="tabela-wrap">
     <table class="lista">
       <thead>
-        <tr><th>Número</th><th>Cliente</th><th>Tipo de seguro</th><th>Vigência</th>
+        <tr><th>Número</th><th>Cliente</th><th>Seguradora</th><th>Tipo de seguro</th><th>Vigência</th>
             <th>Prêmio líquido</th><th>Quiver</th><th></th></tr>
       </thead>
       <tbody>
@@ -20,6 +20,7 @@
           <td><a href="{{ url_for('apolice_form', apolice_id=a.id) }}"
                  style="font-weight:600;color:var(--laranja-hover)">{{ a.numero_apolice or '—' }}</a></td>
           <td>{{ a.cliente_nome or '—' }}</td>
+          <td>{{ a.seguradora_nome or '—' }}</td>
           <td>{{ a.tipo_seguro_nome or '—' }}</td>
           <td>{{ a.vigencia_inicio|data_br }} – {{ a.vigencia_fim|data_br }}</td>
           <td>{{ a.premio_liquido|moeda }}</td>

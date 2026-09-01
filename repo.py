@@ -85,7 +85,7 @@ def excluir_cliente(cliente_id):
 
 # ---------- cadastros simples (tipo_seguro, forma_pagamento) - só nome ----------
 
-_TABELAS_SIMPLES = {"tipo_seguro", "forma_pagamento"}
+_TABELAS_SIMPLES = {"tipo_seguro", "forma_pagamento", "seguradora"}
 
 
 def listar_simples(tabela):
@@ -128,7 +128,8 @@ def excluir_simples(tabela, item_id):
 # ---------- apólice (+ parcelas) ----------
 
 _COLS_APOLICE = (
-    "cliente_id", "tipo_seguro_id", "numero_apolice", "vigencia_inicio", "vigencia_fim",
+    "cliente_id", "seguradora_id", "tipo_seguro_id", "numero_apolice",
+    "vigencia_inicio", "vigencia_fim",
     "premio_liquido", "forma_pagamento_id", "comissao_percentual", "comissao_valor",
     "lancado_quiver", "link_onedrive",
 )
@@ -137,6 +138,7 @@ _COLS_APOLICE = (
 def _valores_apolice(dados):
     return [
         _int_ou_none(dados.get("cliente_id")),
+        _int_ou_none(dados.get("seguradora_id")),
         _int_ou_none(dados.get("tipo_seguro_id")),
         (dados.get("numero_apolice") or "").strip() or None,
         (dados.get("vigencia_inicio") or "").strip() or None,
@@ -163,10 +165,12 @@ def listar_apolices():
         linhas = con.execute(
             """SELECT a.id, a.numero_apolice, a.vigencia_inicio, a.vigencia_fim,
                       a.premio_liquido, a.lancado_quiver,
-                      c.nome AS cliente_nome, t.nome AS tipo_seguro_nome
+                      c.nome AS cliente_nome, t.nome AS tipo_seguro_nome,
+                      s.nome AS seguradora_nome
                  FROM apolice a
                  LEFT JOIN cliente c     ON c.id = a.cliente_id
                  LEFT JOIN tipo_seguro t ON t.id = a.tipo_seguro_id
+                 LEFT JOIN seguradora s  ON s.id = a.seguradora_id
                 ORDER BY a.criado_em DESC, a.id DESC"""
         ).fetchall()
         return [dict(l) for l in linhas]

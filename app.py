@@ -4,10 +4,11 @@
                           http://IP-DO-PC:5000   (no celular, mesma rede Wi-Fi)
 """
 
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 
 import db
 import repo
+import leitura_pdf
 from validacao import (
     formatar_cpf, formatar_cep, formatar_telefone, validar_cliente,
     formatar_numero, formatar_moeda, formatar_data_br, validar_apolice, preparar_parcelas,
@@ -15,6 +16,7 @@ from validacao import (
 
 app = Flask(__name__)
 app.secret_key = "plenus-seguralta-dev"  # trocar por algo secreto quando for pra valer
+app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024  # PDF de apólice: teto de 20 MB
 
 db.inicializar_db()
 
@@ -22,6 +24,7 @@ db.inicializar_db()
 _CADASTROS_SIMPLES = {
     "tipo-seguro": {"tabela": "tipo_seguro", "titulo": "Tipos de Seguro", "singular": "tipo de seguro"},
     "forma-pagamento": {"tabela": "forma_pagamento", "titulo": "Formas de Pagamento", "singular": "forma de pagamento"},
+    "seguradora": {"tabela": "seguradora", "titulo": "Seguradoras", "singular": "seguradora"},
 }
 
 # disponível em todo template (máscaras na exibição, itens do menu)
@@ -35,6 +38,7 @@ app.jinja_env.globals["MENU"] = [
     {"rota": "dashboard", "texto": "Painel", "icone": "painel"},
     {"rota": "clientes_lista", "texto": "Clientes", "icone": "clientes"},
     {"rota": "apolices", "texto": "Apólices", "icone": "apolices"},
+    {"rota": "cadastro_simples", "texto": "Seguradoras", "icone": "predio", "slug": "seguradora"},
     {"rota": "cadastro_simples", "texto": "Tipos de Seguro", "icone": "tag", "slug": "tipo-seguro"},
     {"rota": "cadastro_simples", "texto": "Formas de Pagamento", "icone": "pagamento", "slug": "forma-pagamento"},
 ]
@@ -91,6 +95,11 @@ def cliente_excluir(cliente_id):
     return redirect(url_for("clientes_lista"))
 
 
+@app.route("/clientes/ler-pdf", methods=["POST"])
+def cliente_ler_pdf():
+    return _ler_pdf("cliente")
+
+
 # ---------- Cadastros simples (Tipos de Seguro / Formas de Pagamento) ----------
 
 @app.route("/cadastros/<slug>")
@@ -128,7 +137,8 @@ def cadastro_simples_excluir(slug, item_id):
 # ---------- Apólices ----------
 
 _CAMPOS_APOLICE = (
-    "cliente_id", "tipo_seguro_id", "numero_apolice", "vigencia_inicio", "vigencia_fim",
+    "cliente_id", "seguradora_id", "tipo_seguro_id", "numero_apolice",
+    "vigencia_inicio", "vigencia_fim",
     "premio_liquido", "forma_pagamento_id", "comissao_percentual", "comissao_valor",
     "lancado_quiver", "link_onedrive",
 )
@@ -149,6 +159,7 @@ def _apolice_para_form(ap, parcelas=None):
 def _dados_form_apolice():
     return dict(
         clientes=repo.listar_clientes(),
+        seguradoras=repo.listar_simples("seguradora"),
         tipos=repo.listar_simples("tipo_seguro"),
         formas=repo.listar_simples("forma_pagamento"),
     )
@@ -198,6 +209,29 @@ def apolice_excluir(apolice_id):
     repo.excluir_apolice(apolice_id)
     flash("Apólice excluída.", "ok")
     return redirect(url_for("apolices"))
+
+
+@app.route("/apolices/ler-pdf", methods=["POST"])
+def apolice_ler_pdf():
+    return _ler_pdf("apolice")
+
+
+# ---------- Ler apólice em PDF (usado pelos dois formulários) ----------
+
+def _ler_pdf(alvo):
+    arquivo = request.files.get("arquivo")
+    if not arquivo or not arquivo.filename:
+        return jsonify(ok=False, campos={}, origem="vazio", aviso="Nenhum arquivo enviado."), 400
+    if not arquivo.filename.lower().endswith(".pdf"):
+        return jsonify(ok=False, campos={}, origem="vazio", aviso="Envie um arquivo PDF."), 400
+    dados = arquivo.read()
+    if not dados:
+        return jsonify(ok=False, campos={}, origem="vazio", aviso="Arquivo vazio."), 400
+    try:
+        return jsonify(leitura_pdf.ler_pdf(dados, alvo))
+    except Exception as e:  # noqa: BLE001 - devolve o erro pro front em vez de 500 seco
+        app.logger.exception("falha ao ler PDF")
+        return jsonify(ok=False, campos={}, origem="erro", aviso=f"Erro ao ler o PDF: {e}"), 500
 
 
 if __name__ == "__main__":

@@ -4,6 +4,8 @@
 {% block cabecalho %}{{ 'Editar apólice' if a.id else 'Nova apólice' }}{% endblock %}
 
 {% block acoes %}
+<button type="button" class="btn btn--linha" data-ler-pdf
+        data-endpoint="{{ url_for('apolice_ler_pdf') }}">{{ icone('apolices') }} Ler apólice</button>
 <a class="btn btn--linha" href="{{ url_for('apolices') }}">{{ icone('voltar') }} Voltar</a>
 {% endblock %}
 
@@ -16,6 +18,9 @@
   </p>
 </div>
 {% endif %}
+
+<input type="file" id="arquivo-pdf" accept="application/pdf" hidden>
+<div class="dica" id="ler-pdf-status" style="margin-bottom:12px"></div>
 
 <form class="form" method="post" novalidate
       action="{{ url_for('apolice_form', apolice_id=a.id) if a.id else url_for('apolice_form') }}">
@@ -32,6 +37,16 @@
           {% endfor %}
         </select>
       </div>
+      <div class="campo c-6">
+        <label for="seguradora_id">Seguradora</label>
+        <select id="seguradora_id" name="seguradora_id">
+          <option value="">—</option>
+          {% for s in seguradoras %}
+          <option value="{{ s.id }}" {{ 'selected' if a.seguradora_id|string == s.id|string }}>{{ s.nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
       <div class="campo c-3">
         <label for="tipo_seguro_id">Tipo de seguro *</label>
         <select id="tipo_seguro_id" name="tipo_seguro_id" required>
@@ -45,7 +60,6 @@
         <label for="numero_apolice">Número da apólice *</label>
         <input id="numero_apolice" name="numero_apolice" value="{{ a.numero_apolice or '' }}">
       </div>
-
       <div class="campo c-3">
         <label for="vigencia_inicio">Vigência — início</label>
         <input id="vigencia_inicio" name="vigencia_inicio" type="date" value="{{ a.vigencia_inicio or '' }}">
@@ -54,6 +68,7 @@
         <label for="vigencia_fim">Vigência — fim</label>
         <input id="vigencia_fim" name="vigencia_fim" type="date" value="{{ a.vigencia_fim or '' }}">
       </div>
+
       <div class="campo c-3">
         <label for="premio_liquido">Prêmio líquido (R$)</label>
         <input id="premio_liquido" name="premio_liquido" inputmode="decimal" data-num
@@ -67,27 +82,6 @@
           <option value="{{ f.id }}" {{ 'selected' if a.forma_pagamento_id|string == f.id|string }}>{{ f.nome }}</option>
           {% endfor %}
         </select>
-      </div>
-    </div>
-  </div>
-
-  <div class="cartao">
-    <h2>Comissão</h2>
-    <div class="grade">
-      <div class="campo c-3">
-        <label for="comissao_percentual">Percentual (%)</label>
-        <input id="comissao_percentual" name="comissao_percentual" inputmode="decimal" data-num
-               placeholder="0,00" value="{{ a.comissao_percentual or '' }}">
-      </div>
-      <div class="campo c-3">
-        <label for="comissao_valor">Valor (R$)</label>
-        <input id="comissao_valor" name="comissao_valor" inputmode="decimal" data-num
-               placeholder="0,00" value="{{ a.comissao_valor or '' }}">
-      </div>
-      <div class="campo c-4" style="justify-content:flex-end">
-        <button type="button" class="btn btn--linha" id="btn-calc-comissao">
-          Calcular valor pelo % do prêmio
-        </button>
       </div>
     </div>
   </div>
@@ -137,6 +131,27 @@
   </div>
 
   <div class="cartao">
+    <h2>Comissão</h2>
+    <div class="grade">
+      <div class="campo c-3">
+        <label for="comissao_percentual">Percentual (%)</label>
+        <input id="comissao_percentual" name="comissao_percentual" inputmode="decimal" data-num
+               placeholder="0,00" value="{{ a.comissao_percentual or '' }}">
+      </div>
+      <div class="campo c-3">
+        <label for="comissao_valor">Valor (R$)</label>
+        <input id="comissao_valor" name="comissao_valor" inputmode="decimal" data-num
+               placeholder="0,00" value="{{ a.comissao_valor or '' }}">
+      </div>
+      <div class="campo c-4" style="justify-content:flex-end">
+        <button type="button" class="btn btn--linha" id="btn-calc-comissao">
+          Calcular valor pelo % do prêmio
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="cartao">
     <h2>Outros</h2>
     <div class="grade">
       <div class="campo c-3">
@@ -172,4 +187,5 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/apolice.js') }}"></script>
+<script src="{{ url_for('static', filename='js/ler_pdf.js') }}"></script>
 {% endblock %}

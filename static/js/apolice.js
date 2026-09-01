@@ -93,6 +93,15 @@
     });
   }
 
+  // ---- preenchimento vindo do "Ler apólice" (ler_pdf.js) ----
+  window.plenusSetParcelas = function (lista) {
+    if (!Array.isArray(lista)) return;
+    corpo.innerHTML = "";
+    lista.forEach((p) =>
+      novaLinha({ ident: p.identificacao || "", data: p.data || "", valor: p.valor || "" }));
+    atualizarResumo();
+  };
+
   // ---- comissão: valor = prêmio * % / 100 ----
   const btnCalc = document.getElementById("btn-calc-comissao");
   if (btnCalc) {

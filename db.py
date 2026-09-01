@@ -49,9 +49,15 @@ CREATE TABLE IF NOT EXISTS forma_pagamento (
     nome TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS seguradora (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nome TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS apolice (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     cliente_id INTEGER REFERENCES cliente(id),
+    seguradora_id INTEGER REFERENCES seguradora(id),
     tipo_seguro_id INTEGER REFERENCES tipo_seguro(id),
     numero_apolice TEXT,
     vigencia_inicio TEXT,
@@ -88,8 +94,10 @@ _COLUNAS_ESPERADAS = {
     },
     "tipo_seguro": {"nome": "TEXT"},
     "forma_pagamento": {"nome": "TEXT"},
+    "seguradora": {"nome": "TEXT"},
     "apolice": {
-        "cliente_id": "INTEGER", "tipo_seguro_id": "INTEGER", "numero_apolice": "TEXT",
+        "cliente_id": "INTEGER", "seguradora_id": "INTEGER",
+        "tipo_seguro_id": "INTEGER", "numero_apolice": "TEXT",
         "vigencia_inicio": "TEXT", "vigencia_fim": "TEXT", "premio_liquido": "REAL",
         "forma_pagamento_id": "INTEGER", "comissao_percentual": "REAL", "comissao_valor": "REAL",
         "lancado_quiver": "INTEGER NOT NULL DEFAULT 0", "link_onedrive": "TEXT",
