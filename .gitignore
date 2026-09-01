@@ -13,3 +13,5 @@ plenus_config.json
 notificacoes.log
 plenus_secret.key
 backups_externos/
+plenus-google.json
+*.google.json

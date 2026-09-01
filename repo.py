@@ -513,3 +513,35 @@ def registrar_notificacao_parcela(parcela_id, marco, data_venc, canal, destino, 
             (parcela_id, marco, data_venc, canal, destino, resultado),
         )
     fazer_backup()
+
+
+# ---------- eventos do Google Agenda ----------
+
+def evento_agenda_obter(chave):
+    with conexao() as con:
+        l = con.execute("SELECT * FROM evento_agenda WHERE chave = ?", (chave,)).fetchone()
+        return dict(l) if l else None
+
+
+def evento_agenda_salvar(chave, event_id, data_ref, resumo):
+    with conexao() as con:
+        con.execute(
+            """INSERT INTO evento_agenda (chave, event_id, data_ref, resumo, atualizado_em)
+               VALUES (?, ?, ?, ?, datetime('now'))
+               ON CONFLICT(chave) DO UPDATE SET
+                   event_id = excluded.event_id, data_ref = excluded.data_ref,
+                   resumo = excluded.resumo, atualizado_em = datetime('now')""",
+            (chave, event_id, data_ref, resumo),
+        )
+    fazer_backup()
+
+
+def evento_agenda_remover(chave):
+    with conexao() as con:
+        con.execute("DELETE FROM evento_agenda WHERE chave = ?", (chave,))
+    fazer_backup()
+
+
+def eventos_agenda_todos():
+    with conexao() as con:
+        return [dict(l) for l in con.execute("SELECT chave, event_id FROM evento_agenda").fetchall()]

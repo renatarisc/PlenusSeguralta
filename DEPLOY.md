@@ -80,13 +80,32 @@ python3 -m venv venv
 > No Linux o Tesseract fica no PATH; o `leitura_pdf.py` acha sozinho. (O caminho
 > `C:\Program Files\...` no código é só o fallback do Windows e é ignorado aqui.)
 
-### Config do WhatsApp (aviso de vencimento)
+### Config dos avisos (e-mail + Google Agenda)
 
 ```bash
 cp plenus_config.exemplo.json plenus_config.json
-nano plenus_config.json      # preencha whatsapp.destino; deixe "provedor": "simulado" por enquanto
+nano plenus_config.json
 chmod 600 plenus_config.json
 ```
+
+**E-mail** — bloco `"email"`. Com Gmail:
+1. Ative a verificação em 2 etapas na conta Google.
+2. Gere uma **senha de app** em <https://myaccount.google.com/apppasswords> (16 letras).
+3. No config: `"ativo": true`, `usuario` = seu Gmail, `senha` = a senha de app,
+   `para` = lista de quem recebe (você e a sócia).
+
+**Google Agenda** — bloco `"google_agenda"` (cria um evento na data do vencimento; o Google
+avisa nos dias de `lembretes_dias`):
+1. Em <https://console.cloud.google.com> crie um projeto e ative a **Google Calendar API**.
+2. Crie uma **Conta de serviço** → em "Chaves" gere uma chave **JSON**. Salve como
+   `/opt/plenus/plenus-google.json` (`chmod 600`).
+3. Na sua Google Agenda (web) → Configurações da agenda → **Compartilhar com pessoas
+   específicas** → adicione o e-mail da conta de serviço (`...@...iam.gserviceaccount.com`)
+   com permissão **"Fazer alterações nos eventos"**.
+4. No config: `"ativo": true`, `calendar_id` = o e-mail da sua agenda.
+
+Enquanto `email.ativo` e `google_agenda.ativo` forem `false`, nada sai de verdade — o
+`verificar_vencimentos.py` só escreve em `notificacoes.log` (útil pra testar).
 
 ## 4. Rodar como serviço (systemd)
 
@@ -176,7 +195,7 @@ sudo crontab -u plenus -e
 (`backup_db.py` usa a API de backup do SQLite — a cópia é consistente mesmo com o sistema
 em uso.)
 
-## 7. Aviso de vencimento (cron, em vez da Tarefa Agendada do Windows)
+## 7. Avisos de vencimento (cron, em vez da Tarefa Agendada do Windows)
 
 ```bash
 sudo crontab -u plenus -e
@@ -184,7 +203,9 @@ sudo crontab -u plenus -e
 ```
 0 8 * * *  cd /opt/plenus && ./venv/bin/python verificar_vencimentos.py >> /opt/plenus/vencimentos.log 2>&1
 ```
-Enquanto `whatsapp.provedor` for `"simulado"`, ele só escreve em `notificacoes.log`.
+Roda 1x/dia: manda **e-mail** nos marcos e mantém os **eventos do Google Agenda**
+(fim da vigência das apólices e parcelas de boleto não pagas). Testar sem enviar:
+`./venv/bin/python verificar_vencimentos.py --seco`.
 
 ## 8. Atualizar o sistema depois
 

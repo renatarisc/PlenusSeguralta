@@ -127,6 +127,15 @@ CREATE TABLE IF NOT EXISTS notificacao_parcela (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS ix_notif_parcela_unico
     ON notificacao_parcela (parcela_id, marco, data_vencimento);
+
+-- eventos criados no Google Agenda (1 por apólice/parcela) para não duplicar
+CREATE TABLE IF NOT EXISTS evento_agenda (
+    chave TEXT PRIMARY KEY,          -- 'vigencia:<apolice_id>' | 'boleto:<parcela_id>'
+    event_id TEXT NOT NULL,
+    data_ref TEXT,                   -- data do evento na última sincronização
+    resumo TEXT,
+    atualizado_em TEXT NOT NULL DEFAULT (datetime('now'))
+);
 """
 
 # colunas esperadas por tabela - o migrador acrescenta as que faltarem num banco antigo.
@@ -169,6 +178,10 @@ _COLUNAS_ESPERADAS = {
         "parcela_id": "INTEGER", "marco": "INTEGER", "data_vencimento": "TEXT",
         "canal": "TEXT", "destino": "TEXT", "resultado": "TEXT",
         "enviado_em": "TEXT NOT NULL DEFAULT (datetime('now'))",
+    },
+    "evento_agenda": {
+        "chave": "TEXT", "event_id": "TEXT", "data_ref": "TEXT", "resumo": "TEXT",
+        "atualizado_em": "TEXT NOT NULL DEFAULT (datetime('now'))",
     },
     "notificacao_vencimento": {
         "apolice_id": "INTEGER", "marco": "INTEGER", "vigencia_fim": "TEXT",
