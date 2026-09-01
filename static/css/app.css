@@ -157,6 +157,7 @@ a { color: inherit; text-decoration: none; }
 /* ---------- formulários ---------- */
 .form { display: flex; flex-direction: column; gap: 14px; }
 .grade { display: grid; gap: 12px 14px; grid-template-columns: repeat(12, 1fr); }
+.grade__linha { grid-column: 1 / -1; height: 1px; background: var(--linha); margin: 2px 0; }
 .campo { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .campo label { font-size: 11.5px; font-weight: 700; color: var(--texto-suave); }
 .campo input, .campo select {
