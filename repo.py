@@ -4,7 +4,7 @@ Cada função abre sua própria conexão (via db.conexao) e devolve dicts / list
 """
 
 from db import conexao, fazer_backup
-from validacao import so_digitos, para_decimal
+from validacao import so_digitos, para_decimal, dias_ate_data
 
 
 def _int_ou_none(v):
@@ -181,6 +181,29 @@ def listar_apolices(cliente_id=None):
 def contar_apolices_do_cliente(cliente_id):
     with conexao() as con:
         return con.execute("SELECT COUNT(*) FROM apolice WHERE cliente_id = ?", (cliente_id,)).fetchone()[0]
+
+
+def apolices_por_vencer(limite_dias):
+    """Apólices com vigência a <= limite_dias do fim (inclui as já vencidas), da mais urgente
+    pra menos. Cada item ganha o campo dias_restantes (negativo = já venceu)."""
+    itens = []
+    for a in listar_apolices():
+        d = dias_ate_data(a.get("vigencia_fim"))
+        if d is not None and d <= limite_dias:
+            a["dias_restantes"] = d
+            itens.append(a)
+    itens.sort(key=lambda x: x["dias_restantes"])
+    return itens
+
+
+def contar_apolices_por_vencer(limite_dias):
+    with conexao() as con:
+        return con.execute(
+            "SELECT COUNT(*) FROM apolice "
+            "WHERE vigencia_fim IS NOT NULL AND vigencia_fim <> '' "
+            "  AND vigencia_fim <= date('now', 'localtime', ?)",
+            (f"+{int(limite_dias)} days",),
+        ).fetchone()[0]
 
 
 def obter_apolice(apolice_id):

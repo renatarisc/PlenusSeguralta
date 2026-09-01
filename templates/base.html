@@ -45,6 +45,9 @@
       <a class="nav__item {{ 'nav__item--ativo' if atv }}" href="{{ href }}" title="{{ m.texto }}">
         <span class="nav__icone">{{ icone(m.icone) }}</span>
         <span class="nav__texto">{{ m.texto }}</span>
+        {% if m.rota == 'apolices' and qtd_vencendo %}
+        <span class="nav__badge" title="{{ qtd_vencendo }} apólice(s) vencendo">{{ qtd_vencendo }}</span>
+        {% endif %}
       </a>
       {% endfor %}
     </nav>

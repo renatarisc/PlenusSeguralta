@@ -19,6 +19,8 @@ app = Flask(__name__)
 app.secret_key = "plenus-seguralta-dev"  # trocar por algo secreto quando for pra valer
 app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024  # PDF de apólice: teto de 20 MB
 
+DIAS_ALERTA_VIGENCIA = 20  # <= N dias p/ vencer -> destaque vermelho + aviso no painel
+
 db.inicializar_db()
 
 # slug na URL  <->  nome da tabela  (cadastros simples de "só nome")
@@ -36,7 +38,7 @@ app.jinja_env.filters["moeda"] = formatar_moeda
 app.jinja_env.filters["data_br"] = formatar_data_br
 app.jinja_env.globals["telefone"] = formatar_telefone
 app.jinja_env.globals["dias_ate"] = dias_ate_data
-app.jinja_env.globals["DIAS_ALERTA_VIGENCIA"] = 20  # <= N dias p/ vencer -> destaque vermelho
+app.jinja_env.globals["DIAS_ALERTA_VIGENCIA"] = DIAS_ALERTA_VIGENCIA
 app.jinja_env.globals["MENU"] = [
     {"rota": "dashboard", "texto": "Painel", "icone": "painel"},
     {"rota": "clientes_lista", "texto": "Clientes", "icone": "clientes"},
@@ -47,9 +49,16 @@ app.jinja_env.globals["MENU"] = [
 ]
 
 
+@app.context_processor
+def _injeta_alertas():
+    # contador de apólices vencendo, disponível em todo template (badge do menu)
+    return {"qtd_vencendo": repo.contar_apolices_por_vencer(DIAS_ALERTA_VIGENCIA)}
+
+
 @app.route("/")
 def dashboard():
-    return render_template("dashboard.html", ativo="dashboard")
+    return render_template("dashboard.html", ativo="dashboard",
+                           vencendo=repo.apolices_por_vencer(DIAS_ALERTA_VIGENCIA))
 
 
 # ---------- Clientes ----------
