@@ -189,6 +189,14 @@ a { color: inherit; text-decoration: none; }
 
 .rodape-form { display: flex; gap: 8px; justify-content: flex-end; padding-top: 4px; }
 
+/* painel do gerador de linhas (parcelas da apólice / lançamentos da saída) */
+.gerador {
+  background: var(--fundo); border: 1px solid var(--linha); border-radius: var(--raio);
+  padding: 12px 14px; margin-bottom: 14px;
+}
+.gerador .grade { margin-bottom: 0; align-items: flex-end; }
+.gerador .campo input, .gerador .campo select { background: var(--branco); }
+
 /* ---------- tabelas ---------- */
 .tabela-wrap { overflow-x: auto; }
 table.lista { width: 100%; border-collapse: collapse; }

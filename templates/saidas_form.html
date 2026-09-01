@@ -58,28 +58,30 @@
       A descrição, a categoria e a forma de pagamento acima valem para todas.
     </p>
 
-    <div class="grade" style="align-items:flex-end;margin-bottom:12px">
-      <div class="campo c-2">
-        <label for="ger_qtd">Qtd. de meses</label>
-        <input id="ger_qtd" type="number" min="1" max="120">
-      </div>
-      <div class="campo c-2">
-        <label for="ger_valor">Valor (R$)</label>
-        <input id="ger_valor" inputmode="decimal" data-num>
-      </div>
-      <div class="campo c-3">
-        <label for="ger_modo">Esse valor é</label>
-        <select id="ger_modo">
-          <option value="cada">de cada mês (repete)</option>
-          <option value="total">o total (dividir)</option>
-        </select>
-      </div>
-      <div class="campo c-3">
-        <label for="ger_data1">1º vencimento</label>
-        <input id="ger_data1" type="date">
-      </div>
-      <div class="campo c-2">
-        <button type="button" class="btn btn--linha" id="btn-gerar-lancamentos">Gerar tabela</button>
+    <div class="gerador">
+      <div class="grade">
+        <div class="campo c-2">
+          <label for="ger_qtd">Qtd. de meses</label>
+          <input id="ger_qtd" type="number" min="1" max="120">
+        </div>
+        <div class="campo c-2">
+          <label for="ger_valor">Valor (R$)</label>
+          <input id="ger_valor" inputmode="decimal" data-num>
+        </div>
+        <div class="campo c-3">
+          <label for="ger_modo">Esse valor é</label>
+          <select id="ger_modo">
+            <option value="cada">de cada mês (repete)</option>
+            <option value="total">o total (dividir)</option>
+          </select>
+        </div>
+        <div class="campo c-3">
+          <label for="ger_data1">1º vencimento</label>
+          <input id="ger_data1" type="date">
+        </div>
+        <div class="campo c-2">
+          <button type="button" class="btn btn--primario" id="btn-gerar-lancamentos">Gerar tabela</button>
+        </div>
       </div>
     </div>
 
