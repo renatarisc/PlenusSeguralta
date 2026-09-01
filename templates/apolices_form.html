@@ -30,7 +30,9 @@
     <h2>Dados da apólice</h2>
     <div class="grade">
       <div class="campo c-6">
-        <label for="cliente_id">Cliente *</label>
+        <label for="cliente_id">Cliente *
+          <a class="link-abrir" href="{{ url_for('cliente_form') }}" target="_blank" rel="noopener">＋ novo</a>
+        </label>
         <select id="cliente_id" name="cliente_id" required>
           <option value="">—</option>
           {% for c in clientes %}
@@ -39,7 +41,9 @@
         </select>
       </div>
       <div class="campo c-6">
-        <label for="seguradora_id">Seguradora</label>
+        <label for="seguradora_id">Seguradora
+          <a class="link-abrir" href="{{ url_for('cadastro_simples_form', slug='seguradora') }}" target="_blank" rel="noopener">＋ nova</a>
+        </label>
         <select id="seguradora_id" name="seguradora_id">
           <option value="">—</option>
           {% for s in seguradoras %}
@@ -49,7 +53,9 @@
       </div>
 
       <div class="campo c-3">
-        <label for="tipo_seguro_id">Tipo de seguro *</label>
+        <label for="tipo_seguro_id">Tipo de seguro *
+          <a class="link-abrir" href="{{ url_for('cadastro_simples_form', slug='tipo-seguro') }}" target="_blank" rel="noopener">＋ novo</a>
+        </label>
         <select id="tipo_seguro_id" name="tipo_seguro_id" required>
           <option value="">—</option>
           {% for t in tipos %}
@@ -86,7 +92,9 @@
                value="{{ a.premio_total or '' }}">
       </div>
       <div class="campo c-3">
-        <label for="forma_pagamento_id">Forma de pagamento</label>
+        <label for="forma_pagamento_id">Forma de pagamento
+          <a class="link-abrir" href="{{ url_for('cadastro_simples_form', slug='forma-pagamento') }}" target="_blank" rel="noopener">＋ nova</a>
+        </label>
         <select id="forma_pagamento_id" name="forma_pagamento_id">
           <option value="">—</option>
           {% for f in formas %}
