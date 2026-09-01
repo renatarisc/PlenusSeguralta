@@ -232,16 +232,24 @@
     iof.addEventListener("input", recalcTotal);
   }
 
-  // ---- comissão: SEGURALTA a receber = prêmio líq. * % ; Plenus a receber = 75% do recebido pela SEGURALTA ----
-  const btnCalc = document.getElementById("btn-calc-comissao");
-  if (btnCalc) {
-    btnCalc.addEventListener("click", () => {
+  // ---- comissão: SEGURALTA a receber = prêmio líq. * % ----
+  const btnSeg = document.getElementById("btn-calc-seg-receber");
+  if (btnSeg) {
+    btnSeg.addEventListener("click", () => {
       const premio = num(document.getElementById("premio_liquido").value);
       const pct = num(document.getElementById("comissao_percentual").value);
       if (!premio || !pct) { alert("Preencha o prêmio líquido e o percentual."); return; }
       document.getElementById("comissao_valor_seguralta_receber").value =
         fmt(Math.round(premio * pct) / 100);
+    });
+  }
+
+  // ---- comissão: Plenus a receber = 75% do que a SEGURALTA recebeu ----
+  const btnPlenus = document.getElementById("btn-calc-plenus-receber");
+  if (btnPlenus) {
+    btnPlenus.addEventListener("click", () => {
       const segRecebido = num(document.getElementById("comissao_valor_seguralta_recebido").value);
+      if (!segRecebido) { alert("Preencha o valor recebido pela SEGURALTA."); return; }
       document.getElementById("comissao_valor_plenus_receber").value =
         fmt(Math.round(segRecebido * 75) / 100);
     });

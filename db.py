@@ -86,6 +86,7 @@ CREATE TABLE IF NOT EXISTS apolice (
     comissao_valor_plenus_receber REAL,      -- calculado: 75% do que a SEGURALTA recebeu
     comissao_valor_seguralta_recebido REAL,  -- lançado à mão
     comissao_valor_plenus_recebido REAL,     -- lançado à mão
+    data_plenus_recebido TEXT,               -- data em que a Plenus recebeu (ISO)
     lancado_quiver INTEGER NOT NULL DEFAULT 0,   -- 0 = não, 1 = sim
     link_onedrive TEXT,
     veiculo_placa TEXT,                          -- só p/ seguro de automóvel
@@ -194,6 +195,7 @@ _COLUNAS_ESPERADAS = {
         "forma_pagamento_id": "INTEGER", "comissao_percentual": "REAL",
         "comissao_valor_seguralta_receber": "REAL", "comissao_valor_plenus_receber": "REAL",
         "comissao_valor_seguralta_recebido": "REAL", "comissao_valor_plenus_recebido": "REAL",
+        "data_plenus_recebido": "TEXT",
         "lancado_quiver": "INTEGER NOT NULL DEFAULT 0", "link_onedrive": "TEXT",
         "veiculo_placa": "TEXT", "veiculo_descricao": "TEXT",
         "aviso_vigencia_ok": "INTEGER NOT NULL DEFAULT 0", "aviso_vigencia_ok_em": "TEXT",

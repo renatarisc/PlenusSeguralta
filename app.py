@@ -394,6 +394,7 @@ _CAMPOS_APOLICE = (
     "forma_pagamento_id", "comissao_percentual",
     "comissao_valor_seguralta_receber", "comissao_valor_plenus_receber",
     "comissao_valor_seguralta_recebido", "comissao_valor_plenus_recebido",
+    "data_plenus_recebido",
     "lancado_quiver", "link_onedrive",
     "veiculo_placa", "veiculo_descricao",
     "aviso_vigencia_ok", "aviso_vigencia_ok_em",

@@ -220,18 +220,28 @@
         <input id="comissao_percentual" name="comissao_percentual" inputmode="decimal" data-num
                value="{{ a.comissao_percentual or '' }}">
       </div>
-      <div class="campo c-9" style="align-items:flex-start;justify-content:flex-end">
-        <button type="button" class="btn btn--linha" id="btn-calc-comissao">
-          Calcular valores pelo % do prêmio líquido
+      <div class="campo c-3" style="align-self:end">
+        <button type="button" class="btn btn--primario" id="btn-calc-seg-receber">
+          Calcular pelo % do prêmio líquido
         </button>
       </div>
-
-      <div class="grade__linha" aria-hidden="true"></div>
-
       <div class="campo c-3">
         <label for="comissao_valor_seguralta_receber">SEGURALTA — a receber (R$)</label>
         <input id="comissao_valor_seguralta_receber" name="comissao_valor_seguralta_receber"
                inputmode="decimal" data-num value="{{ a.comissao_valor_seguralta_receber or '' }}">
+      </div>
+      <div class="campo c-3">
+        <label for="comissao_valor_seguralta_recebido">SEGURALTA — recebido (R$)</label>
+        <input id="comissao_valor_seguralta_recebido" name="comissao_valor_seguralta_recebido"
+               inputmode="decimal" data-num value="{{ a.comissao_valor_seguralta_recebido or '' }}">
+      </div>
+
+      <div class="grade__linha" aria-hidden="true"></div>
+
+      <div class="campo c-3" style="align-self:end">
+        <button type="button" class="btn btn--primario" id="btn-calc-plenus-receber">
+          Calcular 75% do recebido SEGURALTA
+        </button>
       </div>
       <div class="campo c-3">
         <label for="comissao_valor_plenus_receber">Plenus — a receber (R$)</label>
@@ -239,20 +249,16 @@
                inputmode="decimal" data-num value="{{ a.comissao_valor_plenus_receber or '' }}">
       </div>
       <div class="campo c-3">
-        <label for="comissao_valor_seguralta_recebido">SEGURALTA — recebido (R$)</label>
-        <input id="comissao_valor_seguralta_recebido" name="comissao_valor_seguralta_recebido"
-               inputmode="decimal" data-num value="{{ a.comissao_valor_seguralta_recebido or '' }}">
-      </div>
-      <div class="campo c-3">
         <label for="comissao_valor_plenus_recebido">Plenus — recebido (R$)</label>
         <input id="comissao_valor_plenus_recebido" name="comissao_valor_plenus_recebido"
                inputmode="decimal" data-num value="{{ a.comissao_valor_plenus_recebido or '' }}">
       </div>
+      <div class="campo c-3">
+        <label for="data_plenus_recebido">Plenus — data do recebimento</label>
+        <input id="data_plenus_recebido" name="data_plenus_recebido" type="date"
+               value="{{ a.data_plenus_recebido or '' }}">
+      </div>
     </div>
-    <p class="dica" style="margin-top:4px">
-      "Calcular" preenche <strong>SEGURALTA a receber</strong> = prêmio líquido × %, e
-      <strong>Plenus a receber</strong> = 75% do que a SEGURALTA recebeu.
-    </p>
   </div>
 
   <div class="cartao">
