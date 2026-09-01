@@ -31,8 +31,12 @@
       .then((res) => {
         const campos = (res && res.campos) || {};
         let n = 0;
-        for (const [nome, valor] of Object.entries(campos)) {
-          if (nome === "parcelas" || valor == null || valor === "") continue;
+        // estado precisa ser preenchido antes de cidade (o select de cidade é refeito no change)
+        const prioridade = (k) => (k === "end_estado" ? 0 : k === "end_cidade" ? 1 : -1);
+        const entradas = Object.entries(campos)
+          .filter(([k, v]) => k !== "parcelas" && v != null && v !== "")
+          .sort((a, b) => prioridade(a[0]) - prioridade(b[0]));
+        for (const [nome, valor] of entradas) {
           if (preencher(nome, valor)) n++;
         }
         if (Array.isArray(campos.parcelas) && campos.parcelas.length && window.plenusSetParcelas) {
@@ -45,13 +49,43 @@
           : "Nenhum campo reconhecido nesse PDF.";
         if (res.aviso) msg += " " + res.aviso;
         dizer(msg, !n);
+        mostrarTextoLido(res.texto);
       })
       .catch(() => dizer("Não consegui processar o PDF.", true))
       .finally(() => { botao.disabled = false; arquivo.value = ""; });
   });
 
   // alguns campos do PDF vêm por nome e o formulário guarda o id (FK)
-  const ALIAS = { seguradora: "seguradora_id" };
+  const ALIAS = {
+    seguradora: "seguradora_id",
+    tipo_seguro: "tipo_seguro_id",
+    forma_pagamento: "forma_pagamento_id",
+  };
+
+  // link "ver texto lido" — ajuda a entender por que um campo não veio
+  function mostrarTextoLido(texto) {
+    if (!status || !texto) return;
+    let cx = document.getElementById("ler-pdf-texto");
+    if (!cx) {
+      cx = document.createElement("div");
+      cx.id = "ler-pdf-texto";
+      const link = document.createElement("a");
+      link.href = "#";
+      link.textContent = "ver texto lido do PDF";
+      link.style.cssText = "font-size:12px;text-decoration:underline";
+      const pre = document.createElement("pre");
+      pre.style.cssText =
+        "display:none;white-space:pre-wrap;max-height:300px;overflow:auto;background:var(--fundo);" +
+        "border:1px solid var(--linha);border-radius:8px;padding:10px;font-size:11px;margin-top:6px";
+      link.addEventListener("click", (e) => {
+        e.preventDefault();
+        pre.style.display = pre.style.display === "none" ? "block" : "none";
+      });
+      cx.append(link, pre);
+      status.after(cx);
+    }
+    cx.querySelector("pre").textContent = texto;
+  }
 
   const normal = (s) =>
     (s == null ? "" : "" + s).trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
