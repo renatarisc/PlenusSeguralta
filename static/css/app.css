@@ -176,7 +176,13 @@ table.lista th, table.lista td {
 }
 table.lista th { font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: var(--texto-suave); font-weight: 700; }
 table.lista tbody tr:hover { background: var(--fundo); }
-table.lista td.acoes { display: flex; gap: 6px; justify-content: flex-end; }
+/* mantém a célula como table-cell (senão a borda inferior sai desalinhada) */
+table.lista td.acoes { text-align: right; white-space: nowrap; }
+table.lista td.acoes > a,
+table.lista td.acoes > form { display: inline-flex; vertical-align: middle; }
+table.lista td.acoes > a + a,
+table.lista td.acoes > a + form,
+table.lista td.acoes > form + form { margin-left: 6px; }
 .vazio { padding: 28px; text-align: center; color: var(--texto-suave); }
 
 /* apólice perto do fim da vigência (<= 20 dias) ou já vencida */
