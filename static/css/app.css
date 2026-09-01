@@ -276,6 +276,10 @@ table.lista tr.apolice-vencida td:first-child { box-shadow: inset 3px 0 0 #a5201
 #tab-lancamentos tr.parcela--perto input,
 #tab-lancamentos tr.parcela--perto select { border-color: #ecd067; }
 
+/* despesa fixa mensal: coluna "Parcela" não faz sentido */
+#tab-lancamentos.sem-parcela th:nth-child(3),
+#tab-lancamentos.sem-parcela td:nth-child(3) { display: none; }
+
 /* lançamento já pago: abre travado (fundo verde), o lápis libera a edição */
 #tab-lancamentos [data-editar-lancamento] { display: none; }
 #tab-lancamentos tr.lancamento--travada [data-editar-lancamento] { display: inline-flex; }

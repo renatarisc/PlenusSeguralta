@@ -139,6 +139,18 @@
     });
   }
 
+  // ---- despesa fixa mensal: some a coluna "Parcela" (não faz sentido k/n) ----
+  const chkFixo = document.getElementById("fixo_mensal");
+  const tabela = document.getElementById("tab-lancamentos");
+  function fixo() { return !!(chkFixo && chkFixo.checked); }
+  function aplicarFixo() {
+    if (tabela) tabela.classList.toggle("sem-parcela", fixo());
+    if (fixo()) {
+      linhas().forEach((tr) => { campo(tr, "saida_parcela").value = ""; });
+    }
+  }
+  if (chkFixo) chkFixo.addEventListener("change", aplicarFixo);
+
   const btnGerar = document.getElementById("btn-gerar-lancamentos");
   if (btnGerar) {
     btnGerar.addEventListener("click", () => {
@@ -164,7 +176,7 @@
           if (i === qtd) valor = Math.round((valorInf - (acumulado - base)) * 100) / 100;
         }
         novaLinha({
-          parcela: qtd > 1 ? i + "/" + qtd : "",
+          parcela: (fixo() || qtd <= 1) ? "" : i + "/" + qtd,
           data: data1 ? addMeses(data1, i - 1) : "",
           valor: valorInf ? fmt(valor) : "",
         });
@@ -174,6 +186,7 @@
   }
 
   if (!linhas().length) novaLinha();
+  aplicarFixo();
   // ao abrir: trava as linhas que já vieram pagas do servidor
   linhas().forEach((tr) => {
     if (campo(tr, "saida_pago_em").value) travar(tr);

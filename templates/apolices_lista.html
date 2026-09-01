@@ -71,16 +71,16 @@
   <div class="tabela-wrap">
     <table class="lista">
       <thead>
-        <tr><th>Número</th>{% if not cliente_filtro %}<th>Cliente</th>{% endif %}<th>Seguradora</th>
+        <tr>{% if not cliente_filtro %}<th>Cliente</th>{% endif %}<th>Número</th><th>Seguradora</th>
             <th>Tipo de seguro</th><th>Vigência</th><th>Prêmio líquido</th><th>Quiver</th><th></th></tr>
       </thead>
       <tbody>
         {% for a in apolices %}
         {% set d = dias_ate(a.vigencia_fim) %}
         <tr class="{{ 'apolice-vencida' if d is not none and d < 0 else ('apolice-vencendo' if d is not none and d <= DIAS_ALERTA_VIGENCIA) }}">
+          {% if not cliente_filtro %}<td>{{ a.cliente_nome or '—' }}</td>{% endif %}
           <td><a href="{{ url_for('apolice_form', apolice_id=a.id) }}"
                  style="font-weight:600;color:var(--laranja-hover)">{{ a.numero_apolice or '—' }}</a></td>
-          {% if not cliente_filtro %}<td>{{ a.cliente_nome or '—' }}</td>{% endif %}
           <td>{{ a.seguradora_nome or '—' }}</td>
           <td>{{ a.tipo_seguro_nome or '—' }}</td>
           <td>
