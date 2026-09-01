@@ -42,11 +42,21 @@
     return d.getFullYear() + "-" + z(d.getMonth() + 1) + "-" + z(d.getDate());
   }
 
-  // destaca em vermelho a parcela vencida e ainda não paga (igual ao painel)
+  // diferença em dias (b - a), ambos "yyyy-mm-dd", sem depender do fuso local
+  function diasEntre(a, b) {
+    const t = (s) => new Date(s + "T00:00:00Z").getTime();
+    return Math.round((t(b) - t(a)) / 86400000);
+  }
+
+  const DIAS_PERTO_VENCER = 10; // mesma janela do 1º marco de aviso de boleto
+
+  // vermelho: vencida e não paga. amarelo: perto de vencer (<= 10 dias) e não paga.
   function atualizarAtraso(tr) {
     const data = tr.querySelector('[name="parcela_data"]').value;
     const paga = tr.querySelector('[name="parcela_paga"]').value === "1";
-    tr.classList.toggle("parcela--atrasada", !paga && !!data && data < hojeISO());
+    const dias = data ? diasEntre(hojeISO(), data) : null;
+    tr.classList.toggle("parcela--atrasada", !paga && dias !== null && dias < 0);
+    tr.classList.toggle("parcela--perto", !paga && dias !== null && dias >= 0 && dias <= DIAS_PERTO_VENCER);
   }
 
   function atualizarResumo() {
