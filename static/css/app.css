@@ -217,6 +217,12 @@ table.lista tr.parcela--paga input,
 table.lista tr.parcela--paga select { color: var(--texto-suave); }
 table.lista tr.parcela--paga td:first-child input { text-decoration: line-through; }
 
+/* parcela vencida e ainda não paga: mesmo destaque vermelho do painel */
+table.lista tr.parcela--atrasada td { background: var(--erro-fraco); }
+table.lista tr.parcela--atrasada td:first-child { box-shadow: inset 3px 0 0 var(--erro); }
+table.lista tr.parcela--atrasada input,
+table.lista tr.parcela--atrasada select { border-color: #f0ccc9; }
+
 /* ---------- barra de busca ---------- */
 .busca { display: flex; gap: 8px; align-items: center; margin-bottom: 14px; max-width: 420px; }
 .busca__campo { position: relative; flex: 1; }

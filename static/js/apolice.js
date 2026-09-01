@@ -35,10 +35,27 @@
     return Array.from(corpo.querySelectorAll("tr.parcela"));
   }
 
+  // hoje, no formato do <input type=date> (yyyy-mm-dd), em fuso local
+  function hojeISO() {
+    const d = new Date();
+    const z = (n) => String(n).padStart(2, "0");
+    return d.getFullYear() + "-" + z(d.getMonth() + 1) + "-" + z(d.getDate());
+  }
+
+  // destaca em vermelho a parcela vencida e ainda não paga (igual ao painel)
+  function atualizarAtraso(tr) {
+    const data = tr.querySelector('[name="parcela_data"]').value;
+    const paga = tr.querySelector('[name="parcela_paga"]').value === "1";
+    tr.classList.toggle("parcela--atrasada", !paga && !!data && data < hojeISO());
+  }
+
   function atualizarResumo() {
     const ls = linhas();
     let soma = 0;
-    ls.forEach((tr) => (soma += num(tr.querySelector('[name="parcela_valor"]').value)));
+    ls.forEach((tr) => {
+      soma += num(tr.querySelector('[name="parcela_valor"]').value);
+      atualizarAtraso(tr);
+    });
     resumo.textContent = ls.length
       ? ls.length + " parcela(s) · soma R$ " + fmt(soma)
       : "";
@@ -62,7 +79,10 @@
     atualizarResumo();
   });
   corpo.addEventListener("input", (e) => {
-    if (e.target.name === "parcela_valor") atualizarResumo();
+    if (e.target.name === "parcela_valor" || e.target.name === "parcela_data") atualizarResumo();
+  });
+  corpo.addEventListener("change", (e) => {
+    if (e.target.name === "parcela_paga" || e.target.name === "parcela_data") atualizarResumo();
   });
 
   const btnAdd = document.getElementById("btn-add-parcela");
