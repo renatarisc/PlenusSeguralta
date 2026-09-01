@@ -15,7 +15,8 @@ _CONFIG_PATH = os.path.join(_RAIZ, "plenus_config.json")
 _LOG_PATH = os.path.join(_RAIZ, "notificacoes.log")
 
 _PADRAO = {
-    "marcos_dias": [10, 5, 1],
+    "marcos_dias": [10, 5, 1],          # vencimento da vigência da apólice
+    "marcos_dias_boleto": [10, 1],      # parcela de boleto a vencer
     "whatsapp": {"provedor": "simulado", "destino": "", "zapi": {}, "cloud": {}, "twilio": {}},
 }
 
@@ -129,5 +130,26 @@ def montar_texto_vencimento(ap, dias):
         f"Seguradora: {ap.get('seguradora_nome') or '—'}",
         f"Tipo: {ap.get('tipo_seguro_nome') or '—'}",
         f"Vigência: {ap.get('vigencia_inicio') or '?'} a {ap.get('vigencia_fim') or '?'}",
+    ]
+    return "\n".join(linhas)
+
+
+def _data_br(iso):
+    s = (iso or "")[:10]
+    return f"{s[8:10]}/{s[5:7]}/{s[0:4]}" if len(s) == 10 else (s or "?")
+
+
+def montar_texto_boleto(p, dias):
+    quando = "vence HOJE" if dias == 0 else f"vence em {dias} dia" + ("s" if dias != 1 else "")
+    valor = p.get("valor")
+    valor_txt = f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") if valor is not None else "—"
+    linhas = [
+        "*Plenus — boleto a vencer*",
+        "",
+        f"Parcela {p.get('identificacao') or '?'} da apólice {p.get('numero_apolice') or '(sem número)'} "
+        f"{quando} ({_data_br(p.get('data'))}).",
+        f"Valor: {valor_txt}",
+        f"Cliente: {p.get('cliente_nome') or '—'}",
+        f"Seguradora: {p.get('seguradora_nome') or '—'}",
     ]
     return "\n".join(linhas)

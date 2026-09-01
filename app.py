@@ -60,6 +60,7 @@ def _cabecalhos_seguranca(resp):
 
 
 DIAS_ALERTA_VIGENCIA = 20  # <= N dias p/ vencer -> destaque vermelho + aviso no painel
+DIAS_ALERTA_BOLETO = 15    # janela do card "Boletos a vencer" no painel
 
 db.inicializar_db()
 
@@ -82,6 +83,7 @@ app.jinja_env.filters["data_br"] = formatar_data_br
 app.jinja_env.globals["telefone"] = formatar_telefone
 app.jinja_env.globals["dias_ate"] = dias_ate_data
 app.jinja_env.globals["DIAS_ALERTA_VIGENCIA"] = DIAS_ALERTA_VIGENCIA
+app.jinja_env.globals["DIAS_ALERTA_BOLETO"] = DIAS_ALERTA_BOLETO
 app.jinja_env.globals["MENU"] = [
     {"rota": "dashboard", "texto": "Painel", "icone": "painel"},
     {"rota": "clientes_lista", "texto": "Clientes", "icone": "clientes"},
@@ -259,7 +261,8 @@ def dashboard():
     return render_template("dashboard.html", ativo="dashboard",
                            resumo=repo.resumo_painel(),
                            por_tipo=repo.apolices_por_tipo(),
-                           vencendo=repo.apolices_por_vencer(DIAS_ALERTA_VIGENCIA))
+                           vencendo=repo.apolices_por_vencer(DIAS_ALERTA_VIGENCIA),
+                           boletos=repo.parcelas_boleto_a_vencer(DIAS_ALERTA_BOLETO))
 
 
 # ---------- Clientes ----------

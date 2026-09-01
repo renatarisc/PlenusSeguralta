@@ -111,6 +111,20 @@ CREATE TABLE IF NOT EXISTS notificacao_vencimento (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS ix_notif_venc_unico
     ON notificacao_vencimento (apolice_id, marco, vigencia_fim);
+
+-- aviso de parcela de boleto a vencer (mesma ideia, por parcela)
+CREATE TABLE IF NOT EXISTS notificacao_parcela (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    parcela_id INTEGER NOT NULL REFERENCES apolice_parcela(id) ON DELETE CASCADE,
+    marco INTEGER NOT NULL,
+    data_vencimento TEXT,
+    canal TEXT,
+    destino TEXT,
+    resultado TEXT,
+    enviado_em TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ix_notif_parcela_unico
+    ON notificacao_parcela (parcela_id, marco, data_vencimento);
 """
 
 # colunas esperadas por tabela - o migrador acrescenta as que faltarem num banco antigo.
@@ -146,6 +160,11 @@ _COLUNAS_ESPERADAS = {
         "atualizado_em": "TEXT NOT NULL DEFAULT (datetime('now'))",
     },
     "apolice_parcela": {"apolice_id": "INTEGER", "identificacao": "TEXT", "data": "TEXT", "valor": "REAL"},
+    "notificacao_parcela": {
+        "parcela_id": "INTEGER", "marco": "INTEGER", "data_vencimento": "TEXT",
+        "canal": "TEXT", "destino": "TEXT", "resultado": "TEXT",
+        "enviado_em": "TEXT NOT NULL DEFAULT (datetime('now'))",
+    },
     "notificacao_vencimento": {
         "apolice_id": "INTEGER", "marco": "INTEGER", "vigencia_fim": "TEXT",
         "canal": "TEXT", "destino": "TEXT", "resultado": "TEXT",

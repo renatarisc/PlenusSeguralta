@@ -436,3 +436,64 @@ def registrar_notificacao(apolice_id, marco, vigencia_fim, canal, destino, resul
             (apolice_id, marco, vigencia_fim, canal, destino, resultado),
         )
     fazer_backup()
+
+
+# ---------- avisos de boleto (parcela a vencer) ----------
+
+_SQL_PARCELAS_BOLETO = """
+SELECT p.id AS parcela_id, p.identificacao, p.data, p.valor,
+       a.id AS apolice_id, a.numero_apolice, a.vigencia_inicio, a.vigencia_fim,
+       c.nome AS cliente_nome, s.nome AS seguradora_nome, t.nome AS tipo_seguro_nome,
+       f.nome AS forma_pagamento_nome
+  FROM apolice_parcela p
+  JOIN apolice a          ON a.id = p.apolice_id
+  LEFT JOIN cliente c     ON c.id = a.cliente_id
+  LEFT JOIN seguradora s  ON s.id = a.seguradora_id
+  LEFT JOIN tipo_seguro t ON t.id = a.tipo_seguro_id
+  JOIN forma_pagamento f  ON f.id = a.forma_pagamento_id
+ WHERE lower(f.nome) LIKE '%boleto%'
+   AND p.data IS NOT NULL AND p.data <> ''
+"""
+
+
+def parcelas_boleto_pendentes():
+    """Todas as parcelas de apólices com forma de pagamento 'boleto' (com data)."""
+    with conexao() as con:
+        return [dict(l) for l in con.execute(_SQL_PARCELAS_BOLETO + " ORDER BY p.data").fetchall()]
+
+
+def parcelas_boleto_a_vencer(limite_dias):
+    """Parcelas de boleto vencendo em <= limite_dias (inclui as já vencidas), mais urgente
+    primeiro. Cada item ganha dias_restantes (negativo = já venceu)."""
+    itens = []
+    for p in parcelas_boleto_pendentes():
+        d = dias_ate_data(p.get("data"))
+        if d is not None and d <= limite_dias:
+            p["dias_restantes"] = d
+            itens.append(p)
+    itens.sort(key=lambda x: x["dias_restantes"])
+    return itens
+
+
+def contar_parcelas_boleto_a_vencer(limite_dias):
+    return len(parcelas_boleto_a_vencer(limite_dias))
+
+
+def notificacao_parcela_ja_enviada(parcela_id, marco, data_venc):
+    with conexao() as con:
+        r = con.execute(
+            "SELECT 1 FROM notificacao_parcela WHERE parcela_id = ? AND marco = ? AND data_vencimento IS ?",
+            (parcela_id, marco, data_venc),
+        ).fetchone()
+        return r is not None
+
+
+def registrar_notificacao_parcela(parcela_id, marco, data_venc, canal, destino, resultado):
+    with conexao() as con:
+        con.execute(
+            """INSERT OR REPLACE INTO notificacao_parcela
+                   (parcela_id, marco, data_vencimento, canal, destino, resultado, enviado_em)
+               VALUES (?, ?, ?, ?, ?, ?, datetime('now'))""",
+            (parcela_id, marco, data_venc, canal, destino, resultado),
+        )
+    fazer_backup()

@@ -58,6 +58,44 @@
 </div>
 {% endif %}
 
+{% if boletos %}
+<div class="cartao">
+  <h2 style="color:var(--erro)">Boletos a vencer ({{ boletos|length }})</h2>
+  <div class="tabela-wrap">
+    <table class="lista">
+      <thead>
+        <tr><th>Apólice</th><th>Cliente</th><th>Parcela</th><th>Valor</th><th>Vencimento</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for p in boletos %}
+        <tr class="{{ 'apolice-vencida' if p.dias_restantes < 0 else 'apolice-vencendo' }}">
+          <td><a href="{{ url_for('apolice_form', apolice_id=p.apolice_id) }}"
+                 style="font-weight:600;color:var(--laranja-hover)">{{ p.numero_apolice or '—' }}</a></td>
+          <td>{{ p.cliente_nome or '—' }}</td>
+          <td>{{ p.identificacao or '—' }}</td>
+          <td>{{ p.valor|moeda }}</td>
+          <td>
+            {{ p.data|data_br }}
+            {% if p.dias_restantes < 0 %}
+            <span class="tag-venc tag-venc--fim">vencido há {{ -p.dias_restantes }}d</span>
+            {% else %}
+            <span class="tag-venc">{{ 'vence hoje' if p.dias_restantes == 0 else 'vence em ' ~ p.dias_restantes ~ 'd' }}</span>
+            {% endif %}
+          </td>
+          <td class="acoes">
+            <a class="btn btn--linha btn--mini" href="{{ url_for('apolice_form', apolice_id=p.apolice_id) }}">{{ icone('lapis') }}</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p style="margin:12px 0 0;font-size:12px;color:var(--texto-suave)">
+    Parcelas de apólices com pagamento em boleto, vencendo nos próximos {{ DIAS_ALERTA_BOLETO }} dias (ou já vencidas).
+  </p>
+</div>
+{% endif %}
+
 <div class="cartao">
   <h2>Apólices por tipo de seguro</h2>
   {% if por_tipo %}
