@@ -148,6 +148,22 @@
     });
   });
 
+  // ---- prêmio total = líquido + IOF (enquanto o usuário não editar o total à mão) ----
+  const pl = document.getElementById("premio_liquido");
+  const iof = document.getElementById("iof");
+  const pt = document.getElementById("premio_total");
+  if (pl && iof && pt) {
+    let totalManual = false;
+    pt.addEventListener("input", () => { totalManual = true; });
+    const recalcTotal = () => {
+      if (totalManual) return;
+      if (!pl.value.trim() && !iof.value.trim()) { pt.value = ""; return; }
+      pt.value = fmt(num(pl.value) + num(iof.value));
+    };
+    pl.addEventListener("input", recalcTotal);
+    iof.addEventListener("input", recalcTotal);
+  }
+
   // ---- comissão: valor = prêmio * % / 100 ----
   const btnCalc = document.getElementById("btn-calc-comissao");
   if (btnCalc) {
