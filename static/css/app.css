@@ -284,13 +284,21 @@ table.lista tr.apolice-vencida td:first-child { box-shadow: inset 3px 0 0 #a5201
 #tab-parcelas.sem-aviso th:nth-child(5),
 #tab-parcelas.sem-aviso td:nth-child(5) { display: none; }
 
-/* lançamento já pago: abre travado (fundo verde), o lápis libera a edição */
-#tab-lancamentos [data-editar-lancamento] { display: none; }
-#tab-lancamentos tr.lancamento--travada [data-editar-lancamento] { display: inline-flex; }
-#tab-lancamentos tr.lancamento--travada [data-remover-lancamento] { display: none; }
-#tab-lancamentos tr.lancamento--travada td { background: #e7f3e7; }
-#tab-lancamentos tr.lancamento--travada td:first-child { box-shadow: inset 3px 0 0 #5a9367; }
-#tab-lancamentos tr.lancamento--travada input {
+/* linha já paga: abre travada (fundo verde), o lápis libera a edição
+   (parcelas da apólice e lançamentos da saída funcionam igual) */
+#tab-lancamentos [data-editar-lancamento],
+#tab-parcelas [data-editar-parcela] { display: none; }
+#tab-lancamentos tr.lancamento--travada [data-editar-lancamento],
+#tab-parcelas tr.parcela--travada [data-editar-parcela] { display: inline-flex; }
+#tab-lancamentos tr.lancamento--travada [data-remover-lancamento],
+#tab-parcelas tr.parcela--travada [data-remover-parcela] { display: none; }
+#tab-lancamentos tr.lancamento--travada td,
+#tab-parcelas tr.parcela--travada td { background: #e7f3e7; }
+#tab-lancamentos tr.lancamento--travada td:first-child,
+#tab-parcelas tr.parcela--travada td:first-child { box-shadow: inset 3px 0 0 #5a9367; }
+#tab-lancamentos tr.lancamento--travada input,
+#tab-parcelas tr.parcela--travada input,
+#tab-parcelas tr.parcela--travada select {
   background: #f3f9f3; border-color: #cfe3cf; color: var(--texto-suave); pointer-events: none;
 }
 

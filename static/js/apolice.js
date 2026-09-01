@@ -55,8 +55,25 @@
     const data = tr.querySelector('[name="parcela_data"]').value;
     const paga = tr.querySelector('[name="parcela_paga"]').value === "1";
     const dias = data ? diasEntre(hojeISO(), data) : null;
+    tr.classList.toggle("parcela--paga", paga);
     tr.classList.toggle("parcela--atrasada", !paga && dias !== null && dias < 0);
     tr.classList.toggle("parcela--perto", !paga && dias !== null && dias >= 0 && dias <= DIAS_PERTO_VENCER);
+  }
+
+  // ---- parcela já paga abre travada; o lápis libera (igual à saída) ----
+  function editaveis(tr) {
+    return Array.from(tr.querySelectorAll("input:not([type=hidden]), select"));
+  }
+  function travar(tr) {
+    tr.classList.add("parcela--travada");
+    editaveis(tr).forEach((el) => {
+      if (el.tagName === "SELECT") el.setAttribute("tabindex", "-1");
+      else el.setAttribute("readonly", "readonly");
+    });
+  }
+  function destravar(tr) {
+    tr.classList.remove("parcela--travada");
+    editaveis(tr).forEach((el) => { el.removeAttribute("readonly"); el.removeAttribute("tabindex"); });
   }
 
   function atualizarResumo() {
@@ -83,6 +100,14 @@
   }
 
   corpo.addEventListener("click", (e) => {
+    const bEdit = e.target.closest("[data-editar-parcela]");
+    if (bEdit) {
+      const tr = bEdit.closest("tr.parcela");
+      destravar(tr);
+      const primeiro = editaveis(tr)[0];
+      if (primeiro) primeiro.focus();
+      return;
+    }
     const b = e.target.closest("[data-remover-parcela]");
     if (!b) return;
     b.closest("tr.parcela").remove();
@@ -218,5 +243,9 @@
     });
   }
 
+  // ao abrir: trava as parcelas que já vieram pagas
+  linhas().forEach((tr) => {
+    if (tr.querySelector('[name="parcela_paga"]').value === "1") travar(tr);
+  });
   atualizarResumo();
 })();
