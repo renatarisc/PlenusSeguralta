@@ -86,8 +86,8 @@
     <div class="tabela-wrap">
       <table class="lista" id="tab-lancamentos">
         <thead>
-          <tr><th style="width:24%">Vencimento</th><th style="width:22%">Valor (R$)</th>
-              <th style="width:20%">Parcela</th><th style="width:26%">Pago em</th><th style="width:8%"></th></tr>
+          <tr><th style="width:23%">Vencimento</th><th style="width:20%">Valor (R$)</th>
+              <th style="width:17%">Parcela</th><th style="width:24%">Pago em</th><th style="width:16%"></th></tr>
         </thead>
         <tbody id="corpo-lancamentos">
           {% for l in lancs %}
@@ -99,7 +99,10 @@
             <td><input name="saida_valor" inputmode="decimal" data-num value="{{ l.valor|numero }}"></td>
             <td><input name="saida_parcela" value="{{ l.numero_parcela or '' }}"></td>
             <td><input name="saida_pago_em" type="date" value="{{ l.data_pagamento or '' }}"></td>
-            <td class="acoes"><button type="button" class="btn btn--perigo btn--mini" data-remover-lancamento>{{ icone('x') }}</button></td>
+            <td class="acoes">
+              <button type="button" class="btn btn--linha btn--mini" data-editar-lancamento title="Liberar edição">{{ icone('lapis') }}</button>
+              <button type="button" class="btn btn--perigo btn--mini" data-remover-lancamento title="Remover">{{ icone('x') }}</button>
+            </td>
           </tr>
           {% endfor %}
         </tbody>

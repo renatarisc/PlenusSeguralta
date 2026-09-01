@@ -91,7 +91,28 @@
     return tr;
   }
 
+  // ---- linhas já pagas abrem travadas; o lápis libera ----
+  function editaveis(tr) {
+    return Array.from(tr.querySelectorAll("input:not([type=hidden])"));
+  }
+  function travar(tr) {
+    tr.classList.add("lancamento--travada");
+    editaveis(tr).forEach((i) => i.setAttribute("readonly", "readonly"));
+  }
+  function destravar(tr) {
+    tr.classList.remove("lancamento--travada");
+    editaveis(tr).forEach((i) => i.removeAttribute("readonly"));
+  }
+
   corpo.addEventListener("click", (e) => {
+    const bEdit = e.target.closest("[data-editar-lancamento]");
+    if (bEdit) {
+      const tr = bEdit.closest("tr.lancamento");
+      destravar(tr);
+      const primeiro = editaveis(tr)[0];
+      if (primeiro) primeiro.focus();
+      return;
+    }
     const b = e.target.closest("[data-remover-lancamento]");
     if (!b) return;
     b.closest("tr.lancamento").remove();
@@ -153,5 +174,9 @@
   }
 
   if (!linhas().length) novaLinha();
+  // ao abrir: trava as linhas que já vieram pagas do servidor
+  linhas().forEach((tr) => {
+    if (campo(tr, "saida_pago_em").value) travar(tr);
+  });
   atualizarResumo();
 })();
