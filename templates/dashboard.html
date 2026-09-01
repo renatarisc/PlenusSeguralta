@@ -116,6 +116,50 @@
 </div>
 {% endif %}
 
+{% if contas_pagar %}
+<div class="cartao">
+  <h2 style="color:var(--erro)">Contas a pagar ({{ contas_pagar|length }})</h2>
+  <div class="tabela-wrap">
+    <table class="lista">
+      <thead>
+        <tr><th>Descrição</th><th>Categoria</th><th>Parcela</th><th>Valor</th><th>Vencimento</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for s in contas_pagar %}
+        <tr class="{{ 'apolice-vencida' if s.dias_restantes is not none and s.dias_restantes < 0 else 'apolice-vencendo' }}">
+          <td><a href="{{ url_for('saida_form', saida_id=s.id) }}"
+                 style="font-weight:600;color:var(--laranja-hover)">{{ s.descricao }}</a></td>
+          <td>{{ s.categoria or '—' }}</td>
+          <td>{{ s.numero_parcela or '—' }}</td>
+          <td>{{ s.valor|moeda }}</td>
+          <td>
+            {{ s.data_vencimento|data_br }}
+            {% if s.dias_restantes is not none and s.dias_restantes < 0 %}
+            <span class="tag-venc tag-venc--fim">vencida há {{ -s.dias_restantes }}d</span>
+            {% elif s.dias_restantes is not none %}
+            <span class="tag-venc">{{ 'vence hoje' if s.dias_restantes == 0 else 'vence em ' ~ s.dias_restantes ~ 'd' }}</span>
+            {% endif %}
+          </td>
+          <td class="acoes">
+            <form method="post" action="{{ url_for('saida_pagamento', saida_id=s.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="paga" value="1">
+              <input type="hidden" name="voltar" value="{{ url_for('dashboard') }}">
+              <button class="btn btn--linha btn--mini" type="submit" title="Marcar como paga hoje">✓ paga</button>
+            </form>
+            <a class="btn btn--linha btn--mini" href="{{ url_for('saida_form', saida_id=s.id) }}">{{ icone('lapis') }}</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p style="margin:12px 0 0;font-size:12px;color:var(--texto-suave)">
+    Saídas não pagas vencendo nos próximos {{ DIAS_ALERTA_SAIDA }} dias (ou já vencidas).
+  </p>
+</div>
+{% endif %}
+
 <div class="cartao">
   <h2>Apólices por tipo de seguro</h2>
   {% if por_tipo %}

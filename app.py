@@ -19,7 +19,7 @@ import seguranca
 from validacao import (
     formatar_cpf, formatar_cep, formatar_telefone, validar_cliente,
     formatar_numero, formatar_moeda, formatar_data_br, dias_ate_data,
-    validar_apolice, preparar_parcelas,
+    validar_apolice, preparar_parcelas, validar_saida,
 )
 
 _HTTPS = os.environ.get("PLENUS_HTTPS") == "1"
@@ -61,6 +61,7 @@ def _cabecalhos_seguranca(resp):
 
 DIAS_ALERTA_VIGENCIA = 20  # <= N dias p/ vencer -> destaque vermelho + aviso no painel
 DIAS_ALERTA_BOLETO = 15    # janela do card "Boletos a vencer" no painel
+DIAS_ALERTA_SAIDA = 15     # janela do card "Contas a pagar" no painel
 
 db.inicializar_db()
 
@@ -84,10 +85,12 @@ app.jinja_env.globals["telefone"] = formatar_telefone
 app.jinja_env.globals["dias_ate"] = dias_ate_data
 app.jinja_env.globals["DIAS_ALERTA_VIGENCIA"] = DIAS_ALERTA_VIGENCIA
 app.jinja_env.globals["DIAS_ALERTA_BOLETO"] = DIAS_ALERTA_BOLETO
+app.jinja_env.globals["DIAS_ALERTA_SAIDA"] = DIAS_ALERTA_SAIDA
 app.jinja_env.globals["MENU"] = [
     {"rota": "dashboard", "texto": "Painel", "icone": "painel"},
     {"rota": "clientes_lista", "texto": "Clientes", "icone": "clientes"},
     {"rota": "apolices", "texto": "Apólices", "icone": "apolices"},
+    {"rota": "saidas_lista", "texto": "Saídas", "icone": "saida", "divisoria_antes": True},
     {"rota": "cadastro_simples", "texto": "Seguradoras", "icone": "predio", "slug": "seguradora", "divisoria_antes": True},
     {"rota": "cadastro_simples", "texto": "Tipos de Seguro", "icone": "tag", "slug": "tipo-seguro"},
     {"rota": "cadastro_simples", "texto": "Formas de Pagamento", "icone": "pagamento", "slug": "forma-pagamento"},
@@ -262,7 +265,8 @@ def dashboard():
                            resumo=repo.resumo_painel(),
                            por_tipo=repo.apolices_por_tipo(),
                            vencendo=repo.apolices_por_vencer(DIAS_ALERTA_VIGENCIA),
-                           boletos=repo.parcelas_boleto_a_vencer(DIAS_ALERTA_BOLETO))
+                           boletos=repo.parcelas_boleto_a_vencer(DIAS_ALERTA_BOLETO),
+                           contas_pagar=repo.saidas_a_pagar(DIAS_ALERTA_SAIDA))
 
 
 # ---------- Clientes ----------
@@ -526,6 +530,101 @@ def _ler_pdf(alvo):
     except Exception as e:  # noqa: BLE001 - devolve o erro pro front em vez de 500 seco
         app.logger.exception("falha ao ler PDF")
         return jsonify(ok=False, campos={}, origem="erro", aviso=f"Erro ao ler o PDF: {e}"), 500
+
+
+# ---------- Financeiro: Saídas (fluxo de caixa) ----------
+
+_CAMPOS_SAIDA = ("descricao", "categoria", "valor", "data_vencimento", "data_pagamento",
+                 "numero_parcela", "fixo_mensal", "serie_id")
+
+
+def _saida_para_form(s):
+    if s is None:
+        return None
+    s = dict(s)
+    s["valor"] = formatar_numero(s.get("valor"))
+    return s
+
+
+@app.route("/financeiro/saidas")
+def saidas_lista():
+    mes = request.args.get("mes", type=int)
+    if mes not in range(1, 13):
+        mes = None
+    status = request.args.get("status", "")
+    categoria = request.args.get("categoria", "")
+    busca = request.args.get("busca", "").strip()
+    saidas = repo.listar_saidas(mes=mes, status=status or None,
+                                categoria=categoria or None, busca=busca or None)
+    total = sum(s["valor"] or 0 for s in saidas)
+    return render_template("saidas_lista.html", ativo="saidas_lista",
+                           saidas=saidas, total=total, resumo=repo.resumo_saidas(),
+                           mes=mes, status=status, categoria=categoria, busca=busca,
+                           categorias=repo.categorias_saida(), MESES=_MESES)
+
+
+@app.route("/financeiro/saidas/nova", methods=["GET", "POST"])
+@app.route("/financeiro/saidas/<int:saida_id>", methods=["GET", "POST"])
+def saida_form(saida_id=None):
+    saida = repo.obter_saida(saida_id) if saida_id else None
+    if saida_id and not saida:
+        flash("Saída não encontrada.", "erro")
+        return redirect(url_for("saidas_lista"))
+
+    if request.method == "POST":
+        dados = {k: request.form.get(k, "") for k in _CAMPOS_SAIDA}
+        erros = validar_saida(dados)
+        if erros:
+            for e in erros:
+                flash(e, "erro")
+            return render_template("saidas_form.html", ativo="saidas_lista",
+                                   saida={**dados, "id": saida_id},
+                                   categorias=repo.categorias_saida())
+        if saida_id:
+            repo.atualizar_saida(saida_id, dados)
+            flash("Saída atualizada.", "ok")
+        else:
+            modo = request.form.get("repeticao", "unica")
+            qtd = request.form.get("repeticao_qtd", type=int) or 1
+            repo.criar_saidas(dados, modo=modo, qtd=qtd)
+            flash("Saída cadastrada.", "ok")
+        return redirect(url_for("saidas_lista"))
+
+    return render_template("saidas_form.html", ativo="saidas_lista",
+                           saida=_saida_para_form(saida), categorias=repo.categorias_saida())
+
+
+@app.route("/financeiro/saidas/<int:saida_id>/excluir", methods=["POST"])
+def saida_excluir(saida_id):
+    repo.excluir_saida(saida_id)
+    flash("Saída excluída.", "ok")
+    return _voltar_seguro() if request.form.get("voltar") else redirect(url_for("saidas_lista"))
+
+
+@app.route("/financeiro/saidas/<int:saida_id>/serie/excluir", methods=["POST"])
+def saida_serie_excluir(saida_id):
+    s = repo.obter_saida(saida_id)
+    if s and s.get("serie_id"):
+        repo.excluir_serie_saida(s["serie_id"], so_em_aberto=True)
+        flash("Ocorrências futuras da série (não pagas) excluídas.", "ok")
+    return redirect(url_for("saidas_lista"))
+
+
+@app.route("/financeiro/saidas/<int:saida_id>/serie/estender", methods=["POST"])
+def saida_serie_estender(saida_id):
+    s = repo.obter_saida(saida_id)
+    if s and s.get("serie_id"):
+        novos = repo.estender_serie_saida(s["serie_id"], 12)
+        flash(f"{len(novos)} meses adicionados à série.", "ok")
+    return redirect(url_for("saida_form", saida_id=saida_id))
+
+
+@app.route("/financeiro/saidas/<int:saida_id>/pagamento", methods=["POST"])
+def saida_pagamento(saida_id):
+    repo.marcar_saida_paga(saida_id, request.form.get("paga") == "1",
+                           request.form.get("data_pagamento"))
+    flash("Saída atualizada.", "ok")
+    return _voltar_seguro()
 
 
 if __name__ == "__main__":

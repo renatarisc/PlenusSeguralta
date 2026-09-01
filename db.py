@@ -132,6 +132,21 @@ CREATE TABLE IF NOT EXISTS notificacao_parcela (
 CREATE UNIQUE INDEX IF NOT EXISTS ix_notif_parcela_unico
     ON notificacao_parcela (parcela_id, marco, data_vencimento);
 
+-- fluxo de caixa: saídas (contas a pagar)
+CREATE TABLE IF NOT EXISTS saida (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    descricao TEXT NOT NULL,
+    categoria TEXT,
+    valor REAL,
+    data_vencimento TEXT,          -- ISO AAAA-MM-DD
+    data_pagamento TEXT,           -- NULL = ainda não paga
+    numero_parcela TEXT,           -- livre ("3/6"), ou vazio
+    fixo_mensal INTEGER NOT NULL DEFAULT 0,
+    serie_id TEXT,                 -- mesmo token nas linhas geradas juntas (parcelamento / série mensal)
+    criado_em TEXT NOT NULL DEFAULT (datetime('now')),
+    atualizado_em TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- eventos criados no Google Agenda (1 por apólice/parcela) para não duplicar
 CREATE TABLE IF NOT EXISTS evento_agenda (
     chave TEXT PRIMARY KEY,          -- 'vigencia:<apolice_id>' | 'boleto:<parcela_id>'
@@ -187,6 +202,13 @@ _COLUNAS_ESPERADAS = {
     },
     "evento_agenda": {
         "chave": "TEXT", "event_id": "TEXT", "data_ref": "TEXT", "resumo": "TEXT",
+        "atualizado_em": "TEXT NOT NULL DEFAULT (datetime('now'))",
+    },
+    "saida": {
+        "descricao": "TEXT", "categoria": "TEXT", "valor": "REAL",
+        "data_vencimento": "TEXT", "data_pagamento": "TEXT", "numero_parcela": "TEXT",
+        "fixo_mensal": "INTEGER NOT NULL DEFAULT 0", "serie_id": "TEXT",
+        "criado_em": "TEXT NOT NULL DEFAULT (datetime('now'))",
         "atualizado_em": "TEXT NOT NULL DEFAULT (datetime('now'))",
     },
     "notificacao_vencimento": {

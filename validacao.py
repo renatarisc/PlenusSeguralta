@@ -107,6 +107,21 @@ def formatar_data_br(iso):
     return s or "—"
 
 
+def add_meses(iso, n):
+    """Soma n meses a uma data ISO (AAAA-MM-DD). Se o dia não existir no mês destino,
+    cai para o último dia do mês (31/01 + 1 mês -> 28/02)."""
+    s = (iso or "").strip()[:10]
+    try:
+        a, m, d = int(s[0:4]), int(s[5:7]), int(s[8:10])
+    except (ValueError, IndexError):
+        return None
+    total = (m - 1) + n
+    a2, m2 = a + total // 12, total % 12 + 1
+    ultimo = [31, 29 if a2 % 4 == 0 and (a2 % 100 or a2 % 400 == 0) else 28,
+              31, 30, 31, 30, 31, 31, 30, 31, 30, 31][m2 - 1]
+    return f"{a2:04d}-{m2:02d}-{min(d, ultimo):02d}"
+
+
 def dias_ate_data(iso):
     """Dias entre hoje e a data ISO (negativo = já passou). None se não for data válida."""
     s = (iso or "").strip()[:10]
@@ -175,6 +190,17 @@ def validar_apolice(dados):
     if pct is not None and not (0 <= pct <= 100):
         erros.append("Comissão (%) deve ficar entre 0 e 100.")
 
+    return erros
+
+
+# ---------- validação da saída (fluxo de caixa) ----------
+
+def validar_saida(dados):
+    erros = []
+    if not (dados.get("descricao") or "").strip():
+        erros.append("Informe a descrição.")
+    if _numero_preenchido_invalido(dados.get("valor")):
+        erros.append("Valor: número inválido.")
     return erros
 
 

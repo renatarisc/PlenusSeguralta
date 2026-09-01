@@ -3,11 +3,12 @@
 Cada função abre sua própria conexão (via db.conexao) e devolve dicts / listas de dicts.
 """
 
+import secrets
 import unicodedata
 from datetime import date
 
 from db import conexao, fazer_backup
-from validacao import so_digitos, para_decimal, dias_ate_data
+from validacao import so_digitos, para_decimal, dias_ate_data, add_meses
 from seguranca import hash_senha, senha_confere
 
 
@@ -596,3 +597,186 @@ def evento_agenda_remover(chave):
 def eventos_agenda_todos():
     with conexao() as con:
         return [dict(l) for l in con.execute("SELECT chave, event_id FROM evento_agenda").fetchall()]
+
+
+# ---------- fluxo de caixa: saídas ----------
+
+_COLS_SAIDA = ("descricao", "categoria", "valor", "data_vencimento", "data_pagamento",
+               "numero_parcela", "fixo_mensal", "serie_id")
+
+
+def _valores_saida(dados):
+    return [
+        (dados.get("descricao") or "").strip() or None,
+        (dados.get("categoria") or "").strip() or None,
+        para_decimal(dados.get("valor")),
+        (dados.get("data_vencimento") or "").strip() or None,
+        (dados.get("data_pagamento") or "").strip() or None,
+        (dados.get("numero_parcela") or "").strip() or None,
+        1 if str(dados.get("fixo_mensal") or "").strip() in ("1", "sim", "on", "true") else 0,
+        (dados.get("serie_id") or "").strip() or None,
+    ]
+
+
+def _inserir_saida(con, dados):
+    marc = ", ".join("?" for _ in _COLS_SAIDA)
+    cur = con.execute(f"INSERT INTO saida ({', '.join(_COLS_SAIDA)}) VALUES ({marc})",
+                      _valores_saida(dados))
+    return cur.lastrowid
+
+
+def criar_saidas(dados, modo="unica", qtd=1):
+    """modo: 'unica' | 'parcelada' | 'fixo'. Gera 1..N linhas de saída.
+    Devolve a lista de ids criados."""
+    qtd = max(1, int(qtd or 1))
+    if modo == "unica":
+        qtd = 1
+    serie = None if qtd == 1 else secrets.token_hex(8)
+    venc0 = (dados.get("data_vencimento") or "").strip() or None
+    ids = []
+    with conexao() as con:
+        for k in range(qtd):
+            linha = dict(dados)
+            linha["serie_id"] = serie
+            if venc0:
+                linha["data_vencimento"] = add_meses(venc0, k) or venc0
+            if modo == "parcelada":
+                linha["numero_parcela"] = f"{k + 1}/{qtd}"
+                linha["fixo_mensal"] = 0
+            elif modo == "fixo":
+                linha["numero_parcela"] = None
+                linha["fixo_mensal"] = 1
+            linha["data_pagamento"] = None  # nova série nasce toda em aberto
+            ids.append(_inserir_saida(con, linha))
+    fazer_backup()
+    return ids
+
+
+def obter_saida(saida_id):
+    with conexao() as con:
+        l = con.execute("SELECT * FROM saida WHERE id = ?", (saida_id,)).fetchone()
+        return dict(l) if l else None
+
+
+def atualizar_saida(saida_id, dados):
+    atrib = ", ".join(f"{c} = ?" for c in _COLS_SAIDA)
+    with conexao() as con:
+        con.execute(f"UPDATE saida SET {atrib}, atualizado_em = datetime('now') WHERE id = ?",
+                    _valores_saida(dados) + [saida_id])
+    fazer_backup()
+
+
+def excluir_saida(saida_id):
+    with conexao() as con:
+        con.execute("DELETE FROM saida WHERE id = ?", (saida_id,))
+    fazer_backup()
+
+
+def excluir_serie_saida(serie_id, so_em_aberto=True):
+    """Apaga as saídas da série. Por padrão só as ainda não pagas (mantém histórico)."""
+    if not serie_id:
+        return
+    sql = "DELETE FROM saida WHERE serie_id = ?"
+    if so_em_aberto:
+        sql += " AND data_pagamento IS NULL"
+    with conexao() as con:
+        con.execute(sql, (serie_id,))
+    fazer_backup()
+
+
+def estender_serie_saida(serie_id, meses=12):
+    """Cria mais `meses` ocorrências mensais depois da última linha da série."""
+    if not serie_id:
+        return []
+    with conexao() as con:
+        base = con.execute(
+            "SELECT * FROM saida WHERE serie_id = ? ORDER BY data_vencimento DESC, id DESC LIMIT 1",
+            (serie_id,),
+        ).fetchone()
+        if not base:
+            return []
+        base = dict(base)
+        ids = []
+        for k in range(1, int(meses) + 1):
+            linha = dict(base)
+            linha.pop("id", None)
+            linha["data_vencimento"] = add_meses(base["data_vencimento"], k) or base["data_vencimento"]
+            linha["data_pagamento"] = None
+            ids.append(_inserir_saida(con, linha))
+    fazer_backup()
+    return ids
+
+
+def marcar_saida_paga(saida_id, paga, data=None):
+    d = (data or "").strip() or date.today().isoformat()
+    with conexao() as con:
+        con.execute("UPDATE saida SET data_pagamento = ?, atualizado_em = datetime('now') WHERE id = ?",
+                    (d if paga else None, saida_id))
+    fazer_backup()
+
+
+def _status_saida(s, hoje):
+    if s.get("data_pagamento"):
+        return "pago"
+    d = dias_ate_data(s.get("data_vencimento"))
+    if d is None:
+        return "a_pagar"
+    return "vencido" if d < 0 else "a_pagar"
+
+
+def listar_saidas(mes=None, status=None, categoria=None, busca=None):
+    with conexao() as con:
+        linhas = [dict(l) for l in con.execute(
+            "SELECT * FROM saida ORDER BY COALESCE(data_vencimento, ''), id"
+        ).fetchall()]
+    hoje = date.today().isoformat()
+    for s in linhas:
+        s["status"] = _status_saida(s, hoje)
+        s["dias_restantes"] = dias_ate_data(s.get("data_vencimento"))
+
+    if mes:
+        linhas = [s for s in linhas if (s.get("data_vencimento") or "")[5:7] == f"{int(mes):02d}"]
+    if status in ("pago", "a_pagar", "vencido"):
+        linhas = [s for s in linhas if s["status"] == status]
+    if categoria:
+        linhas = [s for s in linhas if (s.get("categoria") or "") == categoria]
+    termo = (busca or "").strip()
+    if termo:
+        alvo = _sem_acento_minusculo(termo)
+        linhas = [s for s in linhas if alvo in _sem_acento_minusculo(s.get("descricao") or "")]
+    return linhas
+
+
+def categorias_saida():
+    with conexao() as con:
+        return [r[0] for r in con.execute(
+            "SELECT DISTINCT categoria FROM saida WHERE categoria IS NOT NULL AND categoria <> '' "
+            "ORDER BY categoria COLLATE NOCASE"
+        ).fetchall()]
+
+
+def saidas_a_pagar(limite_dias):
+    """Saídas não pagas vencendo em <= limite_dias (inclui as já vencidas), mais urgente 1º."""
+    itens = []
+    for s in listar_saidas(status=None):
+        if s["status"] == "pago":
+            continue
+        d = s["dias_restantes"]
+        if d is not None and d <= limite_dias:
+            itens.append(s)
+    itens.sort(key=lambda x: (x["dias_restantes"] is None, x["dias_restantes"]))
+    return itens
+
+
+def resumo_saidas():
+    with conexao() as con:
+        mes = date.today().strftime("%Y-%m")
+        a_pagar_mes = con.execute(
+            "SELECT COALESCE(SUM(valor), 0) FROM saida "
+            "WHERE data_pagamento IS NULL AND substr(data_vencimento, 1, 7) = ?", (mes,)
+        ).fetchone()[0]
+        vencido = con.execute(
+            "SELECT COALESCE(SUM(valor), 0) FROM saida "
+            "WHERE data_pagamento IS NULL AND data_vencimento < ?", (date.today().isoformat(),)
+        ).fetchone()[0]
+    return {"a_pagar_mes": a_pagar_mes, "vencido": vencido}
