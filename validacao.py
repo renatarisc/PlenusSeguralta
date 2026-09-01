@@ -5,6 +5,7 @@ Guarda sempre só os dígitos (sem máscara) no banco; a máscara é aplicada s�
 """
 
 import re
+from datetime import date
 from itertools import zip_longest
 
 _RE_EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -104,6 +105,16 @@ def formatar_data_br(iso):
     if len(s) == 10 and s[4] == "-" and s[7] == "-":
         return f"{s[8:10]}/{s[5:7]}/{s[0:4]}"
     return s or "—"
+
+
+def dias_ate_data(iso):
+    """Dias entre hoje e a data ISO (negativo = já passou). None se não for data válida."""
+    s = (iso or "").strip()[:10]
+    try:
+        alvo = date(int(s[0:4]), int(s[5:7]), int(s[8:10]))
+    except (ValueError, IndexError):
+        return None
+    return (alvo - date.today()).days
 
 
 # ---------- parcelas da apólice ----------

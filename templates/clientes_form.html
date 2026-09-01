@@ -5,7 +5,7 @@
 
 {% block acoes %}
 {% if c.id %}
-<a class="btn btn--linha" href="{{ url_for('apolices', cliente=c.id) }}">{{ icone('apolices') }} Apólices ({{ qtd_apolices }})</a>
+<a class="btn btn--primario" href="{{ url_for('apolices', cliente=c.id) }}">{{ icone('apolices') }} Apólices ({{ qtd_apolices }})</a>
 {% endif %}
 <button type="button" class="btn btn--linha" data-ler-pdf
         data-endpoint="{{ url_for('cliente_ler_pdf') }}">{{ icone('apolices') }} Ler apólice</button>

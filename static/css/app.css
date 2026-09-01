@@ -150,6 +150,20 @@ table.lista tbody tr:hover { background: var(--fundo); }
 table.lista td.acoes { display: flex; gap: 6px; justify-content: flex-end; }
 .vazio { padding: 28px; text-align: center; color: var(--texto-suave); }
 
+/* apólice perto do fim da vigência (<= 20 dias) ou já vencida */
+table.lista tr.apolice-vencendo td,
+table.lista tr.apolice-vencida td { background: var(--erro-fraco); }
+table.lista tr.apolice-vencendo:hover td,
+table.lista tr.apolice-vencida:hover td { background: #f6dcda; }
+table.lista tr.apolice-vencendo td:first-child { box-shadow: inset 3px 0 0 var(--erro); }
+table.lista tr.apolice-vencida td:first-child { box-shadow: inset 3px 0 0 #a52019; }
+.tag-venc {
+  display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px;
+  font-size: 11px; font-weight: 700; white-space: nowrap;
+  background: var(--erro-fraco); color: var(--erro); border: 1px solid #f0ccc9;
+}
+.tag-venc--fim { background: var(--erro); color: #fff; border-color: var(--erro); }
+
 /* ---------- barra de busca ---------- */
 .busca { display: flex; gap: 8px; align-items: center; margin-bottom: 14px; max-width: 420px; }
 .busca__campo { position: relative; flex: 1; }

@@ -11,7 +11,8 @@ import repo
 import leitura_pdf
 from validacao import (
     formatar_cpf, formatar_cep, formatar_telefone, validar_cliente,
-    formatar_numero, formatar_moeda, formatar_data_br, validar_apolice, preparar_parcelas,
+    formatar_numero, formatar_moeda, formatar_data_br, dias_ate_data,
+    validar_apolice, preparar_parcelas,
 )
 
 app = Flask(__name__)
@@ -34,6 +35,8 @@ app.jinja_env.filters["numero"] = formatar_numero
 app.jinja_env.filters["moeda"] = formatar_moeda
 app.jinja_env.filters["data_br"] = formatar_data_br
 app.jinja_env.globals["telefone"] = formatar_telefone
+app.jinja_env.globals["dias_ate"] = dias_ate_data
+app.jinja_env.globals["DIAS_ALERTA_VIGENCIA"] = 20  # <= N dias p/ vencer -> destaque vermelho
 app.jinja_env.globals["MENU"] = [
     {"rota": "dashboard", "texto": "Painel", "icone": "painel"},
     {"rota": "clientes_lista", "texto": "Clientes", "icone": "clientes"},
