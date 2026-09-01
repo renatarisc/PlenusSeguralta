@@ -25,13 +25,6 @@
     return dt.getFullYear() + "-" + z(dt.getMonth() + 1) + "-" + z(dt.getDate());
   }
 
-  function enviarForm(el) {
-    const f = el.form || el.closest("form");
-    if (!f) return;
-    if (f.requestSubmit) f.requestSubmit();
-    else f.submit();
-  }
-
   // ---------- alterna único / parcelado + janela (dialog) ----------
   const chk = document.getElementById("comissao_parcelada");
   const boxUnico = document.getElementById("comissao-unico");
@@ -109,15 +102,22 @@
       const bEdit = e.target.closest("[data-editar]");
       if (bEdit) {
         const tr = bEdit.closest("tr.fluxo-linha");
-        if (tr.classList.contains("linha-liberada")) {   // 2º clique = já é "Salvar"
-          enviarForm(bEdit);
+        if (tr.classList.contains("linha-liberada")) {
+          // 2º clique: só re-trava a linha (o Salvar de verdade é o do rodapé da janela)
+          if (bEdit.dataset.iconeOriginal) bEdit.innerHTML = bEdit.dataset.iconeOriginal;
+          bEdit.classList.replace("btn--primario", "btn--linha");
+          bEdit.title = "Liberar edição";
+          tr.classList.remove("linha-liberada");
+          travar(tr);
+          atualizarTotal();
           return;
         }
+        if (!bEdit.dataset.iconeOriginal) bEdit.dataset.iconeOriginal = bEdit.innerHTML;
         destravar(tr);
         tr.classList.add("linha-liberada");
         bEdit.classList.replace("btn--linha", "btn--primario");
         bEdit.textContent = "Salvar";
-        bEdit.title = "Salvar a apólice";
+        bEdit.title = "Guardar esta linha";
         const primeiro = editaveis(tr)[0];
         if (primeiro) primeiro.focus();
         return;
