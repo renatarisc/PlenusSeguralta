@@ -36,4 +36,7 @@ venv\Scripts\python.exe app.py
 
 - Cadastro de **Clientes** (dados pessoais, endereço, contato)
 - Cadastro de **Tipos de Seguro** e **Formas de Pagamento** (só nome; FK em tabelas futuras)
-- Tabela de **Apólices** criada no banco (formulário: próxima etapa)
+- Cadastro de **Apólices**: cliente + tipo de seguro (FK), número, vigência, prêmio líquido,
+  forma de pagamento (FK), comissão (% e valor, com botão de cálculo), lançado no Quiver,
+  link do OneDrive, e **parcelas** (identificação/data/valor) com linhas dinâmicas e um
+  gerador (qtd × valor total × 1ª data → parcelas mensais)

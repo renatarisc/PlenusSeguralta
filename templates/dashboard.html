@@ -6,8 +6,9 @@
   <h2>Bem-vindo(a) ao Plenus</h2>
   <p style="margin:0;color:var(--texto-suave)">
     Sistema em construção. Já disponível: cadastro de <a href="{{ url_for('clientes_lista') }}">Clientes</a>,
-    <a href="{{ url_for('cadastro_simples', slug='tipo-seguro') }}">Tipos de Seguro</a> e
-    <a href="{{ url_for('cadastro_simples', slug='forma-pagamento') }}">Formas de Pagamento</a>.
+    <a href="{{ url_for('cadastro_simples', slug='tipo-seguro') }}">Tipos de Seguro</a>,
+    <a href="{{ url_for('cadastro_simples', slug='forma-pagamento') }}">Formas de Pagamento</a> e
+    <a href="{{ url_for('apolices') }}">Apólices</a>.
   </p>
 </div>
 {% endblock %}

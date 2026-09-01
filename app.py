@@ -8,7 +8,10 @@ from flask import Flask, render_template, request, redirect, url_for, flash
 
 import db
 import repo
-from validacao import formatar_cpf, formatar_cep, formatar_telefone, validar_cliente
+from validacao import (
+    formatar_cpf, formatar_cep, formatar_telefone, validar_cliente,
+    formatar_numero, formatar_moeda, formatar_data_br, validar_apolice, preparar_parcelas,
+)
 
 app = Flask(__name__)
 app.secret_key = "plenus-seguralta-dev"  # trocar por algo secreto quando for pra valer
@@ -24,6 +27,9 @@ _CADASTROS_SIMPLES = {
 # disponível em todo template (máscaras na exibição, itens do menu)
 app.jinja_env.filters["cpf"] = formatar_cpf
 app.jinja_env.filters["cep"] = formatar_cep
+app.jinja_env.filters["numero"] = formatar_numero
+app.jinja_env.filters["moeda"] = formatar_moeda
+app.jinja_env.filters["data_br"] = formatar_data_br
 app.jinja_env.globals["telefone"] = formatar_telefone
 app.jinja_env.globals["MENU"] = [
     {"rota": "dashboard", "texto": "Painel", "icone": "painel"},
@@ -119,11 +125,79 @@ def cadastro_simples_excluir(slug, item_id):
     return redirect(url_for("cadastro_simples", slug=slug))
 
 
-# ---------- Apólices (em construção) ----------
+# ---------- Apólices ----------
+
+_CAMPOS_APOLICE = (
+    "cliente_id", "tipo_seguro_id", "numero_apolice", "vigencia_inicio", "vigencia_fim",
+    "premio_liquido", "forma_pagamento_id", "comissao_percentual", "comissao_valor",
+    "lancado_quiver", "link_onedrive",
+)
+
+
+def _apolice_para_form(ap, parcelas=None):
+    """Deixa os números como texto pt-BR pros inputs (edição vinda do banco)."""
+    if ap is None:
+        return None
+    ap = dict(ap)
+    for campo in ("premio_liquido", "comissao_percentual", "comissao_valor"):
+        ap[campo] = formatar_numero(ap.get(campo))
+    fonte = parcelas if parcelas is not None else ap.get("parcelas", [])
+    ap["parcelas"] = [{**p, "valor": formatar_numero(p.get("valor"))} for p in fonte]
+    return ap
+
+
+def _dados_form_apolice():
+    return dict(
+        clientes=repo.listar_clientes(),
+        tipos=repo.listar_simples("tipo_seguro"),
+        formas=repo.listar_simples("forma_pagamento"),
+    )
+
 
 @app.route("/apolices")
 def apolices():
-    return render_template("apolices.html", ativo="apolices")
+    return render_template("apolices_lista.html", ativo="apolices",
+                           apolices=repo.listar_apolices())
+
+
+@app.route("/apolices/nova", methods=["GET", "POST"])
+@app.route("/apolices/<int:apolice_id>", methods=["GET", "POST"])
+def apolice_form(apolice_id=None):
+    if request.method == "POST":
+        dados = {k: request.form.get(k, "") for k in _CAMPOS_APOLICE}
+        parcelas, erros_parcelas = preparar_parcelas(
+            request.form.getlist("parcela_identificacao"),
+            request.form.getlist("parcela_data"),
+            request.form.getlist("parcela_valor"),
+        )
+        erros = validar_apolice(dados) + erros_parcelas
+        if erros:
+            for e in erros:
+                flash(e, "erro")
+            apolice = _apolice_para_form({**dados, "id": apolice_id}, parcelas=parcelas)
+            return render_template("apolices_form.html", ativo="apolices",
+                                   apolice=apolice, **_dados_form_apolice())
+        if apolice_id:
+            repo.atualizar_apolice(apolice_id, dados, parcelas)
+            flash("Apólice atualizada.", "ok")
+        else:
+            apolice_id = repo.criar_apolice(dados, parcelas)
+            flash("Apólice cadastrada.", "ok")
+        return redirect(url_for("apolices"))
+
+    apolice = repo.obter_apolice(apolice_id) if apolice_id else None
+    if apolice_id and not apolice:
+        flash("Apólice não encontrada.", "erro")
+        return redirect(url_for("apolices"))
+    return render_template("apolices_form.html", ativo="apolices",
+                           apolice=_apolice_para_form(apolice), **_dados_form_apolice())
+
+
+@app.route("/apolices/<int:apolice_id>/excluir", methods=["POST"])
+def apolice_excluir(apolice_id):
+    repo.excluir_apolice(apolice_id)
+    flash("Apólice excluída.", "ok")
+    return redirect(url_for("apolices"))
 
 
 if __name__ == "__main__":

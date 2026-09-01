@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+{% set a = apolice or {} %}
+{% block titulo %}{{ 'Editar apólice' if a.id else 'Nova apólice' }}{% endblock %}
+{% block cabecalho %}{{ 'Editar apólice' if a.id else 'Nova apólice' }}{% endblock %}
+
+{% block acoes %}
+<a class="btn btn--linha" href="{{ url_for('apolices') }}">{{ icone('voltar') }} Voltar</a>
+{% endblock %}
+
+{% block conteudo %}
+{% if not clientes or not tipos %}
+<div class="cartao" style="border-color:#f0d9b8;background:#fff8ec">
+  <p style="margin:0;color:var(--texto-suave)">
+    {% if not clientes %}Cadastre ao menos um <a href="{{ url_for('cliente_form') }}">cliente</a>. {% endif %}
+    {% if not tipos %}Cadastre ao menos um <a href="{{ url_for('cadastro_simples', slug='tipo-seguro') }}">tipo de seguro</a>.{% endif %}
+  </p>
+</div>
+{% endif %}
+
+<form class="form" method="post" novalidate
+      action="{{ url_for('apolice_form', apolice_id=a.id) if a.id else url_for('apolice_form') }}">
+
+  <div class="cartao">
+    <h2>Dados da apólice</h2>
+    <div class="grade">
+      <div class="campo c-6">
+        <label for="cliente_id">Cliente *</label>
+        <select id="cliente_id" name="cliente_id" required>
+          <option value="">—</option>
+          {% for c in clientes %}
+          <option value="{{ c.id }}" {{ 'selected' if a.cliente_id|string == c.id|string }}>{{ c.nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="campo c-3">
+        <label for="tipo_seguro_id">Tipo de seguro *</label>
+        <select id="tipo_seguro_id" name="tipo_seguro_id" required>
+          <option value="">—</option>
+          {% for t in tipos %}
+          <option value="{{ t.id }}" {{ 'selected' if a.tipo_seguro_id|string == t.id|string }}>{{ t.nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="campo c-3">
+        <label for="numero_apolice">Número da apólice *</label>
+        <input id="numero_apolice" name="numero_apolice" value="{{ a.numero_apolice or '' }}">
+      </div>
+
+      <div class="campo c-3">
+        <label for="vigencia_inicio">Vigência — início</label>
+        <input id="vigencia_inicio" name="vigencia_inicio" type="date" value="{{ a.vigencia_inicio or '' }}">
+      </div>
+      <div class="campo c-3">
+        <label for="vigencia_fim">Vigência — fim</label>
+        <input id="vigencia_fim" name="vigencia_fim" type="date" value="{{ a.vigencia_fim or '' }}">
+      </div>
+      <div class="campo c-3">
+        <label for="premio_liquido">Prêmio líquido (R$)</label>
+        <input id="premio_liquido" name="premio_liquido" inputmode="decimal" data-num
+               placeholder="0,00" value="{{ a.premio_liquido or '' }}">
+      </div>
+      <div class="campo c-3">
+        <label for="forma_pagamento_id">Forma de pagamento</label>
+        <select id="forma_pagamento_id" name="forma_pagamento_id">
+          <option value="">—</option>
+          {% for f in formas %}
+          <option value="{{ f.id }}" {{ 'selected' if a.forma_pagamento_id|string == f.id|string }}>{{ f.nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="cartao">
+    <h2>Comissão</h2>
+    <div class="grade">
+      <div class="campo c-3">
+        <label for="comissao_percentual">Percentual (%)</label>
+        <input id="comissao_percentual" name="comissao_percentual" inputmode="decimal" data-num
+               placeholder="0,00" value="{{ a.comissao_percentual or '' }}">
+      </div>
+      <div class="campo c-3">
+        <label for="comissao_valor">Valor (R$)</label>
+        <input id="comissao_valor" name="comissao_valor" inputmode="decimal" data-num
+               placeholder="0,00" value="{{ a.comissao_valor or '' }}">
+      </div>
+      <div class="campo c-4" style="justify-content:flex-end">
+        <button type="button" class="btn btn--linha" id="btn-calc-comissao">
+          Calcular valor pelo % do prêmio
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="cartao">
+    <h2>Parcelas</h2>
+    <div class="grade" style="align-items:flex-end;margin-bottom:12px">
+      <div class="campo c-2">
+        <label for="ger_qtd">Qtd.</label>
+        <input id="ger_qtd" type="number" min="1" max="120" placeholder="12">
+      </div>
+      <div class="campo c-3">
+        <label for="ger_total">Valor total (R$)</label>
+        <input id="ger_total" inputmode="decimal" data-num placeholder="0,00">
+      </div>
+      <div class="campo c-3">
+        <label for="ger_data1">1ª data</label>
+        <input id="ger_data1" type="date">
+      </div>
+      <div class="campo c-2">
+        <button type="button" class="btn btn--linha" id="btn-gerar-parcelas">Gerar</button>
+      </div>
+    </div>
+
+    <div class="tabela-wrap">
+      <table class="lista" id="tab-parcelas">
+        <thead>
+          <tr><th style="width:30%">Identificação</th><th style="width:28%">Data</th>
+              <th style="width:28%">Valor (R$)</th><th></th></tr>
+        </thead>
+        <tbody id="corpo-parcelas">
+          {% for p in a.parcelas or [] %}
+          <tr class="parcela">
+            <td><input name="parcela_identificacao" value="{{ p.identificacao or '' }}" placeholder="1/12"></td>
+            <td><input name="parcela_data" type="date" value="{{ p.data or '' }}"></td>
+            <td><input name="parcela_valor" inputmode="decimal" data-num value="{{ p.valor or '' }}" placeholder="0,00"></td>
+            <td class="acoes"><button type="button" class="btn btn--perigo btn--mini" data-remover-parcela>{{ icone('x') }}</button></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div style="padding:10px 0 0">
+      <button type="button" class="btn btn--linha" id="btn-add-parcela">{{ icone('mais') }} Adicionar parcela</button>
+      <span class="dica" id="resumo-parcelas" style="margin-left:10px"></span>
+    </div>
+  </div>
+
+  <div class="cartao">
+    <h2>Outros</h2>
+    <div class="grade">
+      <div class="campo c-3">
+        <label for="lancado_quiver">Lançado no Quiver</label>
+        <select id="lancado_quiver" name="lancado_quiver">
+          <option value="0" {{ 'selected' if not a.lancado_quiver }}>Não</option>
+          <option value="1" {{ 'selected' if a.lancado_quiver }}>Sim</option>
+        </select>
+      </div>
+      <div class="campo c-9">
+        <label for="link_onedrive">Link da pasta no OneDrive (PDFs do seguro)</label>
+        <input id="link_onedrive" name="link_onedrive" type="url" placeholder="https://..."
+               value="{{ a.link_onedrive or '' }}">
+      </div>
+    </div>
+  </div>
+
+  <div class="rodape-form">
+    <a class="btn btn--linha" href="{{ url_for('apolices') }}">Cancelar</a>
+    <button class="btn btn--primario" type="submit">Salvar</button>
+  </div>
+</form>
+
+<template id="tpl-parcela">
+  <tr class="parcela">
+    <td><input name="parcela_identificacao" placeholder="1/12"></td>
+    <td><input name="parcela_data" type="date"></td>
+    <td><input name="parcela_valor" inputmode="decimal" data-num placeholder="0,00"></td>
+    <td class="acoes"><button type="button" class="btn btn--perigo btn--mini" data-remover-parcela>{{ icone('x') }}</button></td>
+  </tr>
+</template>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/apolice.js') }}"></script>
+{% endblock %}

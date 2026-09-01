@@ -5,6 +5,7 @@ Guarda sempre só os dígitos (sem máscara) no banco; a máscara é aplicada s�
 """
 
 import re
+from itertools import zip_longest
 
 _RE_EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
@@ -61,6 +62,99 @@ def formatar_telefone(ddd, numero):
     elif len(numero) == 8:
         numero = f"{numero[0:4]}-{numero[4:8]}"
     return f"({ddd}) {numero}" if ddd else numero
+
+
+# ---------- números / moeda / data (usados na apólice) ----------
+
+def para_decimal(texto):
+    """'1.234,56', '1234,56' ou '1234.56' -> float. Vazio -> None. Inválido -> None."""
+    if isinstance(texto, (int, float)):
+        return float(texto)
+    s = (texto or "").strip().replace("R$", "").replace(" ", "")
+    if not s:
+        return None
+    if "," in s:                       # formato brasileiro: ponto é milhar, vírgula é decimal
+        s = s.replace(".", "").replace(",", ".")
+    try:
+        return float(s)
+    except ValueError:
+        return None
+
+
+def _numero_preenchido_invalido(texto):
+    return bool((texto or "").strip()) and para_decimal(texto) is None
+
+
+def formatar_numero(v, casas=2):
+    """float -> '1.234,56' (pt-BR). None/'' -> ''."""
+    d = para_decimal(v) if not isinstance(v, (int, float)) else float(v)
+    if d is None:
+        return ""
+    txt = f"{d:,.{casas}f}"
+    return txt.replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def formatar_moeda(v):
+    txt = formatar_numero(v)
+    return f"R$ {txt}" if txt else "—"
+
+
+def formatar_data_br(iso):
+    s = (iso or "").strip()[:10]
+    if len(s) == 10 and s[4] == "-" and s[7] == "-":
+        return f"{s[8:10]}/{s[5:7]}/{s[0:4]}"
+    return s or "—"
+
+
+# ---------- parcelas da apólice ----------
+
+def preparar_parcelas(identificacoes, datas, valores):
+    """Recebe 3 listas paralelas (request.form.getlist). Ignora linhas totalmente vazias.
+    Devolve (parcelas, erros) — cada parcela é dict {identificacao, data, valor(float|None)}."""
+    parcelas, erros = [], []
+    linhas = zip_longest(identificacoes or [], datas or [], valores or [], fillvalue="")
+    n = 0
+    for ident, data, valor in linhas:
+        ident = (ident or "").strip()
+        data = (data or "").strip()
+        valor_txt = (valor or "").strip()
+        if not (ident or data or valor_txt):
+            continue
+        n += 1
+        v = para_decimal(valor_txt)
+        if valor_txt and v is None:
+            erros.append(f"Parcela {n}: valor numérico inválido.")
+        parcelas.append({"identificacao": ident or None, "data": data or None, "valor": v})
+    return parcelas, erros
+
+
+# ---------- validação do formulário de apólice ----------
+
+def validar_apolice(dados):
+    erros = []
+    if not (dados.get("cliente_id") or "").strip():
+        erros.append("Selecione o cliente.")
+    if not (dados.get("tipo_seguro_id") or "").strip():
+        erros.append("Selecione o tipo de seguro.")
+    if not (dados.get("numero_apolice") or "").strip():
+        erros.append("Informe o número da apólice.")
+
+    ini = (dados.get("vigencia_inicio") or "").strip()
+    fim = (dados.get("vigencia_fim") or "").strip()
+    if ini and fim and fim < ini:
+        erros.append("O fim da vigência é anterior ao início.")
+
+    for campo, rotulo in (("premio_liquido", "Prêmio líquido"),
+                          ("comissao_percentual", "Comissão (%)"),
+                          ("comissao_valor", "Comissão (valor)")):
+        if _numero_preenchido_invalido(dados.get(campo)):
+            erros.append(f"{rotulo}: valor numérico inválido.")
+
+    pct = para_decimal(dados.get("comissao_percentual"))
+    if pct is not None and not (0 <= pct <= 100):
+        erros.append("Comissão (%) deve ficar entre 0 e 100.")
+
+    return erros
 
 
 # ---------- validação do formulário de cliente ----------

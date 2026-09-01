@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block titulo %}Apólices{% endblock %}
+
+{% block acoes %}
+<a class="btn btn--primario" href="{{ url_for('apolice_form') }}">{{ icone('mais') }} Nova apólice</a>
+{% endblock %}
+
+{% block conteudo %}
+<div class="cartao" style="padding:0">
+  {% if apolices %}
+  <div class="tabela-wrap">
+    <table class="lista">
+      <thead>
+        <tr><th>Número</th><th>Cliente</th><th>Tipo de seguro</th><th>Vigência</th>
+            <th>Prêmio líquido</th><th>Quiver</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for a in apolices %}
+        <tr>
+          <td><a href="{{ url_for('apolice_form', apolice_id=a.id) }}"
+                 style="font-weight:600;color:var(--laranja-hover)">{{ a.numero_apolice or '—' }}</a></td>
+          <td>{{ a.cliente_nome or '—' }}</td>
+          <td>{{ a.tipo_seguro_nome or '—' }}</td>
+          <td>{{ a.vigencia_inicio|data_br }} – {{ a.vigencia_fim|data_br }}</td>
+          <td>{{ a.premio_liquido|moeda }}</td>
+          <td>{{ 'Sim' if a.lancado_quiver else 'Não' }}</td>
+          <td class="acoes">
+            <a class="btn btn--linha btn--mini" href="{{ url_for('apolice_form', apolice_id=a.id) }}">{{ icone('lapis') }}</a>
+            <form method="post" action="{{ url_for('apolice_excluir', apolice_id=a.id) }}"
+                  onsubmit="return confirm('Excluir a apólice {{ a.numero_apolice or a.id }}?')">
+              <button class="btn btn--perigo btn--mini" type="submit">{{ icone('lixo') }}</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="vazio">Nenhuma apólice cadastrada ainda.</p>
+  {% endif %}
+</div>
+{% endblock %}
