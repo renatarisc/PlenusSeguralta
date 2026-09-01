@@ -172,7 +172,7 @@ def _inserir_parcelas(con, apolice_id, parcelas):
         )
 
 
-def listar_apolices(cliente_id=None):
+def listar_apolices(cliente_id=None, tipo_seguro_id=None, mes_inicio=None, busca=None):
     sql = """SELECT a.id, a.numero_apolice, a.vigencia_inicio, a.vigencia_fim,
                     a.premio_liquido, a.lancado_quiver,
                     c.nome AS cliente_nome, t.nome AS tipo_seguro_nome,
@@ -181,13 +181,31 @@ def listar_apolices(cliente_id=None):
                LEFT JOIN cliente c     ON c.id = a.cliente_id
                LEFT JOIN tipo_seguro t ON t.id = a.tipo_seguro_id
                LEFT JOIN seguradora s  ON s.id = a.seguradora_id"""
-    params = ()
+    filtros, params = [], []
     if cliente_id:
-        sql += " WHERE a.cliente_id = ?"
-        params = (cliente_id,)
+        filtros.append("a.cliente_id = ?")
+        params.append(cliente_id)
+    if tipo_seguro_id:
+        filtros.append("a.tipo_seguro_id = ?")
+        params.append(tipo_seguro_id)
+    if mes_inicio:
+        filtros.append("substr(a.vigencia_inicio, 6, 2) = ?")
+        params.append(f"{int(mes_inicio):02d}")
+    if filtros:
+        sql += " WHERE " + " AND ".join(filtros)
     sql += " ORDER BY a.criado_em DESC, a.id DESC"
     with conexao() as con:
-        return [dict(l) for l in con.execute(sql, params).fetchall()]
+        linhas = [dict(l) for l in con.execute(sql, params).fetchall()]
+
+    termo = (busca or "").strip()
+    if termo:
+        alvo = _sem_acento_minusculo(termo)
+        linhas = [
+            a for a in linhas
+            if alvo in _sem_acento_minusculo(a.get("cliente_nome") or "")
+            or alvo in _sem_acento_minusculo(a.get("numero_apolice") or "")
+        ]
+    return linhas
 
 
 def contar_apolices_do_cliente(cliente_id):

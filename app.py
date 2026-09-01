@@ -179,13 +179,25 @@ def _dados_form_apolice():
     )
 
 
+_MESES = ["", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+          "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
+
+
 @app.route("/apolices")
 def apolices():
     cliente_id = request.args.get("cliente", type=int)
+    tipo_id = request.args.get("tipo", type=int)
+    mes = request.args.get("mes", type=int)
+    if mes not in range(1, 13):
+        mes = None
+    busca = request.args.get("busca", "").strip()
     cliente = repo.obter_cliente(cliente_id) if cliente_id else None
-    return render_template("apolices_lista.html", ativo="apolices",
-                           apolices=repo.listar_apolices(cliente_id=cliente_id),
-                           cliente_filtro=cliente)
+    return render_template(
+        "apolices_lista.html", ativo="apolices",
+        apolices=repo.listar_apolices(cliente_id=cliente_id, tipo_seguro_id=tipo_id,
+                                      mes_inicio=mes, busca=busca or None),
+        cliente_filtro=cliente, busca=busca, tipo_id=tipo_id, mes=mes,
+        tipos=repo.listar_simples("tipo_seguro"), MESES=_MESES)
 
 
 @app.route("/apolices/nova", methods=["GET", "POST"])

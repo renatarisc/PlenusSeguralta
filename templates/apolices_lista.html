@@ -20,6 +20,30 @@
 </p>
 {% endif %}
 
+<form class="busca" method="get" style="max-width:none;flex-wrap:wrap">
+  {% if cliente_filtro %}<input type="hidden" name="cliente" value="{{ cliente_filtro.id }}">{% endif %}
+  <div class="busca__campo" style="min-width:220px">
+    {{ icone('busca') }}
+    <input type="text" name="busca" value="{{ busca }}" placeholder="Cliente ou número da apólice...">
+  </div>
+  <select name="tipo" style="min-width:170px">
+    <option value="">Todos os tipos de seguro</option>
+    {% for t in tipos %}
+    <option value="{{ t.id }}" {{ 'selected' if tipo_id == t.id }}>{{ t.nome }}</option>
+    {% endfor %}
+  </select>
+  <select name="mes" style="min-width:170px">
+    <option value="">Início da vigência: qualquer mês</option>
+    {% for n in range(1, 13) %}
+    <option value="{{ n }}" {{ 'selected' if mes == n }}>Início em {{ MESES[n] }}</option>
+    {% endfor %}
+  </select>
+  <button class="btn btn--linha" type="submit">Buscar</button>
+  {% if busca or tipo_id or mes %}
+  <a class="btn btn--linha" href="{{ url_for('apolices', cliente=cliente_filtro.id) if cliente_filtro else url_for('apolices') }}">Limpar</a>
+  {% endif %}
+</form>
+
 <div class="cartao" style="padding:0">
   {% if apolices %}
   <div class="tabela-wrap">
@@ -61,7 +85,9 @@
   </div>
   {% else %}
   <p class="vazio">
-    {{ 'Este cliente ainda não tem apólices.' if cliente_filtro else 'Nenhuma apólice cadastrada ainda.' }}
+    {% if busca or tipo_id or mes %}Nenhuma apólice encontrada para o filtro.
+    {% elif cliente_filtro %}Este cliente ainda não tem apólices.
+    {% else %}Nenhuma apólice cadastrada ainda.{% endif %}
   </p>
   {% endif %}
 </div>
