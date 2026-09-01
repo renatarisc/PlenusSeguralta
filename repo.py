@@ -328,14 +328,12 @@ def _inserir_comissoes(con, apolice_id, linhas):
 
 def _inserir_repasses(con, apolice_id, linhas):
     for i, r in enumerate(linhas or []):
-        st = (r.get("status") or "pendente").strip().lower()
-        if st not in ("pendente", "liberado", "pago"):
-            st = "pendente"
         con.execute(
             "INSERT INTO apolice_repasse "
-            "(apolice_id, parcela, valor, status, data_pagamento, ordem) "
+            "(apolice_id, parcela, valor_previsto, valor_recebido, data, ordem) "
             "VALUES (?, ?, ?, ?, ?, ?)",
-            (apolice_id, r.get("parcela"), r.get("valor"), st, r.get("data_pagamento"), i),
+            (apolice_id, r.get("parcela"), r.get("valor_previsto"),
+             r.get("valor_recebido"), r.get("data"), i),
         )
 
 
@@ -452,7 +450,7 @@ def obter_apolice(apolice_id):
             (apolice_id,),
         ).fetchall()]
         ap["repasses"] = [dict(x) for x in con.execute(
-            "SELECT id, parcela, valor, status, data_pagamento "
+            "SELECT id, parcela, valor_previsto, valor_recebido, data "
             "FROM apolice_repasse WHERE apolice_id = ? ORDER BY ordem, id",
             (apolice_id,),
         ).fetchall()]

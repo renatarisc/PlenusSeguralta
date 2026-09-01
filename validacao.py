@@ -186,26 +186,27 @@ def preparar_comissoes(parcelas, previstos, recebidos, datas):
     return linhas, erros
 
 
-def preparar_repasses(parcelas, valores, status, datas):
-    """Tabela "Repasses" (Plenus recebe da corretora). Listas paralelas do form.
-    Devolve (linhas, erros) — {parcela, valor(float|None), status, data_pagamento}."""
+def preparar_repasses(parcelas, previstos, recebidos, datas):
+    """Tabela "Repasses" (Plenus recebe da corretora). Mesma estrutura da comissão:
+    {parcela, valor_previsto(float|None), valor_recebido, data}."""
     linhas, erros = [], []
-    z = zip_longest(parcelas or [], valores or [], status or [], datas or [], fillvalue="")
+    z = zip_longest(parcelas or [], previstos or [], recebidos or [], datas or [], fillvalue="")
     n = 0
-    for parc, valor, st, data in z:
+    for parc, prev, receb, data in z:
         parc = (parc or "").strip()
-        valor_txt = (valor or "").strip()
-        st = (st or "pendente").strip().lower()
+        prev_txt = (prev or "").strip()
+        receb_txt = (receb or "").strip()
         data = (data or "").strip()
-        if not (parc or valor_txt or data) and st in ("", "pendente"):
+        if not (parc or prev_txt or receb_txt or data):
             continue
         n += 1
-        v = para_decimal(valor_txt)
-        if valor_txt and v is None:
-            erros.append(f"Repasse {n}: valor inválido.")
-        linhas.append({"parcela": parc or None, "valor": v,
-                       "status": st if st in ("pendente", "liberado", "pago") else "pendente",
-                       "data_pagamento": data or None})
+        vp, vr = para_decimal(prev_txt), para_decimal(receb_txt)
+        if prev_txt and vp is None:
+            erros.append(f"Repasse {n}: previsto inválido.")
+        if receb_txt and vr is None:
+            erros.append(f"Repasse {n}: recebido inválido.")
+        linhas.append({"parcela": parc or None, "valor_previsto": vp,
+                       "valor_recebido": vr, "data": data or None})
     return linhas, erros
 
 

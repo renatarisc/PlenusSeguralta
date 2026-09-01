@@ -417,7 +417,8 @@ def _apolice_para_form(ap, parcelas=None):
     ap["comissoes"] = [{**c, "valor_previsto": formatar_numero(c.get("valor_previsto")),
                         "valor_recebido": formatar_numero(c.get("valor_recebido"))}
                        for c in (ap.get("comissoes") or [])]
-    ap["repasses"] = [{**r, "valor": formatar_numero(r.get("valor"))}
+    ap["repasses"] = [{**r, "valor_previsto": formatar_numero(r.get("valor_previsto")),
+                       "valor_recebido": formatar_numero(r.get("valor_recebido"))}
                       for r in (ap.get("repasses") or [])]
     return ap
 
@@ -474,8 +475,8 @@ def apolice_form(apolice_id=None):
         )
         repasses, erros_rep = preparar_repasses(
             request.form.getlist("repasse_parcela"),
-            request.form.getlist("repasse_valor"),
-            request.form.getlist("repasse_status"),
+            request.form.getlist("repasse_previsto"),
+            request.form.getlist("repasse_recebido"),
             request.form.getlist("repasse_data"),
         )
         if not dados.get("comissao_parcelada"):  # modo "único": ignora as tabelas

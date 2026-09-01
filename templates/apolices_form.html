@@ -4,7 +4,7 @@
 {% set tem_parcela_paga = (a.parcelas or []) | selectattr('paga') | list | length > 0 %}
 {% set pode_gerar = not a.id or not tem_parcela_paga %}
 {% set pode_gerar_comissao = not ((a.comissoes or []) | selectattr('valor_recebido') | list) %}
-{% set pode_gerar_repasse = not ((a.repasses or []) | selectattr('status', 'equalto', 'pago') | list) %}
+{% set pode_gerar_repasse = not ((a.repasses or []) | selectattr('valor_recebido') | list) %}
 {% block titulo %}{{ 'Editar apólice' if a.id else 'Nova apólice' }}{% endblock %}
 {% block cabecalho %}{{ 'Editar apólice' if a.id else 'Nova apólice' }}{% endblock %}
 
@@ -323,7 +323,7 @@
         <div class="grade">
           <div class="campo c-2"><label for="ger_rep_qtd">Qtd. de meses</label>
             <input id="ger_rep_qtd" type="number" min="1" max="120"></div>
-          <div class="campo c-2"><label for="ger_rep_valor">Valor (R$)</label>
+          <div class="campo c-2"><label for="ger_rep_valor">Previsto (R$)</label>
             <input id="ger_rep_valor" inputmode="decimal" data-num></div>
           <div class="campo c-3"><label for="ger_rep_data1">1ª data</label>
             <input id="ger_rep_data1" type="date"></div>
@@ -333,21 +333,15 @@
       {% endif %}
       <div class="tabela-wrap">
         <table class="lista tab-fluxo" id="tab-repasses">
-          <thead><tr><th style="width:16%">Parcela</th><th style="width:22%">Valor (R$)</th>
-              <th style="width:22%">Status</th><th style="width:24%">Data pgto</th><th style="width:16%"></th></tr></thead>
+          <thead><tr><th style="width:16%">Parcela</th><th style="width:22%">Previsto (R$)</th>
+              <th style="width:22%">Recebido (R$)</th><th style="width:24%">Data</th><th style="width:16%"></th></tr></thead>
           <tbody id="corpo-repasses">
             {% for r in a.repasses or [] %}
             <tr class="fluxo-linha">
               <td><input name="repasse_parcela" value="{{ r.parcela or '' }}"></td>
-              <td><input name="repasse_valor" inputmode="decimal" data-num value="{{ r.valor or '' }}"></td>
-              <td>
-                <select name="repasse_status">
-                  <option value="pendente" {{ 'selected' if (r.status or 'pendente') == 'pendente' }}>Pendente</option>
-                  <option value="liberado" {{ 'selected' if r.status == 'liberado' }}>Liberado</option>
-                  <option value="pago" {{ 'selected' if r.status == 'pago' }}>Pago</option>
-                </select>
-              </td>
-              <td><input name="repasse_data" type="date" value="{{ r.data_pagamento or '' }}"></td>
+              <td><input name="repasse_previsto" inputmode="decimal" data-num value="{{ r.valor_previsto or '' }}"></td>
+              <td><input name="repasse_recebido" inputmode="decimal" data-num value="{{ r.valor_recebido or '' }}"></td>
+              <td><input name="repasse_data" type="date" value="{{ r.data or '' }}"></td>
               <td class="acoes">
                 <button type="button" class="btn btn--linha btn--mini" data-editar title="Liberar edição">{{ icone('lapis') }}</button>
                 <button type="button" class="btn btn--perigo btn--mini" data-remover title="Remover">{{ icone('x') }}</button>
@@ -457,14 +451,8 @@
 <template id="tpl-repasse">
   <tr class="fluxo-linha">
     <td><input name="repasse_parcela"></td>
-    <td><input name="repasse_valor" inputmode="decimal" data-num></td>
-    <td>
-      <select name="repasse_status">
-        <option value="pendente" selected>Pendente</option>
-        <option value="liberado">Liberado</option>
-        <option value="pago">Pago</option>
-      </select>
-    </td>
+    <td><input name="repasse_previsto" inputmode="decimal" data-num></td>
+    <td><input name="repasse_recebido" inputmode="decimal" data-num></td>
     <td><input name="repasse_data" type="date"></td>
     <td class="acoes">
       <button type="button" class="btn btn--linha btn--mini" data-editar title="Liberar edição">{{ icone('lapis') }}</button>

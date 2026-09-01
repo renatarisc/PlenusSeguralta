@@ -47,8 +47,7 @@
     const editaveis = (tr) => Array.from(tr.querySelectorAll("input:not([type=hidden]), select"));
 
     function preenchida(tr) {
-      return editaveis(tr).some((el) => (el.value || "").trim() &&
-        !(el.tagName === "SELECT" && el.value === "pendente"));
+      return editaveis(tr).some((el) => (el.value || "").trim());
     }
     function ultimaPreenchida() {
       const ls = linhas();
@@ -164,12 +163,13 @@
     btnAdd: "btn-add-repasse", btnGerar: "btn-gerar-repasses",
     gerQtd: "ger_rep_qtd", gerValor: "ger_rep_valor", gerData1: "ger_rep_data1",
     campoParcela: "repasse_parcela", campoData: "repasse_data",
-    campoValor: "repasse_valor",
-    ehTravada: (tr, campo) => campo(tr, "repasse_status").value === "pago",
+    campoValor: "repasse_previsto", campoValor2: "repasse_recebido",
+    ehTravada: (tr, campo) => (campo(tr, "repasse_recebido").value || "").trim() !== "",
     textoTotal: (rows) => {
       if (!rows.length) return "";
-      const soma = rows.reduce((s, r) => s + r.v1, 0);
-      return rows.length + " linha(s) · total R$ " + fmt(soma);
+      const prev = rows.reduce((s, r) => s + r.v1, 0);
+      const receb = rows.reduce((s, r) => s + r.v2, 0);
+      return rows.length + " linha(s) · previsto R$ " + fmt(prev) + " · recebido R$ " + fmt(receb);
     },
   });
 })();

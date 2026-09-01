@@ -126,13 +126,14 @@ CREATE TABLE IF NOT EXISTS apolice_comissao (
 );
 
 -- comissão parcelada: o que a Plenus recebe da corretora (repasse), mês a mês
+-- (mesma estrutura da apolice_comissao)
 CREATE TABLE IF NOT EXISTS apolice_repasse (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     apolice_id INTEGER NOT NULL REFERENCES apolice(id) ON DELETE CASCADE,
     parcela TEXT,
-    valor REAL,
-    status TEXT NOT NULL DEFAULT 'pendente',   -- pendente | liberado | pago
-    data_pagamento TEXT,
+    valor_previsto REAL,
+    valor_recebido REAL,
+    data TEXT,
     ordem INTEGER NOT NULL DEFAULT 0
 );
 
@@ -238,9 +239,8 @@ _COLUNAS_ESPERADAS = {
         "valor_recebido": "REAL", "data": "TEXT", "ordem": "INTEGER NOT NULL DEFAULT 0",
     },
     "apolice_repasse": {
-        "apolice_id": "INTEGER", "parcela": "TEXT", "valor": "REAL",
-        "status": "TEXT NOT NULL DEFAULT 'pendente'", "data_pagamento": "TEXT",
-        "ordem": "INTEGER NOT NULL DEFAULT 0",
+        "apolice_id": "INTEGER", "parcela": "TEXT", "valor_previsto": "REAL",
+        "valor_recebido": "REAL", "data": "TEXT", "ordem": "INTEGER NOT NULL DEFAULT 0",
     },
     "notificacao_parcela": {
         "parcela_id": "INTEGER", "marco": "INTEGER", "data_vencimento": "TEXT",
@@ -306,6 +306,17 @@ def _backfill_dados(con):
         con.execute(
             "UPDATE apolice SET comissao_valor_seguralta_receber = comissao_valor "
             "WHERE comissao_valor_seguralta_receber IS NULL AND comissao_valor IS NOT NULL"
+        )
+
+    # apolice_repasse: valor/status/data_pagamento -> valor_previsto/valor_recebido/data
+    rep = {l["name"] for l in con.execute("PRAGMA table_info(apolice_repasse)")}
+    if {"valor", "status", "data_pagamento", "valor_previsto"} <= rep:
+        con.execute(
+            "UPDATE apolice_repasse SET "
+            "  valor_previsto = valor, "
+            "  valor_recebido = CASE WHEN status = 'pago' THEN valor END, "
+            "  data = data_pagamento "
+            "WHERE valor_previsto IS NULL AND valor IS NOT NULL"
         )
 
 
