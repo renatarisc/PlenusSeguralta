@@ -1,8 +1,10 @@
 {% extends "base.html" %}
 {% set a = apolice or {} %}
-{# o gerador substitui todas as parcelas: some quando já há parcela paga #}
+{# o gerador substitui a tabela inteira: some quando já há linha concluída #}
 {% set tem_parcela_paga = (a.parcelas or []) | selectattr('paga') | list | length > 0 %}
 {% set pode_gerar = not a.id or not tem_parcela_paga %}
+{% set pode_gerar_comissao = not ((a.comissoes or []) | selectattr('valor_recebido') | list) %}
+{% set pode_gerar_repasse = not ((a.repasses or []) | selectattr('status', 'equalto', 'pago') | list) %}
 {% block titulo %}{{ 'Editar apólice' if a.id else 'Nova apólice' }}{% endblock %}
 {% block cabecalho %}{{ 'Editar apólice' if a.id else 'Nova apólice' }}{% endblock %}
 
@@ -277,6 +279,7 @@
     {# ---------- repasse parcelado: duas tabelas ---------- #}
     <div id="comissao-parcelado" {{ 'hidden' if not a.comissao_parcelada }}>
       <h3 style="margin:16px 0 6px;font-size:13px;color:var(--texto-suave)">Comissão — a corretora recebe da seguradora</h3>
+      {% if pode_gerar_comissao %}
       <div class="gerador">
         <div class="grade">
           <div class="campo c-2"><label for="ger_com_qtd">Qtd. de meses</label>
@@ -288,6 +291,7 @@
           <div class="campo c-2"><button type="button" class="btn btn--primario" id="btn-gerar-comissoes">Gerar tabela</button></div>
         </div>
       </div>
+      {% endif %}
       <div class="tabela-wrap">
         <table class="lista tab-fluxo" id="tab-comissoes">
           <thead><tr><th style="width:16%">Parcela</th><th style="width:22%">Previsto (R$)</th>
@@ -314,6 +318,7 @@
       </div>
 
       <h3 style="margin:20px 0 6px;font-size:13px;color:var(--texto-suave)">Repasses — a Plenus recebe da corretora</h3>
+      {% if pode_gerar_repasse %}
       <div class="gerador">
         <div class="grade">
           <div class="campo c-2"><label for="ger_rep_qtd">Qtd. de meses</label>
@@ -325,6 +330,7 @@
           <div class="campo c-2"><button type="button" class="btn btn--primario" id="btn-gerar-repasses">Gerar tabela</button></div>
         </div>
       </div>
+      {% endif %}
       <div class="tabela-wrap">
         <table class="lista tab-fluxo" id="tab-repasses">
           <thead><tr><th style="width:16%">Parcela</th><th style="width:22%">Valor (R$)</th>
