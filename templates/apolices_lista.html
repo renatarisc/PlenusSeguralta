@@ -23,7 +23,7 @@
 <form class="cartao filtros" method="get">
   {% if cliente_filtro %}<input type="hidden" name="cliente" value="{{ cliente_filtro.id }}">{% endif %}
   <div class="grade">
-    <div class="campo c-5">
+    <div class="campo c-6">
       <label for="f-busca">Buscar</label>
       <div class="campo-busca">
         {{ icone('busca') }}
@@ -31,7 +31,7 @@
                placeholder="Nome do cliente ou número da apólice">
       </div>
     </div>
-    <div class="campo c-4">
+    <div class="campo c-2">
       <label for="f-tipo">Tipo de seguro</label>
       <select id="f-tipo" name="tipo">
         <option value="">Todos</option>
@@ -40,7 +40,7 @@
         {% endfor %}
       </select>
     </div>
-    <div class="campo c-3">
+    <div class="campo c-2">
       <label for="f-mes">Início da vigência</label>
       <select id="f-mes" name="mes">
         <option value="">Qualquer mês</option>
@@ -49,10 +49,18 @@
         {% endfor %}
       </select>
     </div>
+    <div class="campo c-2">
+      <label for="f-quiver">Quiver</label>
+      <select id="f-quiver" name="quiver">
+        <option value="">Todas</option>
+        <option value="1" {{ 'selected' if quiver == '1' }}>Lançadas</option>
+        <option value="0" {{ 'selected' if quiver == '0' }}>Não lançadas</option>
+      </select>
+    </div>
   </div>
   <div class="filtros__acoes">
     <button class="btn btn--primario" type="submit">{{ icone('busca') }} Buscar</button>
-    {% if busca or tipo_id or mes %}
+    {% if busca or tipo_id or mes or quiver %}
     <a class="btn btn--linha" href="{{ url_for('apolices', cliente=cliente_filtro.id) if cliente_filtro else url_for('apolices') }}">Limpar</a>
     {% endif %}
   </div>
@@ -99,7 +107,7 @@
   </div>
   {% else %}
   <p class="vazio">
-    {% if busca or tipo_id or mes %}Nenhuma apólice encontrada para o filtro.
+    {% if busca or tipo_id or mes or quiver %}Nenhuma apólice encontrada para o filtro.
     {% elif cliente_filtro %}Este cliente ainda não tem apólices.
     {% else %}Nenhuma apólice cadastrada ainda.{% endif %}
   </p>

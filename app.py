@@ -192,13 +192,15 @@ def apolices():
     mes = request.args.get("mes", type=int)
     if mes not in range(1, 13):
         mes = None
+    quiver_arg = request.args.get("quiver", "")
+    quiver = 1 if quiver_arg == "1" else 0 if quiver_arg == "0" else None
     busca = request.args.get("busca", "").strip()
     cliente = repo.obter_cliente(cliente_id) if cliente_id else None
     return render_template(
         "apolices_lista.html", ativo="apolices",
         apolices=repo.listar_apolices(cliente_id=cliente_id, tipo_seguro_id=tipo_id,
-                                      mes_inicio=mes, busca=busca or None),
-        cliente_filtro=cliente, busca=busca, tipo_id=tipo_id, mes=mes,
+                                      mes_inicio=mes, quiver=quiver, busca=busca or None),
+        cliente_filtro=cliente, busca=busca, tipo_id=tipo_id, mes=mes, quiver=quiver_arg,
         tipos=repo.listar_simples("tipo_seguro"), MESES=_MESES)
 
 

@@ -183,7 +183,7 @@ def _inserir_parcelas(con, apolice_id, parcelas):
         )
 
 
-def listar_apolices(cliente_id=None, tipo_seguro_id=None, mes_inicio=None, busca=None):
+def listar_apolices(cliente_id=None, tipo_seguro_id=None, mes_inicio=None, quiver=None, busca=None):
     sql = """SELECT a.id, a.numero_apolice, a.vigencia_inicio, a.vigencia_fim,
                     a.premio_liquido, a.lancado_quiver,
                     c.nome AS cliente_nome, t.nome AS tipo_seguro_nome,
@@ -202,6 +202,9 @@ def listar_apolices(cliente_id=None, tipo_seguro_id=None, mes_inicio=None, busca
     if mes_inicio:
         filtros.append("substr(a.vigencia_inicio, 6, 2) = ?")
         params.append(f"{int(mes_inicio):02d}")
+    if quiver in (0, 1, True, False):
+        filtros.append("COALESCE(a.lancado_quiver, 0) = ?")
+        params.append(1 if quiver in (1, True) else 0)
     if filtros:
         sql += " WHERE " + " AND ".join(filtros)
     sql += " ORDER BY a.criado_em DESC, a.id DESC"
