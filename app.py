@@ -4,11 +4,16 @@
                           http://IP-DO-PC:5000   (no celular, mesma rede Wi-Fi)
 """
 
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+import os
+import sqlite3
+from datetime import timedelta
+
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
 
 import db
 import repo
 import leitura_pdf
+import seguranca
 from validacao import (
     formatar_cpf, formatar_cep, formatar_telefone, validar_cliente,
     formatar_numero, formatar_moeda, formatar_data_br, dias_ate_data,
@@ -16,8 +21,14 @@ from validacao import (
 )
 
 app = Flask(__name__)
-app.secret_key = "plenus-seguralta-dev"  # trocar por algo secreto quando for pra valer
-app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024  # PDF de apólice: teto de 20 MB
+app.secret_key = seguranca.obter_secret_key()
+app.config.update(
+    MAX_CONTENT_LENGTH=20 * 1024 * 1024,          # PDF de apólice: teto de 20 MB
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=os.environ.get("PLENUS_HTTPS") == "1",  # ligar quando servir por HTTPS
+    PERMANENT_SESSION_LIFETIME=timedelta(days=7),
+)
 
 DIAS_ALERTA_VIGENCIA = 20  # <= N dias p/ vencer -> destaque vermelho + aviso no painel
 
@@ -49,7 +60,163 @@ app.jinja_env.globals["MENU"] = [
     {"rota": "cadastro_simples", "texto": "Seguradoras", "icone": "predio", "slug": "seguradora"},
     {"rota": "cadastro_simples", "texto": "Tipos de Seguro", "icone": "tag", "slug": "tipo-seguro"},
     {"rota": "cadastro_simples", "texto": "Formas de Pagamento", "icone": "pagamento", "slug": "forma-pagamento"},
+    {"rota": "usuarios_lista", "texto": "Usuários", "icone": "cadeado"},
 ]
+
+
+# ---------- autenticação ----------
+
+_ENDPOINTS_LIVRES = {"login", "primeiro_acesso", "static"}
+
+
+@app.before_request
+def _exigir_login():
+    if request.endpoint in _ENDPOINTS_LIVRES or request.endpoint is None:
+        return
+    if repo.contar_usuarios() == 0:
+        return redirect(url_for("primeiro_acesso"))
+    if not session.get("usuario_id"):
+        return redirect(url_for("login", proxima=request.full_path if request.query_string else request.path))
+
+
+@app.context_processor
+def _injeta_usuario():
+    uid = session.get("usuario_id")
+    return {"usuario_atual": {"id": uid, "nome": session.get("usuario_nome")} if uid else None}
+
+
+def _destino_seguro(valor):
+    """Só permite caminho interno (evita open redirect)."""
+    if valor and valor.startswith("/") and not valor.startswith("//"):
+        return valor
+    return url_for("dashboard")
+
+
+def _erros_usuario(nome, login, senha, senha_obrigatoria):
+    erros = []
+    if not (nome or "").strip():
+        erros.append("Informe o nome.")
+    login = (login or "").strip()
+    if len(login) < 3 or " " in login:
+        erros.append("O login precisa ter 3+ caracteres e sem espaços.")
+    if senha or senha_obrigatoria:
+        p = seguranca.problemas_senha(senha)
+        if p:
+            erros.append(p)
+    return erros
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if repo.contar_usuarios() == 0:
+        return redirect(url_for("primeiro_acesso"))
+    if session.get("usuario_id"):
+        return redirect(url_for("dashboard"))
+    if request.method == "POST":
+        login_ = request.form.get("login", "").strip()
+        senha = request.form.get("senha", "")
+        chave = f"{request.remote_addr}|{login_.lower()}"
+        if seguranca.bloqueado(chave):
+            flash("Muitas tentativas. Aguarde alguns minutos e tente de novo.", "erro")
+            return render_template("login.html", login=login_)
+        usuario = repo.autenticar(login_, senha)
+        if not usuario:
+            seguranca.registrar_falha(chave)
+            flash("Login ou senha inválidos.", "erro")
+            return render_template("login.html", login=login_)
+        seguranca.limpar_falhas(chave)
+        session.clear()
+        session["usuario_id"] = usuario["id"]
+        session["usuario_nome"] = usuario["nome"]
+        session.permanent = True
+        return redirect(_destino_seguro(request.args.get("proxima")))
+    return render_template("login.html", login="")
+
+
+@app.route("/sair")
+def sair():
+    session.clear()
+    flash("Sessão encerrada.", "ok")
+    return redirect(url_for("login"))
+
+
+@app.route("/primeiro-acesso", methods=["GET", "POST"])
+def primeiro_acesso():
+    if repo.contar_usuarios() > 0:
+        return redirect(url_for("login"))
+    if request.method == "POST":
+        nome = request.form.get("nome", "").strip()
+        login_ = request.form.get("login", "").strip()
+        senha = request.form.get("senha", "")
+        erros = _erros_usuario(nome, login_, senha, senha_obrigatoria=True)
+        if erros:
+            for e in erros:
+                flash(e, "erro")
+            return render_template("primeiro_acesso.html", nome=nome, login=login_)
+        uid = repo.criar_usuario(nome, login_, senha)
+        session.clear()
+        session["usuario_id"] = uid
+        session["usuario_nome"] = nome
+        session.permanent = True
+        flash("Usuário administrador criado. Bem-vindo(a)!", "ok")
+        return redirect(url_for("dashboard"))
+    return render_template("primeiro_acesso.html", nome="", login="")
+
+
+# ---------- Usuários (admin) ----------
+
+@app.route("/usuarios")
+def usuarios_lista():
+    return render_template("usuarios_lista.html", ativo="usuarios_lista",
+                           usuarios=repo.listar_usuarios())
+
+
+@app.route("/usuarios/novo", methods=["GET", "POST"])
+@app.route("/usuarios/<int:uid>", methods=["GET", "POST"])
+def usuario_form(uid=None):
+    usuario = repo.obter_usuario(uid) if uid else None
+    if uid and not usuario:
+        flash("Usuário não encontrado.", "erro")
+        return redirect(url_for("usuarios_lista"))
+
+    if request.method == "POST":
+        nome = request.form.get("nome", "").strip()
+        login_ = request.form.get("login", "").strip()
+        senha = request.form.get("senha", "")
+        ativo = request.form.get("ativo", "1") == "1"
+        erros = _erros_usuario(nome, login_, senha, senha_obrigatoria=(uid is None))
+        if not erros and repo.login_em_uso(login_, ignorar_id=uid):
+            erros.append("Já existe um usuário com esse login.")
+        if erros:
+            for e in erros:
+                flash(e, "erro")
+            return render_template("usuarios_form.html", ativo="usuarios_lista",
+                                   usuario={"id": uid, "nome": nome, "login": login_, "ativo": ativo})
+        try:
+            if uid:
+                repo.atualizar_usuario(uid, nome, login_, ativo, senha or None)
+            else:
+                repo.criar_usuario(nome, login_, senha)
+        except sqlite3.IntegrityError:
+            flash("Já existe um usuário com esse login.", "erro")
+            return render_template("usuarios_form.html", ativo="usuarios_lista",
+                                   usuario={"id": uid, "nome": nome, "login": login_, "ativo": ativo})
+        flash("Usuário salvo.", "ok")
+        return redirect(url_for("usuarios_lista"))
+
+    return render_template("usuarios_form.html", ativo="usuarios_lista", usuario=usuario)
+
+
+@app.route("/usuarios/<int:uid>/excluir", methods=["POST"])
+def usuario_excluir(uid):
+    if uid == session.get("usuario_id"):
+        flash("Você não pode excluir o próprio usuário.", "erro")
+    elif repo.contar_usuarios() <= 1:
+        flash("Precisa existir ao menos um usuário.", "erro")
+    else:
+        repo.excluir_usuario(uid)
+        flash("Usuário excluído.", "ok")
+    return redirect(url_for("usuarios_lista"))
 
 
 @app.context_processor

@@ -7,6 +7,79 @@ import unicodedata
 
 from db import conexao, fazer_backup
 from validacao import so_digitos, para_decimal, dias_ate_data
+from seguranca import hash_senha, senha_confere
+
+
+# ---------- usuários (login) ----------
+
+_COLS_USUARIO_PUB = "id, nome, login, ativo, criado_em, ultimo_acesso"
+
+
+def contar_usuarios():
+    with conexao() as con:
+        return con.execute("SELECT COUNT(*) FROM usuario").fetchone()[0]
+
+
+def listar_usuarios():
+    with conexao() as con:
+        return [dict(l) for l in con.execute(
+            f"SELECT {_COLS_USUARIO_PUB} FROM usuario ORDER BY nome COLLATE NOCASE"
+        ).fetchall()]
+
+
+def obter_usuario(uid):
+    with conexao() as con:
+        l = con.execute(f"SELECT {_COLS_USUARIO_PUB} FROM usuario WHERE id = ?", (uid,)).fetchone()
+        return dict(l) if l else None
+
+
+def autenticar(login, senha):
+    """Devolve {id, nome, login} se ok e ativo; senão None. Marca ultimo_acesso."""
+    login = (login or "").strip()
+    with conexao() as con:
+        u = con.execute("SELECT * FROM usuario WHERE login = ? COLLATE NOCASE", (login,)).fetchone()
+        if not u or not u["ativo"] or not senha_confere(senha, u["senha_hash"]):
+            return None
+        con.execute("UPDATE usuario SET ultimo_acesso = datetime('now') WHERE id = ?", (u["id"],))
+    return {"id": u["id"], "nome": u["nome"], "login": u["login"]}
+
+
+def login_em_uso(login, ignorar_id=None):
+    with conexao() as con:
+        r = con.execute(
+            "SELECT id FROM usuario WHERE login = ? COLLATE NOCASE AND id IS NOT ?",
+            ((login or "").strip(), ignorar_id),
+        ).fetchone()
+        return r is not None
+
+
+def criar_usuario(nome, login, senha):
+    with conexao() as con:
+        cur = con.execute(
+            "INSERT INTO usuario (nome, login, senha_hash) VALUES (?, ?, ?)",
+            ((nome or "").strip(), (login or "").strip(), hash_senha(senha)),
+        )
+        novo = cur.lastrowid
+    fazer_backup()
+    return novo
+
+
+def atualizar_usuario(uid, nome, login, ativo, senha=None):
+    campos = "nome = ?, login = ?, ativo = ?"
+    valores = [(nome or "").strip(), (login or "").strip(), 1 if ativo else 0]
+    if senha:
+        campos += ", senha_hash = ?"
+        valores.append(hash_senha(senha))
+    valores.append(uid)
+    with conexao() as con:
+        con.execute(f"UPDATE usuario SET {campos} WHERE id = ?", valores)
+    fazer_backup()
+
+
+def excluir_usuario(uid):
+    with conexao() as con:
+        con.execute("DELETE FROM usuario WHERE id = ?", (uid,))
+    fazer_backup()
 
 
 def _int_ou_none(v):

@@ -13,3 +13,4 @@ pymupdf==1.28.2
 pytesseract==0.3.13
 requests==2.34.2
 urllib3==2.7.0
+waitress==3.0.2

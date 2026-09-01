@@ -19,6 +19,16 @@ PASTA_BACKUPS = os.path.join(_RAIZ, "backups")
 MAX_BACKUPS = 300
 
 _ESQUEMA_SQL = """
+CREATE TABLE IF NOT EXISTS usuario (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nome TEXT NOT NULL,
+    login TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    senha_hash TEXT NOT NULL,
+    ativo INTEGER NOT NULL DEFAULT 1,
+    criado_em TEXT NOT NULL DEFAULT (datetime('now')),
+    ultimo_acesso TEXT
+);
+
 CREATE TABLE IF NOT EXISTS cliente (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     nome TEXT NOT NULL,
@@ -106,6 +116,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS ix_notif_venc_unico
 # colunas esperadas por tabela - o migrador acrescenta as que faltarem num banco antigo.
 # (formato: coluna -> definição usada no ALTER TABLE ADD COLUMN)
 _COLUNAS_ESPERADAS = {
+    "usuario": {
+        "nome": "TEXT", "login": "TEXT", "senha_hash": "TEXT",
+        "ativo": "INTEGER NOT NULL DEFAULT 1",
+        "criado_em": "TEXT NOT NULL DEFAULT (datetime('now'))", "ultimo_acesso": "TEXT",
+    },
     "cliente": {
         "nome": "TEXT", "data_nascimento": "TEXT", "sexo": "TEXT", "cpf": "TEXT",
         "end_rua": "TEXT", "end_numero": "TEXT", "end_complemento": "TEXT", "end_bairro": "TEXT",
@@ -141,9 +156,10 @@ _COLUNAS_ESPERADAS = {
 
 @contextlib.contextmanager
 def conexao():
-    con = sqlite3.connect(CAMINHO_DB)
+    con = sqlite3.connect(CAMINHO_DB, timeout=30)
     con.row_factory = sqlite3.Row
     con.execute("PRAGMA foreign_keys = ON")
+    con.execute("PRAGMA busy_timeout = 10000")  # espera até 10s por um lock (2 usuários ao mesmo tempo)
     try:
         with con:
             yield con

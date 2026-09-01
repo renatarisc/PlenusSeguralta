@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Entrar · Plenus</title>
+<link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='img/favicon.svg') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+</head>
+<body class="tela-auth">
+  <div class="auth-box">
+    <div class="auth-box__marca">
+      <img src="{{ url_for('static', filename='img/favicon.svg') }}" alt="" width="32" height="32">
+      <span><strong>Plenus</strong><small>SEGURALTA</small></span>
+    </div>
+
+    {% with mensagens = get_flashed_messages(with_categories=true) %}
+      {% for categoria, msg in mensagens %}
+      <div class="flash__item flash__item--{{ categoria }}">{{ msg }}</div>
+      {% endfor %}
+    {% endwith %}
+
+    <form class="form" method="post">
+      <div class="campo">
+        <label for="login">Login</label>
+        <input id="login" name="login" autofocus autocomplete="username" value="{{ login }}">
+      </div>
+      <div class="campo">
+        <label for="senha">Senha</label>
+        <input id="senha" name="senha" type="password" autocomplete="current-password">
+      </div>
+      <button class="btn btn--primario" type="submit" style="width:100%">Entrar</button>
+    </form>
+  </div>
+</body>
+</html>

@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block titulo %}Usuários{% endblock %}
+
+{% block acoes %}
+<a class="btn btn--primario" href="{{ url_for('usuario_form') }}">{{ icone('mais') }} Novo usuário</a>
+{% endblock %}
+
+{% block conteudo %}
+<div class="cartao" style="padding:0">
+  <div class="tabela-wrap">
+    <table class="lista">
+      <thead>
+        <tr><th>Nome</th><th>Login</th><th>Status</th><th>Último acesso</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for u in usuarios %}
+        <tr>
+          <td><a href="{{ url_for('usuario_form', uid=u.id) }}"
+                 style="font-weight:600;color:var(--laranja-hover)">{{ u.nome }}</a></td>
+          <td>{{ u.login }}</td>
+          <td>{{ 'Ativo' if u.ativo else 'Inativo' }}</td>
+          <td>{{ (u.ultimo_acesso ~ ' UTC') if u.ultimo_acesso else '—' }}</td>
+          <td class="acoes">
+            <a class="btn btn--linha btn--mini" href="{{ url_for('usuario_form', uid=u.id) }}">{{ icone('lapis') }}</a>
+            {% if u.id != usuario_atual.id %}
+            <form method="post" action="{{ url_for('usuario_excluir', uid=u.id) }}"
+                  onsubmit="return confirm('Excluir o usuário {{ u.nome }}?')">
+              <button class="btn btn--perigo btn--mini" type="submit">{{ icone('lixo') }}</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
