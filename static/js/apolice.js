@@ -104,6 +104,11 @@
     if (bEdit) {
       const tr = bEdit.closest("tr.parcela");
       destravar(tr);
+      tr.classList.add("linha-liberada");
+      bEdit.type = "submit";                  // agora salva a apólice inteira
+      bEdit.classList.replace("btn--linha", "btn--primario");
+      bEdit.textContent = "Salvar";
+      bEdit.title = "Salvar a apólice";
       const primeiro = editaveis(tr)[0];
       if (primeiro) primeiro.focus();
       return;

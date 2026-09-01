@@ -302,6 +302,14 @@ table.lista tr.apolice-vencida td:first-child { box-shadow: inset 3px 0 0 #a5201
   background: #f3f9f3; border-color: #cfe3cf; color: var(--texto-suave); pointer-events: none;
 }
 
+/* linha destravada pelo lápis: o botão continua visível (vira "Salvar" via JS) */
+#tab-lancamentos tr.linha-liberada [data-editar-lancamento],
+#tab-parcelas tr.linha-liberada [data-editar-parcela],
+.tab-fluxo tr.linha-liberada [data-editar] { display: inline-flex; }
+#tab-lancamentos tr.linha-liberada [data-remover-lancamento],
+#tab-parcelas tr.linha-liberada [data-remover-parcela],
+.tab-fluxo tr.linha-liberada [data-remover] { display: none; }
+
 /* subtítulo de seção dentro de um cartão (ex.: tabelas de comissão / repasse) */
 .titulo-secao {
   margin: 26px 0 10px; padding-bottom: 6px; font-size: 14px; font-weight: 700;
