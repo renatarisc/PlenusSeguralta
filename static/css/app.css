@@ -49,7 +49,8 @@ a { color: inherit; text-decoration: none; }
 }
 .marca { display: flex; align-items: center; gap: 9px; min-width: 0; }
 .marca__pico { color: var(--laranja); font-size: 15px; line-height: 1; }
-.marca__nome { font-weight: 800; letter-spacing: .06em; font-size: 15px; white-space: nowrap; }
+.marca__nome { display: flex; flex-direction: column; line-height: 1.1; font-weight: 800; letter-spacing: .06em; font-size: 15px; white-space: nowrap; }
+.marca__sub { font-weight: 600; font-size: 9px; letter-spacing: .16em; color: var(--texto-inv-suave); margin-top: 2px; }
 .barra__fechar { display: none; }
 
 .nav { padding: 10px 8px; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; flex: 1; }
