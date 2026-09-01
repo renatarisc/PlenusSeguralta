@@ -199,10 +199,14 @@ def _quando(dias):
     return f"vence em {dias} dia" + ("s" if dias != 1 else "")
 
 
+_RODAPE_DIARIO = ("\n\nEste aviso se repete todos os dias até você abrir a apólice no Plenus "
+                  "e marcar \"cliente avisado\".")
+
+
 def texto_vencimento(ap, dias):
     """Devolve (assunto, corpo) do aviso de fim de vigência."""
     num = ap.get("numero_apolice") or "(sem número)"
-    assunto = f"[Plenus] Apólice {num} {_quando(dias)}"
+    assunto = f"[Plenus] Apólice {num} {_quando(dias)} — avisar o cliente"
     corpo = "\n".join([
         f"A apólice {num} {_quando(dias)} ({_data_br(ap.get('vigencia_fim'))}).",
         "",
@@ -210,7 +214,7 @@ def texto_vencimento(ap, dias):
         f"Seguradora: {ap.get('seguradora_nome') or '—'}",
         f"Tipo de seguro: {ap.get('tipo_seguro_nome') or '—'}",
         f"Vigência: {_data_br(ap.get('vigencia_inicio'))} a {_data_br(ap.get('vigencia_fim'))}",
-    ])
+    ]) + _RODAPE_DIARIO
     return assunto, corpo
 
 
@@ -218,14 +222,14 @@ def texto_boleto(p, dias):
     """Devolve (assunto, corpo) do aviso de parcela de boleto."""
     num = p.get("numero_apolice") or "(sem número)"
     ident = p.get("identificacao") or "?"
-    assunto = f"[Plenus] Boleto {ident} da apólice {num} {_quando(dias)}"
+    assunto = f"[Plenus] Boleto {ident} da apólice {num} {_quando(dias)} — avisar o cliente"
     corpo = "\n".join([
         f"Parcela {ident} da apólice {num} {_quando(dias)} ({_data_br(p.get('data'))}).",
         f"Valor: {_moeda(p.get('valor'))}",
         "",
         f"Cliente: {p.get('cliente_nome') or '—'}",
         f"Seguradora: {p.get('seguradora_nome') or '—'}",
-    ])
+    ]) + _RODAPE_DIARIO
     return assunto, corpo
 
 

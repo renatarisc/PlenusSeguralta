@@ -238,6 +238,7 @@ _COLS_APOLICE = (
     "forma_pagamento_id", "comissao_percentual", "comissao_valor",
     "lancado_quiver", "link_onedrive",
     "veiculo_placa", "veiculo_descricao",
+    "aviso_vigencia_ok", "aviso_vigencia_ok_em",
     "apolice_enviada", "apolice_enviada_data", "cartao_enviado", "cartao_enviado_data",
 )
 
@@ -264,6 +265,8 @@ def _valores_apolice(dados):
         (dados.get("link_onedrive") or "").strip() or None,
         (dados.get("veiculo_placa") or "").strip().upper() or None,
         (dados.get("veiculo_descricao") or "").strip() or None,
+        _sim_nao(dados.get("aviso_vigencia_ok")),
+        (dados.get("aviso_vigencia_ok_em") or "").strip() or None,
         _sim_nao(dados.get("apolice_enviada")),
         (dados.get("apolice_enviada_data") or "").strip() or None,
         _sim_nao(dados.get("cartao_enviado")),
@@ -272,21 +275,24 @@ def _valores_apolice(dados):
 
 
 def _inserir_parcelas(con, apolice_id, parcelas):
+    hoje = date.today().isoformat()
     for p in parcelas or []:
         paga = 1 if p.get("paga") in (1, "1", True, "sim", "on") else 0
-        pago_em = (p.get("pago_em") or "").strip() or None
-        if paga and not pago_em:
-            pago_em = date.today().isoformat()
+        pago_em = (p.get("pago_em") or "").strip() or (hoje if paga else None)
+        aviso = 1 if p.get("aviso_ok") in (1, "1", True, "sim", "on") else 0
+        aviso_em = (p.get("aviso_ok_em") or "").strip() or (hoje if aviso else None)
         con.execute(
-            "INSERT INTO apolice_parcela (apolice_id, identificacao, data, valor, paga, pago_em) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            (apolice_id, p.get("identificacao"), p.get("data"), p.get("valor"), paga, pago_em),
+            "INSERT INTO apolice_parcela "
+            "(apolice_id, identificacao, data, valor, paga, pago_em, aviso_ok, aviso_ok_em) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (apolice_id, p.get("identificacao"), p.get("data"), p.get("valor"),
+             paga, pago_em, aviso, aviso_em),
         )
 
 
 def listar_apolices(cliente_id=None, tipo_seguro_id=None, mes_inicio=None, quiver=None, busca=None):
     sql = """SELECT a.id, a.numero_apolice, a.vigencia_inicio, a.vigencia_fim,
-                    a.premio_liquido, a.lancado_quiver,
+                    a.premio_liquido, a.lancado_quiver, a.aviso_vigencia_ok,
                     c.nome AS cliente_nome, t.nome AS tipo_seguro_nome,
                     s.nome AS seguradora_nome
                FROM apolice a
@@ -354,11 +360,14 @@ def apolices_por_tipo():
         return [dict(l) for l in linhas]
 
 
-def apolices_por_vencer(limite_dias):
+def apolices_por_vencer(limite_dias, incluir_avisadas=False):
     """Apólices com vigência a <= limite_dias do fim (inclui as já vencidas), da mais urgente
-    pra menos. Cada item ganha o campo dias_restantes (negativo = já venceu)."""
+    pra menos. Cada item ganha `dias_restantes` (negativo = já venceu). Por padrão esconde
+    as que já foram marcadas como 'cliente avisado'."""
     itens = []
     for a in listar_apolices():
+        if not incluir_avisadas and a.get("aviso_vigencia_ok"):
+            continue
         d = dias_ate_data(a.get("vigencia_fim"))
         if d is not None and d <= limite_dias:
             a["dias_restantes"] = d
@@ -384,8 +393,8 @@ def obter_apolice(apolice_id):
             return None
         ap = dict(l)
         ap["parcelas"] = [dict(p) for p in con.execute(
-            "SELECT id, identificacao, data, valor, paga, pago_em FROM apolice_parcela "
-            "WHERE apolice_id = ? ORDER BY COALESCE(data, ''), id",
+            "SELECT id, identificacao, data, valor, paga, pago_em, aviso_ok, aviso_ok_em "
+            "FROM apolice_parcela WHERE apolice_id = ? ORDER BY COALESCE(data, ''), id",
             (apolice_id,),
         ).fetchall()]
         return ap
@@ -396,6 +405,24 @@ def marcar_parcela_paga(parcela_id, paga):
         con.execute(
             "UPDATE apolice_parcela SET paga = ?, pago_em = ? WHERE id = ?",
             (1 if paga else 0, date.today().isoformat() if paga else None, parcela_id),
+        )
+    fazer_backup()
+
+
+def marcar_aviso_parcela(parcela_id, ok):
+    with conexao() as con:
+        con.execute(
+            "UPDATE apolice_parcela SET aviso_ok = ?, aviso_ok_em = ? WHERE id = ?",
+            (1 if ok else 0, date.today().isoformat() if ok else None, parcela_id),
+        )
+    fazer_backup()
+
+
+def marcar_aviso_vigencia(apolice_id, ok):
+    with conexao() as con:
+        con.execute(
+            "UPDATE apolice SET aviso_vigencia_ok = ?, aviso_vigencia_ok_em = ? WHERE id = ?",
+            (1 if ok else 0, date.today().isoformat() if ok else None, apolice_id),
         )
     fazer_backup()
 
@@ -453,10 +480,32 @@ def registrar_notificacao(apolice_id, marco, vigencia_fim, canal, destino, resul
     fazer_backup()
 
 
+# marco 0 = "aviso diário até o cliente ser avisado" (o e-mail usa isto no lugar dos marcos)
+
+def email_vigencia_enviado_hoje(apolice_id):
+    with conexao() as con:
+        r = con.execute(
+            "SELECT 1 FROM notificacao_vencimento "
+            "WHERE apolice_id = ? AND marco = 0 AND date(enviado_em) = date('now', 'localtime')",
+            (apolice_id,),
+        ).fetchone()
+        return r is not None
+
+
+def email_boleto_enviado_hoje(parcela_id):
+    with conexao() as con:
+        r = con.execute(
+            "SELECT 1 FROM notificacao_parcela "
+            "WHERE parcela_id = ? AND marco = 0 AND date(enviado_em) = date('now', 'localtime')",
+            (parcela_id,),
+        ).fetchone()
+        return r is not None
+
+
 # ---------- avisos de boleto (parcela a vencer) ----------
 
 _SQL_PARCELAS_BOLETO = """
-SELECT p.id AS parcela_id, p.identificacao, p.data, p.valor,
+SELECT p.id AS parcela_id, p.identificacao, p.data, p.valor, p.aviso_ok,
        a.id AS apolice_id, a.numero_apolice, a.vigencia_inicio, a.vigencia_fim,
        c.nome AS cliente_nome, s.nome AS seguradora_nome, t.nome AS tipo_seguro_nome,
        f.nome AS forma_pagamento_nome
@@ -478,11 +527,13 @@ def parcelas_boleto_pendentes():
         return [dict(l) for l in con.execute(_SQL_PARCELAS_BOLETO + " ORDER BY p.data").fetchall()]
 
 
-def parcelas_boleto_a_vencer(limite_dias):
+def parcelas_boleto_a_vencer(limite_dias, incluir_avisadas=False):
     """Parcelas de boleto vencendo em <= limite_dias (inclui as já vencidas), mais urgente
-    primeiro. Cada item ganha dias_restantes (negativo = já venceu)."""
+    primeiro. Por padrão esconde as que já foram marcadas como 'cliente avisado'."""
     itens = []
     for p in parcelas_boleto_pendentes():
+        if not incluir_avisadas and p.get("aviso_ok"):
+            continue
         d = dias_ate_data(p.get("data"))
         if d is not None and d <= limite_dias:
             p["dias_restantes"] = d

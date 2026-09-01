@@ -82,6 +82,8 @@ CREATE TABLE IF NOT EXISTS apolice (
     link_onedrive TEXT,
     veiculo_placa TEXT,                          -- só p/ seguro de automóvel
     veiculo_descricao TEXT,                      -- marca / modelo / ano
+    aviso_vigencia_ok INTEGER NOT NULL DEFAULT 0,  -- 1 = cliente já avisado da renovação (para o e-mail diário)
+    aviso_vigencia_ok_em TEXT,
     apolice_enviada INTEGER NOT NULL DEFAULT 0,
     apolice_enviada_data TEXT,
     cartao_enviado INTEGER NOT NULL DEFAULT 0,
@@ -97,7 +99,9 @@ CREATE TABLE IF NOT EXISTS apolice_parcela (
     data TEXT,
     valor REAL,
     paga INTEGER NOT NULL DEFAULT 0,   -- 0 = a pagar, 1 = paga
-    pago_em TEXT                        -- data ISO em que foi marcada como paga
+    pago_em TEXT,                       -- data ISO em que foi marcada como paga
+    aviso_ok INTEGER NOT NULL DEFAULT 0,  -- 1 = cliente já foi avisado desse boleto (para o e-mail diário)
+    aviso_ok_em TEXT
 );
 
 -- registro de aviso de vencimento já enviado (pra não repetir o mesmo marco)
@@ -165,6 +169,7 @@ _COLUNAS_ESPERADAS = {
         "forma_pagamento_id": "INTEGER", "comissao_percentual": "REAL", "comissao_valor": "REAL",
         "lancado_quiver": "INTEGER NOT NULL DEFAULT 0", "link_onedrive": "TEXT",
         "veiculo_placa": "TEXT", "veiculo_descricao": "TEXT",
+        "aviso_vigencia_ok": "INTEGER NOT NULL DEFAULT 0", "aviso_vigencia_ok_em": "TEXT",
         "apolice_enviada": "INTEGER NOT NULL DEFAULT 0", "apolice_enviada_data": "TEXT",
         "cartao_enviado": "INTEGER NOT NULL DEFAULT 0", "cartao_enviado_data": "TEXT",
         "criado_em": "TEXT NOT NULL DEFAULT (datetime('now'))",
@@ -173,6 +178,7 @@ _COLUNAS_ESPERADAS = {
     "apolice_parcela": {
         "apolice_id": "INTEGER", "identificacao": "TEXT", "data": "TEXT", "valor": "REAL",
         "paga": "INTEGER NOT NULL DEFAULT 0", "pago_em": "TEXT",
+        "aviso_ok": "INTEGER NOT NULL DEFAULT 0", "aviso_ok_em": "TEXT",
     },
     "notificacao_parcela": {
         "parcela_id": "INTEGER", "marco": "INTEGER", "data_vencimento": "TEXT",

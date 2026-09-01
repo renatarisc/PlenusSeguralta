@@ -382,6 +382,7 @@ _CAMPOS_APOLICE = (
     "forma_pagamento_id", "comissao_percentual", "comissao_valor",
     "lancado_quiver", "link_onedrive",
     "veiculo_placa", "veiculo_descricao",
+    "aviso_vigencia_ok", "aviso_vigencia_ok_em",
     "apolice_enviada", "apolice_enviada_data", "cartao_enviado", "cartao_enviado_data",
 )
 
@@ -440,6 +441,7 @@ def apolice_form(apolice_id=None):
             request.form.getlist("parcela_data"),
             request.form.getlist("parcela_valor"),
             request.form.getlist("parcela_paga"),
+            request.form.getlist("parcela_aviso"),
         )
         erros = validar_apolice(dados) + erros_parcelas
         if erros:
@@ -475,14 +477,32 @@ def apolice_excluir(apolice_id):
     return redirect(url_for("apolices"))
 
 
+def _voltar_seguro(campo="voltar"):
+    destino = request.form.get(campo)
+    if destino and destino.startswith("/") and not destino.startswith("//"):
+        return redirect(destino)
+    return redirect(url_for("dashboard"))
+
+
 @app.route("/parcelas/<int:parcela_id>/pagamento", methods=["POST"])
 def parcela_pagamento(parcela_id):
     repo.marcar_parcela_paga(parcela_id, request.form.get("paga") == "1")
     flash("Parcela atualizada.", "ok")
-    destino = request.form.get("voltar")
-    if destino and destino.startswith("/") and not destino.startswith("//"):
-        return redirect(destino)
-    return redirect(url_for("dashboard"))
+    return _voltar_seguro()
+
+
+@app.route("/parcelas/<int:parcela_id>/aviso-cliente", methods=["POST"])
+def parcela_aviso(parcela_id):
+    repo.marcar_aviso_parcela(parcela_id, request.form.get("aviso") == "1")
+    flash("Aviso do boleto atualizado.", "ok")
+    return _voltar_seguro()
+
+
+@app.route("/apolices/<int:apolice_id>/aviso-cliente", methods=["POST"])
+def apolice_aviso(apolice_id):
+    repo.marcar_aviso_vigencia(apolice_id, request.form.get("aviso") == "1")
+    flash("Aviso de renovação atualizado.", "ok")
+    return _voltar_seguro()
 
 
 @app.route("/apolices/ler-pdf", methods=["POST"])

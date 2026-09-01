@@ -45,6 +45,12 @@
             {% endif %}
           </td>
           <td class="acoes">
+            <form method="post" action="{{ url_for('apolice_aviso', apolice_id=a.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="aviso" value="1">
+              <input type="hidden" name="voltar" value="{{ url_for('dashboard') }}">
+              <button class="btn btn--linha btn--mini" type="submit" title="Cliente avisado da renovação">✓ avisei o cliente</button>
+            </form>
             <a class="btn btn--linha btn--mini" href="{{ url_for('apolice_form', apolice_id=a.id) }}">{{ icone('lapis') }}</a>
           </td>
         </tr>
@@ -54,6 +60,7 @@
   </div>
   <p style="margin:12px 0 0;font-size:12px;color:var(--texto-suave)">
     Apólices que vencem nos próximos {{ DIAS_ALERTA_VIGENCIA }} dias (ou já vencidas).
+    O e-mail se repete todo dia até você clicar em <strong>✓ avisei o cliente</strong>.
   </p>
 </div>
 {% endif %}
@@ -83,6 +90,12 @@
             {% endif %}
           </td>
           <td class="acoes">
+            <form method="post" action="{{ url_for('parcela_aviso', parcela_id=p.parcela_id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="aviso" value="1">
+              <input type="hidden" name="voltar" value="{{ url_for('dashboard') }}">
+              <button class="btn btn--linha btn--mini" type="submit" title="Cliente avisado do boleto">✓ avisei o cliente</button>
+            </form>
             <form method="post" action="{{ url_for('parcela_pagamento', parcela_id=p.parcela_id) }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="paga" value="1">
@@ -98,7 +111,7 @@
   </div>
   <p style="margin:12px 0 0;font-size:12px;color:var(--texto-suave)">
     Parcelas de apólices com pagamento em boleto, vencendo nos próximos {{ DIAS_ALERTA_BOLETO }} dias (ou já vencidas).
-    Marque <strong>✓ paga</strong> para tirar da lista e parar os avisos.
+    O e-mail se repete todo dia até você clicar em <strong>✓ avisei o cliente</strong> (ou marcar a parcela como paga).
   </p>
 </div>
 {% endif %}

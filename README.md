@@ -73,12 +73,15 @@ suba com a variável `PLENUS_HTTPS=1` para o cookie de sessão virar `Secure`.
 
 - **No sistema**: na lista de apólices e no Painel, o que está a ≤ 20 dias do fim da
   vigência (ou vencido) fica em vermelho; o Painel também tem o card "Boletos a vencer".
-- **E-mail** (`verificar_vencimentos.py`, 1x/dia): manda e-mail quando faltam **10/5/1 dia**
-  para o fim da vigência e **10/1 dia** para uma parcela de boleto (marcos configuráveis).
-  Cada marco dispara uma vez só.
+- **E-mail** (`verificar_vencimentos.py`, 1x/dia): manda e-mail **todo dia** enquanto o
+  vencimento estiver dentro da janela de antecedência (`max(marcos_dias)` para a vigência,
+  `max(marcos_dias_boleto)` para o boleto) **até você marcar no sistema que o cliente foi
+  avisado** — botão **"✓ avisei o cliente"** no Painel, ou o campo "Cliente avisado" na
+  apólice / na parcela. Para de enviar `dias_max_aviso_apos_vencer` dias depois de vencer
+  (padrão 45).
 - **Google Agenda**: cria um evento na data do vencimento (apólice e parcela de boleto),
   com lembretes automáticos; some quando a apólice vence/é apagada ou o boleto é pago.
-- Parcela marcada como **paga** sai da lista de boletos e para de gerar aviso.
+- Parcela marcada como **paga** também sai da lista de boletos e para de gerar aviso.
 - Config: copie `plenus_config.exemplo.json` → `plenus_config.json` (fora do git) e
   preencha os blocos `email` e `google_agenda` (`"ativo": true`). Detalhes no `DEPLOY.md`.
   Enquanto ambos forem `false`, só grava em `notificacoes.log`.
