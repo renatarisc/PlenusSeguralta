@@ -214,13 +214,13 @@
 
   <div class="cartao">
     <h2>Comissão</h2>
-    <div class="grade">
+    <div class="grade" style="align-items:end">
       <div class="campo c-3">
         <label for="comissao_percentual">Percentual (%)</label>
         <input id="comissao_percentual" name="comissao_percentual" inputmode="decimal" data-num
                value="{{ a.comissao_percentual or '' }}">
       </div>
-      <div class="campo c-3" style="align-self:end">
+      <div class="campo c-3">
         <button type="button" class="btn btn--primario" id="btn-calc-seg-receber">
           Calcular pelo % do prêmio líquido
         </button>
@@ -238,7 +238,7 @@
 
       <div class="grade__linha" aria-hidden="true"></div>
 
-      <div class="campo c-3" style="align-self:end">
+      <div class="campo c-3">
         <button type="button" class="btn btn--primario" id="btn-calc-plenus-receber">
           Calcular 75% do recebido SEGURALTA
         </button>
