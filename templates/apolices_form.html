@@ -75,6 +75,16 @@
                placeholder="0,00" value="{{ a.premio_liquido or '' }}">
       </div>
       <div class="campo c-3">
+        <label for="iof">IOF (R$)</label>
+        <input id="iof" name="iof" inputmode="decimal" data-num
+               placeholder="0,00" value="{{ a.iof or '' }}">
+      </div>
+      <div class="campo c-3">
+        <label for="premio_total">Prêmio total (R$)</label>
+        <input id="premio_total" name="premio_total" inputmode="decimal" data-num
+               placeholder="0,00" value="{{ a.premio_total or '' }}">
+      </div>
+      <div class="campo c-3">
         <label for="forma_pagamento_id">Forma de pagamento</label>
         <select id="forma_pagamento_id" name="forma_pagamento_id">
           <option value="">—</option>

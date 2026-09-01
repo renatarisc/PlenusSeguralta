@@ -282,10 +282,26 @@ def _parse_yelum(linhas, texto, alvo):
     if m:
         c["vigencia_inicio"] = _data_iso(m.group(1))
         c["vigencia_fim"] = _data_iso(m.group(2))
-    m = re.search(r"Pr[êe]mio L[íi]quido(?: do Item)?[:\s]*\n?\s*(\d{1,3}(?:\.\d{3})*,\d{2})", texto, re.I)
-    pl = m.group(1) if m else _apos(linhas, "Prêmio Líquido", _e_dinheiro)
-    if _dinheiro(pl):
-        c["premio_liquido"] = _dinheiro(pl)
+    # bloco "DEMONSTRATIVO DE PRÊMIO": rótulos (Prêmio Líquido / Adic. Frac. / IOF /
+    # Prêmio Total) seguidos dos 4 valores
+    i_pr = _idx(linhas, "DEMONSTRATIVO DE PR", "Prêmio Líquido")
+    vals = []
+    if i_pr >= 0:
+        for l in linhas[i_pr + 1:i_pr + 14]:
+            if _e_dinheiro(l):
+                vals.append(l)
+            elif vals:
+                break
+    if vals:
+        c["premio_liquido"] = _dinheiro(vals[0])
+        if len(vals) >= 3:
+            c["iof"] = _dinheiro(vals[2])
+        if len(vals) >= 4:
+            c["premio_total"] = _dinheiro(vals[3])
+    else:
+        m = re.search(r"Pr[êe]mio L[íi]quido(?: do Item)?[:\s]*\n?\s*(\d{1,3}(?:\.\d{3})*,\d{2})", texto, re.I)
+        if m and _dinheiro(m.group(1)):
+            c["premio_liquido"] = _dinheiro(m.group(1))
 
     fp = _forma_pgto(texto)
     if fp:
@@ -368,9 +384,13 @@ def _parse_sulamerica(linhas, texto, alvo):
                 nums.append(l)
             elif nums:
                 break
-    if nums:
-        c["premio_liquido"] = _dinheiro(nums[0])
     # ordem típica: [prêmio líq, IOF, valor da parcela, qtd, prêmio total]
+    dinheiros = [x for x in nums if _e_dinheiro(x)]
+    if dinheiros:
+        c["premio_liquido"] = _dinheiro(dinheiros[0])
+        if len(dinheiros) >= 2:
+            c["iof"] = _dinheiro(dinheiros[1])
+        c["premio_total"] = _dinheiro(dinheiros[-1])
     i_qtd = next((k for k, x in enumerate(nums) if _e_inteiro(x)), len(nums))
     qtd = int(nums[i_qtd]) if i_qtd < len(nums) else None
     dinheiros_antes = [x for x in nums[:i_qtd] if _e_dinheiro(x)]

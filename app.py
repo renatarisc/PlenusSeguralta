@@ -157,7 +157,8 @@ def cadastro_simples_excluir(slug, item_id):
 _CAMPOS_APOLICE = (
     "cliente_id", "seguradora_id", "tipo_seguro_id", "numero_apolice",
     "vigencia_inicio", "vigencia_fim",
-    "premio_liquido", "forma_pagamento_id", "comissao_percentual", "comissao_valor",
+    "premio_liquido", "iof", "premio_total",
+    "forma_pagamento_id", "comissao_percentual", "comissao_valor",
     "lancado_quiver", "link_onedrive",
 )
 
@@ -167,7 +168,7 @@ def _apolice_para_form(ap, parcelas=None):
     if ap is None:
         return None
     ap = dict(ap)
-    for campo in ("premio_liquido", "comissao_percentual", "comissao_valor"):
+    for campo in ("premio_liquido", "iof", "premio_total", "comissao_percentual", "comissao_valor"):
         ap[campo] = formatar_numero(ap.get(campo))
     fonte = parcelas if parcelas is not None else ap.get("parcelas", [])
     ap["parcelas"] = [{**p, "valor": formatar_numero(p.get("valor"))} for p in fonte]

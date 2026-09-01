@@ -156,6 +156,8 @@ def validar_apolice(dados):
         erros.append("O fim da vigência é anterior ao início.")
 
     for campo, rotulo in (("premio_liquido", "Prêmio líquido"),
+                          ("iof", "IOF"),
+                          ("premio_total", "Prêmio total"),
                           ("comissao_percentual", "Comissão (%)"),
                           ("comissao_valor", "Comissão (valor)")):
         if _numero_preenchido_invalido(dados.get(campo)):

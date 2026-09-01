@@ -63,6 +63,8 @@ CREATE TABLE IF NOT EXISTS apolice (
     vigencia_inicio TEXT,
     vigencia_fim TEXT,
     premio_liquido REAL,
+    iof REAL,
+    premio_total REAL,
     forma_pagamento_id INTEGER REFERENCES forma_pagamento(id),
     comissao_percentual REAL,
     comissao_valor REAL,
@@ -112,7 +114,8 @@ _COLUNAS_ESPERADAS = {
     "apolice": {
         "cliente_id": "INTEGER", "seguradora_id": "INTEGER",
         "tipo_seguro_id": "INTEGER", "numero_apolice": "TEXT",
-        "vigencia_inicio": "TEXT", "vigencia_fim": "TEXT", "premio_liquido": "REAL",
+        "vigencia_inicio": "TEXT", "vigencia_fim": "TEXT",
+        "premio_liquido": "REAL", "iof": "REAL", "premio_total": "REAL",
         "forma_pagamento_id": "INTEGER", "comissao_percentual": "REAL", "comissao_valor": "REAL",
         "lancado_quiver": "INTEGER NOT NULL DEFAULT 0", "link_onedrive": "TEXT",
         "criado_em": "TEXT NOT NULL DEFAULT (datetime('now'))",

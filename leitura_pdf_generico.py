@@ -111,6 +111,12 @@ def extrair_campos_apolice(texto):
     premio = _achar(t, r"pr[êe]mio\s*l[íi]quido[^\n\d]{0,20}(" + _MOEDA + r")")
     if _dinheiro(premio):
         c["premio_liquido"] = _dinheiro(premio)
+    iof = _achar(t, r"\biof\b[^\n\d]{0,20}(" + _MOEDA + r")")
+    if _dinheiro(iof):
+        c["iof"] = _dinheiro(iof)
+    total = _achar(t, r"pr[êe]mio\s*total[^\n\d]{0,20}(" + _MOEDA + r")")
+    if _dinheiro(total):
+        c["premio_total"] = _dinheiro(total)
 
     pct = _achar(t, r"comiss[ãa]o[^\n%]{0,20}?(\d{1,3}(?:[.,]\d{1,2})?)\s*%") \
         or _achar(t, r"comiss[ãa]o\s*\(%\)[^\n\d]{0,15}(\d{1,3}(?:[.,]\d{1,2})?)")

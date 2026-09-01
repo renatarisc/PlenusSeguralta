@@ -153,7 +153,8 @@ def excluir_simples(tabela, item_id):
 _COLS_APOLICE = (
     "cliente_id", "seguradora_id", "tipo_seguro_id", "numero_apolice",
     "vigencia_inicio", "vigencia_fim",
-    "premio_liquido", "forma_pagamento_id", "comissao_percentual", "comissao_valor",
+    "premio_liquido", "iof", "premio_total",
+    "forma_pagamento_id", "comissao_percentual", "comissao_valor",
     "lancado_quiver", "link_onedrive",
 )
 
@@ -167,6 +168,8 @@ def _valores_apolice(dados):
         (dados.get("vigencia_inicio") or "").strip() or None,
         (dados.get("vigencia_fim") or "").strip() or None,
         para_decimal(dados.get("premio_liquido")),
+        para_decimal(dados.get("iof")),
+        para_decimal(dados.get("premio_total")),
         _int_ou_none(dados.get("forma_pagamento_id")),
         para_decimal(dados.get("comissao_percentual")),
         para_decimal(dados.get("comissao_valor")),
