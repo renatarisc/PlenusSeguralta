@@ -341,7 +341,13 @@ def listar_apolices(cliente_id=None, tipo_seguro_id=None, mes_inicio=None, quive
     sql = """SELECT a.id, a.numero_apolice, a.vigencia_inicio, a.vigencia_fim,
                     a.premio_liquido, a.lancado_quiver, a.aviso_vigencia_ok,
                     c.nome AS cliente_nome, t.nome AS tipo_seguro_nome,
-                    s.nome AS seguradora_nome
+                    s.nome AS seguradora_nome,
+                    (SELECT p.data FROM apolice_parcela p
+                       WHERE p.apolice_id = a.id AND COALESCE(p.paga, 0) = 0 AND p.data IS NOT NULL
+                       ORDER BY p.data LIMIT 1) AS proxima_parcela_data,
+                    (SELECT p.valor FROM apolice_parcela p
+                       WHERE p.apolice_id = a.id AND COALESCE(p.paga, 0) = 0 AND p.data IS NOT NULL
+                       ORDER BY p.data LIMIT 1) AS proxima_parcela_valor
                FROM apolice a
                LEFT JOIN cliente c     ON c.id = a.cliente_id
                LEFT JOIN tipo_seguro t ON t.id = a.tipo_seguro_id

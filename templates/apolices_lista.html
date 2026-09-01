@@ -72,7 +72,7 @@
     <table class="lista">
       <thead>
         <tr>{% if not cliente_filtro %}<th>Cliente</th>{% endif %}<th>Número</th><th>Seguradora</th>
-            <th>Tipo de seguro</th><th>Vigência</th><th>Prêmio líquido</th><th>Quiver</th><th></th></tr>
+            <th>Tipo de seguro</th><th>Vigência</th><th>Próxima parcela</th><th>Quiver</th><th></th></tr>
       </thead>
       <tbody>
         {% for a in apolices %}
@@ -91,7 +91,14 @@
             <span class="tag-venc">{{ 'vence hoje' if d == 0 else 'vence em ' ~ d ~ 'd' }}</span>
             {% endif %}
           </td>
-          <td>{{ a.premio_liquido|moeda }}</td>
+          <td>
+            {% if a.proxima_parcela_data %}
+              {{ a.proxima_parcela_data|data_br }}{% if a.proxima_parcela_valor is not none %} · {{ a.proxima_parcela_valor|moeda }}{% endif %}
+              {% set pd = dias_ate(a.proxima_parcela_data) %}
+              {% if pd is not none and pd < 0 %}<span class="tag-venc tag-venc--fim">vencida há {{ -pd }}d</span>
+              {% elif pd is not none and pd <= 10 %}<span class="tag-venc">{{ 'vence hoje' if pd == 0 else 'vence em ' ~ pd ~ 'd' }}</span>{% endif %}
+            {% else %}—{% endif %}
+          </td>
           <td>{{ 'Sim' if a.lancado_quiver else 'Não' }}</td>
           <td class="acoes">
             <a class="btn btn--linha btn--mini" href="{{ url_for('apolice_form', apolice_id=a.id) }}">{{ icone('lapis') }}</a>
