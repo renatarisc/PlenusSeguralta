@@ -6,13 +6,34 @@
 {% endblock %}
 
 {% block conteudo %}
-<form class="busca" method="get">
-  <div class="busca__campo">
-    {{ icone('busca') }}
-    <input type="text" name="busca" value="{{ busca }}" placeholder="Buscar por nome ou CPF...">
+<form class="cartao filtros" method="get">
+  <div class="grade">
+    <div class="campo {{ 'c-8' if ufs else 'c-12' }}">
+      <label for="f-busca">Buscar</label>
+      <div class="campo-busca">
+        {{ icone('busca') }}
+        <input id="f-busca" type="text" name="busca" value="{{ busca }}"
+               placeholder="Nome ou CPF do cliente">
+      </div>
+    </div>
+    {% if ufs %}
+    <div class="campo c-4">
+      <label for="f-uf">Estado</label>
+      <select id="f-uf" name="uf">
+        <option value="">Todos</option>
+        {% for u in ufs %}
+        <option value="{{ u }}" {{ 'selected' if uf == u }}>{{ u }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
   </div>
-  <button class="btn btn--linha" type="submit">Buscar</button>
-  {% if busca %}<a class="btn btn--linha" href="{{ url_for('clientes_lista') }}">Limpar</a>{% endif %}
+  <div class="filtros__acoes">
+    <button class="btn btn--primario" type="submit">{{ icone('busca') }} Buscar</button>
+    {% if busca or uf %}
+    <a class="btn btn--linha" href="{{ url_for('clientes_lista') }}">Limpar</a>
+    {% endif %}
+  </div>
 </form>
 
 <div class="cartao" style="padding:0">
@@ -43,7 +64,7 @@
     </table>
   </div>
   {% else %}
-  <p class="vazio">{{ 'Nenhum cliente encontrado para a busca.' if busca else 'Nenhum cliente cadastrado ainda.' }}</p>
+  <p class="vazio">{{ 'Nenhum cliente encontrado para o filtro.' if (busca or uf) else 'Nenhum cliente cadastrado ainda.' }}</p>
   {% endif %}
 </div>
 {% endblock %}

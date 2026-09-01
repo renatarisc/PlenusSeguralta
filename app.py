@@ -66,8 +66,10 @@ def dashboard():
 @app.route("/clientes")
 def clientes_lista():
     busca = request.args.get("busca", "").strip()
+    uf = request.args.get("uf", "").strip().upper() or None
     return render_template("clientes_lista.html", ativo="clientes_lista",
-                           clientes=repo.listar_clientes(busca or None), busca=busca)
+                           clientes=repo.listar_clientes(busca or None, uf),
+                           busca=busca, uf=uf, ufs=repo.ufs_dos_clientes())
 
 
 @app.route("/clientes/novo", methods=["GET", "POST"])

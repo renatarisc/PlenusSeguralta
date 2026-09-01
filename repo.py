@@ -40,12 +40,15 @@ def _valores_cliente(dados):
     return valores
 
 
-def listar_clientes(busca=None):
+def listar_clientes(busca=None, uf=None):
     with conexao() as con:
         linhas = [dict(l) for l in con.execute(
             "SELECT id, nome, cpf, end_cidade, end_estado, tel_ddd, tel_numero, email "
             "FROM cliente ORDER BY nome COLLATE NOCASE"
         ).fetchall()]
+
+    if uf:
+        linhas = [c for c in linhas if (c["end_estado"] or "") == uf]
 
     termo = (busca or "").strip()
     if not termo:
@@ -59,6 +62,14 @@ def listar_clientes(busca=None):
         if alvo in _sem_acento_minusculo(c["nome"])
         or (digitos and digitos in (c["cpf"] or ""))
     ]
+
+
+def ufs_dos_clientes():
+    with conexao() as con:
+        return [r[0] for r in con.execute(
+            "SELECT DISTINCT end_estado FROM cliente "
+            "WHERE end_estado IS NOT NULL AND end_estado <> '' ORDER BY end_estado"
+        ).fetchall()]
 
 
 def obter_cliente(cliente_id):
