@@ -214,27 +214,28 @@
 
   <div class="cartao">
     <h2>Comissão</h2>
-    <div class="grade" style="align-items:end">
+    <div class="grade">
       <div class="campo c-3">
         <label for="comissao_percentual">Percentual (%)</label>
         <input id="comissao_percentual" name="comissao_percentual" inputmode="decimal" data-num
                value="{{ a.comissao_percentual or '' }}">
       </div>
-      <div class="campo c-9">
+      <div class="campo c-12">
         <label class="check">
           <input type="checkbox" id="comissao_parcelada" name="comissao_parcelada" value="1"
                  {{ 'checked' if a.comissao_parcelada }}>
-          Comissão em parcelas (repasse mensal) — usa as duas tabelas abaixo
+          Comissão em parcelas (repasse mensal)
         </label>
       </div>
     </div>
 
     {# ---------- repasse único: os 4 valores achatados ---------- #}
     <div id="comissao-unico" {{ 'hidden' if a.comissao_parcelada }}>
-      <div class="grade" style="align-items:end;margin-top:12px">
+      <div class="grade" style="align-items:end;margin-top:8px">
         <div class="campo c-3">
+          <label aria-hidden="true">&nbsp;</label>
           <button type="button" class="btn btn--primario" id="btn-calc-seg-receber">
-            Calcular pelo % do prêmio líquido
+            Calcular pelo % do prêmio
           </button>
         </div>
         <div class="campo c-3">
@@ -247,11 +248,12 @@
           <input id="comissao_valor_seguralta_recebido" name="comissao_valor_seguralta_recebido"
                  inputmode="decimal" data-num value="{{ a.comissao_valor_seguralta_recebido or '' }}">
         </div>
-        <div class="campo c-3"></div>
+        <div class="campo c-3" aria-hidden="true"></div>
 
         <div class="campo c-3">
+          <label aria-hidden="true">&nbsp;</label>
           <button type="button" class="btn btn--primario" id="btn-calc-plenus-receber">
-            Calcular 75% do recebido SEGURALTA
+            Calcular 75% do recebido
           </button>
         </div>
         <div class="campo c-3">
