@@ -32,15 +32,6 @@
       </div>
     </div>
     <div class="campo c-2">
-      <label for="f-parcela">Próxima parcela</label>
-      <select id="f-parcela" name="parcela">
-        <option value="">Todas</option>
-        <option value="vencida" {{ 'selected' if parcela == 'vencida' }}>Vencida</option>
-        <option value="proxima" {{ 'selected' if parcela == 'proxima' }}>Vence em ≤ 10 dias</option>
-        <option value="sem" {{ 'selected' if parcela == 'sem' }}>Sem parcela pendente</option>
-      </select>
-    </div>
-    <div class="campo c-2">
       <label for="f-tipo">Tipo de seguro</label>
       <select id="f-tipo" name="tipo">
         <option value="">Todos</option>
@@ -56,6 +47,15 @@
         {% for n in range(1, 13) %}
         <option value="{{ n }}" {{ 'selected' if mes == n }}>{{ MESES[n] }}</option>
         {% endfor %}
+      </select>
+    </div>
+    <div class="campo c-2">
+      <label for="f-parcela">Próxima parcela</label>
+      <select id="f-parcela" name="parcela">
+        <option value="">Todas</option>
+        <option value="vencida" {{ 'selected' if parcela == 'vencida' }}>Vencida</option>
+        <option value="proxima" {{ 'selected' if parcela == 'proxima' }}>Vence em ≤ 10 dias</option>
+        <option value="sem" {{ 'selected' if parcela == 'sem' }}>Sem parcela pendente</option>
       </select>
     </div>
     <div class="campo c-2">
