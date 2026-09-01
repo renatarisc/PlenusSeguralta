@@ -170,10 +170,6 @@
         </div>
       </div>
     </div>
-    {% else %}
-    <p class="dica" style="margin:-4px 0 12px">
-      Já há parcela paga nesta apólice — o gerador foi ocultado. Use <strong>Adicionar parcela</strong> para incluir novas.
-    </p>
     {% endif %}
 
     <div class="tabela-wrap">
@@ -192,13 +188,13 @@
             <td>
               <select name="parcela_paga" data-parcela-status>
                 <option value="0" {{ 'selected' if not p.paga }}>A pagar</option>
-                <option value="1" {{ 'selected' if p.paga }}>Paga{{ ' em ' ~ (p.pago_em|data_br) if p.pago_em }}</option>
+                <option value="1" {{ 'selected' if p.paga }}>Paga</option>
               </select>
             </td>
             <td>
               <select name="parcela_aviso">
                 <option value="0" {{ 'selected' if not p.aviso_ok }}>Não</option>
-                <option value="1" {{ 'selected' if p.aviso_ok }}>Sim{{ ' em ' ~ (p.aviso_ok_em|data_br) if p.aviso_ok_em }}</option>
+                <option value="1" {{ 'selected' if p.aviso_ok }}>Sim</option>
               </select>
             </td>
             <td class="acoes"><button type="button" class="btn btn--perigo btn--mini" data-remover-parcela>{{ icone('x') }}</button></td>

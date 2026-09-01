@@ -280,6 +280,10 @@ table.lista tr.apolice-vencida td:first-child { box-shadow: inset 3px 0 0 #a5201
 #tab-lancamentos.sem-parcela th:nth-child(3),
 #tab-lancamentos.sem-parcela td:nth-child(3) { display: none; }
 
+/* só parcela de boleto precisa de "Cliente avisado" */
+#tab-parcelas.sem-aviso th:nth-child(5),
+#tab-parcelas.sem-aviso td:nth-child(5) { display: none; }
+
 /* lançamento já pago: abre travado (fundo verde), o lápis libera a edição */
 #tab-lancamentos [data-editar-lancamento] { display: none; }
 #tab-lancamentos tr.lancamento--travada [data-editar-lancamento] { display: inline-flex; }

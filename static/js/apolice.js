@@ -155,6 +155,19 @@
     sync();
   }
 
+  // ---- coluna "Cliente avisado" das parcelas: só para pagamento em boleto ----
+  const selForma = document.getElementById("forma_pagamento_id");
+  const tabParcelas = document.getElementById("tab-parcelas");
+  if (selForma && tabParcelas) {
+    const ehBoleto = () => {
+      const txt = (selForma.options[selForma.selectedIndex] || {}).text || "";
+      return /boleto/i.test(txt);
+    };
+    const syncAviso = () => { tabParcelas.classList.toggle("sem-aviso", !ehBoleto()); };
+    selForma.addEventListener("change", syncAviso);
+    syncAviso();
+  }
+
   // ---- link do OneDrive: mantém o "abrir ↗" apontando pro valor digitado ----
   const linkIn = document.getElementById("link_onedrive");
   const linkAbrir = document.getElementById("link_onedrive_abrir");
