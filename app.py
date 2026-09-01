@@ -446,13 +446,17 @@ def apolices():
     quiver_arg = request.args.get("quiver", "")
     quiver = 1 if quiver_arg == "1" else 0 if quiver_arg == "0" else None
     busca = request.args.get("busca", "").strip()
+    parcela = request.args.get("parcela", "")
+    if parcela not in ("vencida", "proxima", "sem"):
+        parcela = ""
     cliente = repo.obter_cliente(cliente_id) if cliente_id else None
     return render_template(
         "apolices_lista.html", ativo="apolices",
         apolices=repo.listar_apolices(cliente_id=cliente_id, tipo_seguro_id=tipo_id,
-                                      mes_inicio=mes, quiver=quiver, busca=busca or None),
+                                      mes_inicio=mes, quiver=quiver, busca=busca or None,
+                                      parcela_status=parcela or None),
         cliente_filtro=cliente, busca=busca, tipo_id=tipo_id, mes=mes, quiver=quiver_arg,
-        tipos=repo.listar_simples("tipo_seguro"), MESES=_MESES)
+        parcela=parcela, tipos=repo.listar_simples("tipo_seguro"), MESES=_MESES)
 
 
 @app.route("/apolices/nova", methods=["GET", "POST"])

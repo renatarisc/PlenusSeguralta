@@ -23,13 +23,22 @@
 <form class="cartao filtros" method="get">
   {% if cliente_filtro %}<input type="hidden" name="cliente" value="{{ cliente_filtro.id }}">{% endif %}
   <div class="grade">
-    <div class="campo c-6">
+    <div class="campo c-4">
       <label for="f-busca">Buscar</label>
       <div class="campo-busca">
         {{ icone('busca') }}
         <input id="f-busca" type="text" name="busca" value="{{ busca }}"
                placeholder="Nome do cliente ou número da apólice">
       </div>
+    </div>
+    <div class="campo c-2">
+      <label for="f-parcela">Próxima parcela</label>
+      <select id="f-parcela" name="parcela">
+        <option value="">Todas</option>
+        <option value="vencida" {{ 'selected' if parcela == 'vencida' }}>Vencida</option>
+        <option value="proxima" {{ 'selected' if parcela == 'proxima' }}>Vence em ≤ 10 dias</option>
+        <option value="sem" {{ 'selected' if parcela == 'sem' }}>Sem parcela pendente</option>
+      </select>
     </div>
     <div class="campo c-2">
       <label for="f-tipo">Tipo de seguro</label>
@@ -60,7 +69,7 @@
   </div>
   <div class="filtros__acoes">
     <button class="btn btn--primario" type="submit">{{ icone('busca') }} Buscar</button>
-    {% if busca or tipo_id or mes or quiver %}
+    {% if busca or tipo_id or mes or quiver or parcela %}
     <a class="btn btn--linha" href="{{ url_for('apolices', cliente=cliente_filtro.id) if cliente_filtro else url_for('apolices') }}">Limpar</a>
     {% endif %}
   </div>

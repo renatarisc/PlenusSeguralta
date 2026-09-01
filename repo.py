@@ -337,7 +337,8 @@ def _inserir_repasses(con, apolice_id, linhas):
         )
 
 
-def listar_apolices(cliente_id=None, tipo_seguro_id=None, mes_inicio=None, quiver=None, busca=None):
+def listar_apolices(cliente_id=None, tipo_seguro_id=None, mes_inicio=None, quiver=None,
+                    busca=None, parcela_status=None):
     sql = """SELECT a.id, a.numero_apolice, a.vigencia_inicio, a.vigencia_fim,
                     a.premio_liquido, a.lancado_quiver, a.aviso_vigencia_ok,
                     c.nome AS cliente_nome, t.nome AS tipo_seguro_nome,
@@ -379,6 +380,19 @@ def listar_apolices(cliente_id=None, tipo_seguro_id=None, mes_inicio=None, quive
             if alvo in _sem_acento_minusculo(a.get("cliente_nome") or "")
             or alvo in _sem_acento_minusculo(a.get("numero_apolice") or "")
         ]
+
+    if parcela_status:
+        def _combina(a):
+            pd = a.get("proxima_parcela_data")
+            d = dias_ate_data(pd) if pd else None
+            if parcela_status == "vencida":
+                return d is not None and d < 0
+            if parcela_status == "proxima":
+                return d is not None and 0 <= d <= 10
+            if parcela_status == "sem":
+                return pd is None
+            return True
+        linhas = [a for a in linhas if _combina(a)]
     return linhas
 
 
