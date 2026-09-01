@@ -8,7 +8,7 @@ import unicodedata
 from datetime import date
 
 from db import conexao, fazer_backup
-from validacao import so_digitos, para_decimal, dias_ate_data, add_meses
+from validacao import so_digitos, para_decimal, dias_ate_data
 from seguranca import hash_senha, senha_confere
 
 
@@ -649,80 +649,96 @@ def _inserir_saida(con, dados):
     return cur.lastrowid
 
 
-def criar_saidas_lote(comum, linhas):
-    """`comum`: dict com os campos que valem para todos os lançamentos
-    (descricao, categoria_id, forma_pagamento_id, fixo_mensal).
-    `linhas`: lista de dicts {data_vencimento, valor, numero_parcela, data_pagamento}.
-    Cria uma saída por linha; todas compartilham um serie_id quando há mais de uma.
-    Devolve a lista de ids criados."""
-    linhas = [l for l in linhas
-              if any((l.get("data_vencimento"), l.get("valor"),
-                      l.get("numero_parcela"), l.get("data_pagamento")))]
-    if not linhas:
-        return []
-    serie = None if len(linhas) == 1 else secrets.token_hex(8)
-    ids = []
-    with conexao() as con:
-        for l in linhas:
-            ids.append(_inserir_saida(con, {**comum, **l, "serie_id": serie}))
-    fazer_backup()
-    return ids
-
-
 def obter_saida(saida_id):
     with conexao() as con:
         l = con.execute("SELECT * FROM saida WHERE id = ?", (saida_id,)).fetchone()
         return dict(l) if l else None
 
 
-def atualizar_saida(saida_id, dados):
-    atrib = ", ".join(f"{c} = ?" for c in _COLS_SAIDA)
+def obter_grupo_saida(saida_id):
+    """Uma saída é editada junto com as "irmãs" da mesma série. Devolve
+    {id, serie_id, descricao, categoria_id, forma_pagamento_id, fixo_mensal, lancamentos:[...]}
+    onde cada lançamento é {id, data_vencimento, valor, numero_parcela, data_pagamento}."""
+    s = obter_saida(saida_id)
+    if not s:
+        return None
+    if s.get("serie_id"):
+        with conexao() as con:
+            irmas = [dict(l) for l in con.execute(
+                "SELECT * FROM saida WHERE serie_id = ? ORDER BY COALESCE(data_vencimento, ''), id",
+                (s["serie_id"],)).fetchall()]
+    else:
+        irmas = [s]
+    return {
+        "id": saida_id,
+        "serie_id": s.get("serie_id"),
+        "descricao": s.get("descricao"),
+        "categoria_id": s.get("categoria_id"),
+        "forma_pagamento_id": s.get("forma_pagamento_id"),
+        "fixo_mensal": s.get("fixo_mensal"),
+        "lancamentos": [
+            {"id": l["id"], "data_vencimento": l["data_vencimento"], "valor": l["valor"],
+             "numero_parcela": l["numero_parcela"], "data_pagamento": l["data_pagamento"]}
+            for l in irmas
+        ],
+    }
+
+
+def salvar_grupo_saida(saida_id, comum, linhas):
+    """Grava um grupo de lançamentos de uma vez (novo ou edição).
+    `comum`: {descricao, categoria_id, forma_pagamento_id, fixo_mensal} — vale para todos.
+    `linhas`: [{id(int|None), data_vencimento, valor, numero_parcela, data_pagamento}].
+    Atualiza as linhas com id, insere as sem id, apaga as que sumiram do grupo.
+    Devolve o serie_id resultante (None quando sobra 1 lançamento)."""
+    linhas = [l for l in linhas
+              if any((l.get("data_vencimento"), l.get("valor"),
+                      l.get("numero_parcela"), l.get("data_pagamento")))]
+    if not linhas:
+        return None
+
     with conexao() as con:
-        con.execute(f"UPDATE saida SET {atrib}, atualizado_em = datetime('now') WHERE id = ?",
-                    _valores_saida(dados) + [saida_id])
+        serie = None
+        if saida_id:
+            row = con.execute("SELECT serie_id FROM saida WHERE id = ?", (saida_id,)).fetchone()
+            serie = row["serie_id"] if row else None
+        if len(linhas) == 1:
+            serie = None
+        elif not serie:
+            serie = secrets.token_hex(8)
+
+        # apaga as ocorrências que o usuário removeu da tabela
+        enviados = {l["id"] for l in linhas if l.get("id")}
+        if saida_id:
+            if row and row["serie_id"]:
+                antigos = [r["id"] for r in con.execute(
+                    "SELECT id FROM saida WHERE serie_id = ?", (row["serie_id"],)).fetchall()]
+            else:
+                antigos = [saida_id]
+            for old in antigos:
+                if old not in enviados:
+                    con.execute("DELETE FROM saida WHERE id = ?", (old,))
+
+        base = {**comum, "serie_id": serie}
+        for l in linhas:
+            dados = {**base, "valor": l.get("valor"),
+                     "data_vencimento": l.get("data_vencimento"),
+                     "data_pagamento": l.get("data_pagamento"),
+                     "numero_parcela": l.get("numero_parcela")}
+            if l.get("id") and l["id"] in enviados:
+                atrib = ", ".join(f"{c} = ?" for c in _COLS_SAIDA)
+                con.execute(
+                    f"UPDATE saida SET {atrib}, atualizado_em = datetime('now') WHERE id = ?",
+                    _valores_saida(dados) + [l["id"]])
+            else:
+                _inserir_saida(con, dados)
     fazer_backup()
+    return serie
 
 
 def excluir_saida(saida_id):
     with conexao() as con:
         con.execute("DELETE FROM saida WHERE id = ?", (saida_id,))
     fazer_backup()
-
-
-def excluir_serie_saida(serie_id, so_em_aberto=True):
-    """Apaga as saídas da série. Por padrão só as ainda não pagas (mantém histórico)."""
-    if not serie_id:
-        return
-    sql = "DELETE FROM saida WHERE serie_id = ?"
-    if so_em_aberto:
-        sql += " AND data_pagamento IS NULL"
-    with conexao() as con:
-        con.execute(sql, (serie_id,))
-    fazer_backup()
-
-
-def estender_serie_saida(serie_id, meses=12):
-    """Cria mais `meses` ocorrências mensais depois da última linha da série."""
-    if not serie_id:
-        return []
-    with conexao() as con:
-        base = con.execute(
-            "SELECT * FROM saida WHERE serie_id = ? ORDER BY data_vencimento DESC, id DESC LIMIT 1",
-            (serie_id,),
-        ).fetchone()
-        if not base:
-            return []
-        base = dict(base)
-        ids = []
-        for k in range(1, int(meses) + 1):
-            linha = dict(base)
-            linha.pop("id", None)
-            linha["data_vencimento"] = add_meses(base["data_vencimento"], k) or base["data_vencimento"]
-            linha["data_pagamento"] = None
-            linha["numero_parcela"] = None   # extensão não herda o "k/n" da última parcela
-            ids.append(_inserir_saida(con, linha))
-    fazer_backup()
-    return ids
 
 
 def marcar_saida_paga(saida_id, paga, data=None):

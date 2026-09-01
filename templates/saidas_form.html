@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% set s = saida or {} %}
+{% set lancs = s.lancamentos or [] %}
 {% block titulo %}{{ 'Editar saída' if s.id else 'Nova saída' }}{% endblock %}
 {% block cabecalho %}{{ 'Editar saída' if s.id else 'Nova saída' }}{% endblock %}
 
@@ -11,7 +12,6 @@
 <form class="form" method="post" novalidate
       action="{{ url_for('saida_form', saida_id=s.id) if s.id else url_for('saida_form') }}">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-  {% if s.id %}<input type="hidden" name="serie_id" value="{{ s.serie_id or '' }}">{% endif %}
 
   <div class="cartao">
     <h2>Dados da saída</h2>
@@ -51,40 +51,17 @@
     </div>
   </div>
 
-  {% if s.id %}
-  <div class="cartao">
-    <h2>Valores</h2>
-    <div class="grade">
-      <div class="campo c-3">
-        <label for="valor">Valor (R$)</label>
-        <input id="valor" name="valor" inputmode="decimal" data-num value="{{ s.valor or '' }}">
-      </div>
-      <div class="campo c-3">
-        <label for="data_vencimento">Vencimento</label>
-        <input id="data_vencimento" name="data_vencimento" type="date" value="{{ s.data_vencimento or '' }}">
-      </div>
-      <div class="campo c-3">
-        <label for="data_pagamento">Pago em</label>
-        <input id="data_pagamento" name="data_pagamento" type="date" value="{{ s.data_pagamento or '' }}">
-      </div>
-      <div class="campo c-3">
-        <label for="numero_parcela">Parcela</label>
-        <input id="numero_parcela" name="numero_parcela" value="{{ s.numero_parcela or '' }}" placeholder="ex.: 3/6">
-      </div>
-    </div>
-  </div>
-
-  {% else %}
   <div class="cartao">
     <h2>Lançamentos</h2>
     <p class="dica" style="margin:-4px 0 12px">
-      Gere uma linha por mês (parcelamento ou despesa fixa) e ajuste o que precisar antes de salvar.
-      Cada lançamento vira uma saída com sua própria data de pagamento.
+      Cada linha é um pagamento (um mês). Use o gerador para criar várias de uma vez e ajuste o que precisar.
+      A descrição, a categoria e a forma de pagamento acima valem para todas.
     </p>
+
     <div class="grade" style="align-items:flex-end;margin-bottom:12px">
       <div class="campo c-2">
-        <label for="ger_qtd">Qtd.</label>
-        <input id="ger_qtd" type="number" min="1" max="120" value="1">
+        <label for="ger_qtd">Qtd. de meses</label>
+        <input id="ger_qtd" type="number" min="1" max="120" value="12">
       </div>
       <div class="campo c-2">
         <label for="ger_valor">Valor (R$)</label>
@@ -102,7 +79,7 @@
         <input id="ger_data1" type="date">
       </div>
       <div class="campo c-2">
-        <button type="button" class="btn btn--linha" id="btn-gerar-lancamentos">Gerar</button>
+        <button type="button" class="btn btn--linha" id="btn-gerar-lancamentos">Gerar tabela</button>
       </div>
     </div>
 
@@ -113,9 +90,12 @@
               <th style="width:20%">Parcela</th><th style="width:26%">Pago em</th><th style="width:8%"></th></tr>
         </thead>
         <tbody id="corpo-lancamentos">
-          {% for l in s.lancamentos or [] %}
+          {% for l in lancs %}
           <tr class="lancamento">
-            <td><input name="saida_data" type="date" value="{{ l.data_vencimento or '' }}"></td>
+            <td>
+              <input type="hidden" name="saida_id" value="{{ l.id or '' }}">
+              <input name="saida_data" type="date" value="{{ l.data_vencimento or '' }}">
+            </td>
             <td><input name="saida_valor" inputmode="decimal" data-num value="{{ l.valor|numero }}"></td>
             <td><input name="saida_parcela" value="{{ l.numero_parcela or '' }}"></td>
             <td><input name="saida_pago_em" type="date" value="{{ l.data_pagamento or '' }}"></td>
@@ -125,12 +105,12 @@
         </tbody>
       </table>
     </div>
-    <div style="padding:10px 0 0">
-      <button type="button" class="btn btn--linha" id="btn-add-lancamento">{{ icone('mais') }} Adicionar lançamento</button>
-      <span class="dica" id="resumo-lancamentos" style="margin-left:10px"></span>
+    <div style="padding:10px 0 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <button type="button" class="btn btn--linha" id="btn-add-lancamento">{{ icone('mais') }} Adicionar mês</button>
+      <button type="button" class="btn btn--linha" id="btn-mais12">+ 12 meses</button>
+      <span class="dica" id="resumo-lancamentos" style="margin-left:6px"></span>
     </div>
   </div>
-  {% endif %}
 
   <div class="rodape-form">
     <a class="btn btn--linha" href="{{ url_for('saidas_lista') }}">Cancelar</a>
@@ -138,27 +118,12 @@
   </div>
 </form>
 
-{% if s.id and s.serie_id %}
-<div class="cartao">
-  <h2>Série</h2>
-  <p style="margin:0 0 12px;color:var(--texto-suave)">Esta saída faz parte de uma série de lançamentos.</p>
-  <div style="display:flex;gap:8px;flex-wrap:wrap">
-    <form method="post" action="{{ url_for('saida_serie_estender', saida_id=s.id) }}">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <button class="btn btn--linha" type="submit">{{ icone('mais') }} Estender +12 meses</button>
-    </form>
-    <form method="post" action="{{ url_for('saida_serie_excluir', saida_id=s.id) }}"
-          onsubmit="return confirm('Excluir as ocorrências futuras desta série que ainda não foram pagas?')">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <button class="btn btn--perigo" type="submit">{{ icone('lixo') }} Excluir ocorrências futuras (não pagas)</button>
-    </form>
-  </div>
-</div>
-{% endif %}
-
 <template id="tpl-lancamento">
   <tr class="lancamento">
-    <td><input name="saida_data" type="date"></td>
+    <td>
+      <input type="hidden" name="saida_id" value="">
+      <input name="saida_data" type="date">
+    </td>
     <td><input name="saida_valor" inputmode="decimal" data-num></td>
     <td><input name="saida_parcela"></td>
     <td><input name="saida_pago_em" type="date"></td>

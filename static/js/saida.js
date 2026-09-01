@@ -102,18 +102,31 @@
     if (["saida_valor", "saida_data", "saida_pago_em", "saida_parcela"].indexOf(e.target.name) > -1) atualizarResumo();
   });
 
-  // "Adicionar lançamento" sugere o mês seguinte (mesmo dia) e repete o valor da última
-  // linha preenchida — é só sugestão, dá pra alterar.
+  // sugestão a partir da última linha preenchida: mesmo dia do mês seguinte + mesmo valor
+  function sugestao(k) {
+    const base = ultimaPreenchida();
+    if (!base) return null;
+    const d = campo(base, "saida_data").value;
+    return { data: d ? addMeses(d, k) : "", valor: campo(base, "saida_valor").value || "" };
+  }
+
   const btnAdd = document.getElementById("btn-add-lancamento");
   if (btnAdd) {
     btnAdd.addEventListener("click", () => {
+      novaLinha(sugestao(1));
+      atualizarResumo();
+    });
+  }
+
+  const btn12 = document.getElementById("btn-mais12");
+  if (btn12) {
+    btn12.addEventListener("click", () => {
       const base = ultimaPreenchida();
-      let sug = null;
-      if (base) {
-        const d = campo(base, "saida_data").value;
-        sug = { data: d ? addMeses(d, 1) : "", valor: campo(base, "saida_valor").value || "" };
+      const d = base ? campo(base, "saida_data").value : "";
+      const v = base ? campo(base, "saida_valor").value : "";
+      for (let i = 1; i <= 12; i++) {
+        novaLinha({ data: d ? addMeses(d, i) : "", valor: v || "" });
       }
-      novaLinha(sug);
       atualizarResumo();
     });
   }

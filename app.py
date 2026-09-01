@@ -542,14 +542,6 @@ def _ler_pdf(alvo):
 
 # ---------- Financeiro: Saídas (fluxo de caixa) ----------
 
-def _saida_para_form(s):
-    if s is None:
-        return None
-    s = dict(s)
-    s["valor"] = formatar_numero(s.get("valor"))
-    return s
-
-
 @app.route("/financeiro/saidas")
 def saidas_lista():
     mes = request.args.get("mes", type=int)
@@ -575,8 +567,8 @@ def _selects_saida():
 @app.route("/financeiro/saidas/nova", methods=["GET", "POST"])
 @app.route("/financeiro/saidas/<int:saida_id>", methods=["GET", "POST"])
 def saida_form(saida_id=None):
-    saida = repo.obter_saida(saida_id) if saida_id else None
-    if saida_id and not saida:
+    grupo = repo.obter_grupo_saida(saida_id) if saida_id else None
+    if saida_id and not grupo:
         flash("Saída não encontrada.", "erro")
         return redirect(url_for("saidas_lista"))
 
@@ -587,69 +579,36 @@ def saida_form(saida_id=None):
             "forma_pagamento_id": request.form.get("forma_pagamento_id", ""),
             "fixo_mensal": "1" if request.form.get("fixo_mensal") else "0",
         }
-
-        if saida_id:  # edição: uma saída, campos planos
-            dados = {**comum,
-                     "valor": request.form.get("valor", ""),
-                     "data_vencimento": request.form.get("data_vencimento", ""),
-                     "data_pagamento": request.form.get("data_pagamento", ""),
-                     "numero_parcela": request.form.get("numero_parcela", ""),
-                     "serie_id": request.form.get("serie_id", "")}
-            erros = validar_saida(dados)
-            if erros:
-                for e in erros:
-                    flash(e, "erro")
-                return render_template("saidas_form.html", ativo="saidas_lista",
-                                       saida={**dados, "id": saida_id}, **_selects_saida())
-            repo.atualizar_saida(saida_id, dados)
-            flash("Saída atualizada.", "ok")
-            return redirect(url_for("saidas_lista"))
-
-        # criação: um ou vários lançamentos a partir da tabela
         linhas, erros = preparar_lancamentos_saida(
+            request.form.getlist("saida_id"),
             request.form.getlist("saida_data"),
             request.form.getlist("saida_valor"),
             request.form.getlist("saida_parcela"),
             request.form.getlist("saida_pago_em"))
         erros = validar_saida(comum) + erros
         if not linhas:
-            erros.append("Adicione ao menos um lançamento.")
+            erros.append("Deixe ao menos um lançamento.")
         if erros:
             for e in erros:
                 flash(e, "erro")
             return render_template("saidas_form.html", ativo="saidas_lista",
-                                   saida={**comum, "lancamentos": linhas}, **_selects_saida())
-        ids = repo.criar_saidas_lote(comum, linhas)
-        flash(f"{len(ids)} lançamentos cadastrados." if len(ids) > 1 else "Saída cadastrada.", "ok")
+                                   saida={**comum, "id": saida_id,
+                                          "serie_id": grupo["serie_id"] if grupo else None,
+                                          "lancamentos": linhas},
+                                   **_selects_saida())
+        repo.salvar_grupo_saida(saida_id, comum, linhas)
+        flash("Saída salva.", "ok")
         return redirect(url_for("saidas_lista"))
 
     return render_template("saidas_form.html", ativo="saidas_lista",
-                           saida=_saida_para_form(saida), **_selects_saida())
+                           saida=grupo, **_selects_saida())
 
 
 @app.route("/financeiro/saidas/<int:saida_id>/excluir", methods=["POST"])
 def saida_excluir(saida_id):
     repo.excluir_saida(saida_id)
-    flash("Saída excluída.", "ok")
+    flash("Lançamento excluído.", "ok")
     return _voltar_seguro() if request.form.get("voltar") else redirect(url_for("saidas_lista"))
-
-
-@app.route("/financeiro/saidas/<int:saida_id>/serie/excluir", methods=["POST"])
-def saida_serie_excluir(saida_id):
-    s = repo.obter_saida(saida_id)
-    if s and s.get("serie_id"):
-        repo.excluir_serie_saida(s["serie_id"], so_em_aberto=True)
-        flash("Ocorrências futuras da série (não pagas) excluídas.", "ok")
-    return redirect(url_for("saidas_lista"))
-
-
-@app.route("/financeiro/saidas/<int:saida_id>/serie/estender", methods=["POST"])
-def saida_serie_estender(saida_id):
-    s = repo.obter_saida(saida_id)
-    if s and s.get("serie_id"):
-        novos = repo.estender_serie_saida(s["serie_id"], 12)
-        flash(f"{len(novos)} meses adicionados à série.", "ok")
-    return redirect(url_for("saida_form", saida_id=saida_id))
 
 
 @app.route("/financeiro/saidas/<int:saida_id>/pagamento", methods=["POST"])

@@ -204,14 +204,15 @@ def validar_saida(dados):
     return erros
 
 
-def preparar_lancamentos_saida(datas, valores, parcelas, pagamentos):
+def preparar_lancamentos_saida(ids, datas, valores, parcelas, pagamentos):
     """Listas paralelas (request.form.getlist) da tabela de lançamentos da saída.
     Ignora linhas totalmente vazias. Devolve (linhas, erros) — cada linha é um dict
-    {data_vencimento, valor(float|None), numero_parcela, data_pagamento}."""
+    {id(int|None), data_vencimento, valor(float|None), numero_parcela, data_pagamento}."""
     linhas, erros = [], []
-    z = zip_longest(datas or [], valores or [], parcelas or [], pagamentos or [], fillvalue="")
+    z = zip_longest(ids or [], datas or [], valores or [], parcelas or [], pagamentos or [],
+                    fillvalue="")
     n = 0
-    for data, valor, parcela, pago in z:
+    for rid, data, valor, parcela, pago in z:
         data = (data or "").strip()
         valor_txt = (valor or "").strip()
         parcela = (parcela or "").strip()
@@ -222,7 +223,12 @@ def preparar_lancamentos_saida(datas, valores, parcelas, pagamentos):
         v = para_decimal(valor_txt)
         if valor_txt and v is None:
             erros.append(f"Lançamento {n}: valor numérico inválido.")
+        try:
+            rid = int(str(rid).strip())
+        except (TypeError, ValueError):
+            rid = None
         linhas.append({
+            "id": rid,
             "data_vencimento": data or None, "valor": v,
             "numero_parcela": parcela or None, "data_pagamento": pago or None,
         })
