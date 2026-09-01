@@ -142,15 +142,21 @@
     <div class="tabela-wrap">
       <table class="lista" id="tab-parcelas">
         <thead>
-          <tr><th style="width:30%">Identificação</th><th style="width:28%">Data</th>
-              <th style="width:28%">Valor (R$)</th><th></th></tr>
+          <tr><th style="width:24%">Identificação</th><th style="width:22%">Data</th>
+              <th style="width:22%">Valor (R$)</th><th style="width:18%">Status</th><th></th></tr>
         </thead>
         <tbody id="corpo-parcelas">
           {% for p in a.parcelas or [] %}
-          <tr class="parcela">
+          <tr class="parcela {{ 'parcela--paga' if p.paga }}">
             <td><input name="parcela_identificacao" value="{{ p.identificacao or '' }}"></td>
             <td><input name="parcela_data" type="date" value="{{ p.data or '' }}"></td>
             <td><input name="parcela_valor" inputmode="decimal" data-num value="{{ p.valor or '' }}"></td>
+            <td>
+              <select name="parcela_paga" data-parcela-status>
+                <option value="0" {{ 'selected' if not p.paga }}>A pagar</option>
+                <option value="1" {{ 'selected' if p.paga }}>Paga{{ ' em ' ~ (p.pago_em|data_br) if p.pago_em }}</option>
+              </select>
+            </td>
             <td class="acoes"><button type="button" class="btn btn--perigo btn--mini" data-remover-parcela>{{ icone('x') }}</button></td>
           </tr>
           {% endfor %}
@@ -242,6 +248,12 @@
     <td><input name="parcela_identificacao"></td>
     <td><input name="parcela_data" type="date"></td>
     <td><input name="parcela_valor" inputmode="decimal" data-num></td>
+    <td>
+      <select name="parcela_paga" data-parcela-status>
+        <option value="0" selected>A pagar</option>
+        <option value="1">Paga</option>
+      </select>
+    </td>
     <td class="acoes"><button type="button" class="btn btn--perigo btn--mini" data-remover-parcela>{{ icone('x') }}</button></td>
   </tr>
 </template>

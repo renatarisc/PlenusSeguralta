@@ -95,7 +95,9 @@ CREATE TABLE IF NOT EXISTS apolice_parcela (
     apolice_id INTEGER NOT NULL REFERENCES apolice(id) ON DELETE CASCADE,
     identificacao TEXT,
     data TEXT,
-    valor REAL
+    valor REAL,
+    paga INTEGER NOT NULL DEFAULT 0,   -- 0 = a pagar, 1 = paga
+    pago_em TEXT                        -- data ISO em que foi marcada como paga
 );
 
 -- registro de aviso de vencimento já enviado (pra não repetir o mesmo marco)
@@ -159,7 +161,10 @@ _COLUNAS_ESPERADAS = {
         "criado_em": "TEXT NOT NULL DEFAULT (datetime('now'))",
         "atualizado_em": "TEXT NOT NULL DEFAULT (datetime('now'))",
     },
-    "apolice_parcela": {"apolice_id": "INTEGER", "identificacao": "TEXT", "data": "TEXT", "valor": "REAL"},
+    "apolice_parcela": {
+        "apolice_id": "INTEGER", "identificacao": "TEXT", "data": "TEXT", "valor": "REAL",
+        "paga": "INTEGER NOT NULL DEFAULT 0", "pago_em": "TEXT",
+    },
     "notificacao_parcela": {
         "parcela_id": "INTEGER", "marco": "INTEGER", "data_vencimento": "TEXT",
         "canal": "TEXT", "destino": "TEXT", "resultado": "TEXT",

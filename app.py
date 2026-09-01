@@ -439,6 +439,7 @@ def apolice_form(apolice_id=None):
             request.form.getlist("parcela_identificacao"),
             request.form.getlist("parcela_data"),
             request.form.getlist("parcela_valor"),
+            request.form.getlist("parcela_paga"),
         )
         erros = validar_apolice(dados) + erros_parcelas
         if erros:
@@ -472,6 +473,16 @@ def apolice_excluir(apolice_id):
     repo.excluir_apolice(apolice_id)
     flash("Apólice excluída.", "ok")
     return redirect(url_for("apolices"))
+
+
+@app.route("/parcelas/<int:parcela_id>/pagamento", methods=["POST"])
+def parcela_pagamento(parcela_id):
+    repo.marcar_parcela_paga(parcela_id, request.form.get("paga") == "1")
+    flash("Parcela atualizada.", "ok")
+    destino = request.form.get("voltar")
+    if destino and destino.startswith("/") and not destino.startswith("//"):
+        return redirect(destino)
+    return redirect(url_for("dashboard"))
 
 
 @app.route("/apolices/ler-pdf", methods=["POST"])

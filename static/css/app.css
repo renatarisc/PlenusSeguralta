@@ -212,6 +212,11 @@ table.lista tr.apolice-vencida td:first-child { box-shadow: inset 3px 0 0 #a5201
 }
 .tag-venc--fim { background: var(--erro); color: #fff; border-color: var(--erro); }
 
+/* parcela já paga: fica discreta no formulário */
+table.lista tr.parcela--paga input,
+table.lista tr.parcela--paga select { color: var(--texto-suave); }
+table.lista tr.parcela--paga td:first-child input { text-decoration: line-through; }
+
 /* ---------- barra de busca ---------- */
 .busca { display: flex; gap: 8px; align-items: center; margin-bottom: 14px; max-width: 420px; }
 .busca__campo { position: relative; flex: 1; }

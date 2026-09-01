@@ -119,13 +119,13 @@ def dias_ate_data(iso):
 
 # ---------- parcelas da apólice ----------
 
-def preparar_parcelas(identificacoes, datas, valores):
-    """Recebe 3 listas paralelas (request.form.getlist). Ignora linhas totalmente vazias.
-    Devolve (parcelas, erros) — cada parcela é dict {identificacao, data, valor(float|None)}."""
+def preparar_parcelas(identificacoes, datas, valores, pagas=None):
+    """Recebe listas paralelas (request.form.getlist). Ignora linhas totalmente vazias.
+    Devolve (parcelas, erros) — dict {identificacao, data, valor(float|None), paga(0/1)}."""
     parcelas, erros = [], []
-    linhas = zip_longest(identificacoes or [], datas or [], valores or [], fillvalue="")
+    linhas = zip_longest(identificacoes or [], datas or [], valores or [], pagas or [], fillvalue="")
     n = 0
-    for ident, data, valor in linhas:
+    for ident, data, valor, paga in linhas:
         ident = (ident or "").strip()
         data = (data or "").strip()
         valor_txt = (valor or "").strip()
@@ -135,7 +135,10 @@ def preparar_parcelas(identificacoes, datas, valores):
         v = para_decimal(valor_txt)
         if valor_txt and v is None:
             erros.append(f"Parcela {n}: valor numérico inválido.")
-        parcelas.append({"identificacao": ident or None, "data": data or None, "valor": v})
+        parcelas.append({
+            "identificacao": ident or None, "data": data or None, "valor": v,
+            "paga": 1 if str(paga).strip() in ("1", "sim", "on", "true") else 0,
+        })
     return parcelas, erros
 
 

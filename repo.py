@@ -4,6 +4,7 @@ Cada função abre sua própria conexão (via db.conexao) e devolve dicts / list
 """
 
 import unicodedata
+from datetime import date
 
 from db import conexao, fazer_backup
 from validacao import so_digitos, para_decimal, dias_ate_data
@@ -272,9 +273,14 @@ def _valores_apolice(dados):
 
 def _inserir_parcelas(con, apolice_id, parcelas):
     for p in parcelas or []:
+        paga = 1 if p.get("paga") in (1, "1", True, "sim", "on") else 0
+        pago_em = (p.get("pago_em") or "").strip() or None
+        if paga and not pago_em:
+            pago_em = date.today().isoformat()
         con.execute(
-            "INSERT INTO apolice_parcela (apolice_id, identificacao, data, valor) VALUES (?, ?, ?, ?)",
-            (apolice_id, p.get("identificacao"), p.get("data"), p.get("valor")),
+            "INSERT INTO apolice_parcela (apolice_id, identificacao, data, valor, paga, pago_em) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (apolice_id, p.get("identificacao"), p.get("data"), p.get("valor"), paga, pago_em),
         )
 
 
@@ -378,11 +384,20 @@ def obter_apolice(apolice_id):
             return None
         ap = dict(l)
         ap["parcelas"] = [dict(p) for p in con.execute(
-            "SELECT id, identificacao, data, valor FROM apolice_parcela "
+            "SELECT id, identificacao, data, valor, paga, pago_em FROM apolice_parcela "
             "WHERE apolice_id = ? ORDER BY COALESCE(data, ''), id",
             (apolice_id,),
         ).fetchall()]
         return ap
+
+
+def marcar_parcela_paga(parcela_id, paga):
+    with conexao() as con:
+        con.execute(
+            "UPDATE apolice_parcela SET paga = ?, pago_em = ? WHERE id = ?",
+            (1 if paga else 0, date.today().isoformat() if paga else None, parcela_id),
+        )
+    fazer_backup()
 
 
 def criar_apolice(dados, parcelas):
@@ -453,6 +468,7 @@ SELECT p.id AS parcela_id, p.identificacao, p.data, p.valor,
   JOIN forma_pagamento f  ON f.id = a.forma_pagamento_id
  WHERE lower(f.nome) LIKE '%boleto%'
    AND p.data IS NOT NULL AND p.data <> ''
+   AND COALESCE(p.paga, 0) = 0
 """
 
 
