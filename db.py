@@ -82,7 +82,10 @@ CREATE TABLE IF NOT EXISTS apolice (
     premio_total REAL,
     forma_pagamento_id INTEGER REFERENCES forma_pagamento(id),
     comissao_percentual REAL,
-    comissao_valor REAL,
+    comissao_valor_seguralta_receber REAL,   -- calculado: prêmio líquido * % / 100
+    comissao_valor_plenus_receber REAL,      -- calculado: 75% do que a SEGURALTA recebeu
+    comissao_valor_seguralta_recebido REAL,  -- lançado à mão
+    comissao_valor_plenus_recebido REAL,     -- lançado à mão
     lancado_quiver INTEGER NOT NULL DEFAULT 0,   -- 0 = não, 1 = sim
     link_onedrive TEXT,
     veiculo_placa TEXT,                          -- só p/ seguro de automóvel
@@ -188,7 +191,9 @@ _COLUNAS_ESPERADAS = {
         "tipo_seguro_id": "INTEGER", "numero_apolice": "TEXT",
         "vigencia_inicio": "TEXT", "vigencia_fim": "TEXT",
         "premio_liquido": "REAL", "iof": "REAL", "premio_total": "REAL",
-        "forma_pagamento_id": "INTEGER", "comissao_percentual": "REAL", "comissao_valor": "REAL",
+        "forma_pagamento_id": "INTEGER", "comissao_percentual": "REAL",
+        "comissao_valor_seguralta_receber": "REAL", "comissao_valor_plenus_receber": "REAL",
+        "comissao_valor_seguralta_recebido": "REAL", "comissao_valor_plenus_recebido": "REAL",
         "lancado_quiver": "INTEGER NOT NULL DEFAULT 0", "link_onedrive": "TEXT",
         "veiculo_placa": "TEXT", "veiculo_descricao": "TEXT",
         "aviso_vigencia_ok": "INTEGER NOT NULL DEFAULT 0", "aviso_vigencia_ok_em": "TEXT",
@@ -245,6 +250,7 @@ def inicializar_db():
     with conexao() as con:
         con.executescript(_ESQUEMA_SQL)
         _migrar_esquema(con)
+        _backfill_dados(con)
 
 
 def _migrar_esquema(con):
@@ -255,6 +261,17 @@ def _migrar_esquema(con):
         for coluna, definicao in colunas.items():
             if coluna not in existentes:
                 con.execute(f"ALTER TABLE {tabela} ADD COLUMN {coluna} {definicao}")
+
+
+def _backfill_dados(con):
+    """Preenchimentos únicos de dados após a migração de esquema (só coisas idempotentes)."""
+    cols = {l["name"] for l in con.execute("PRAGMA table_info(apolice)")}
+    # comissao_valor (coluna antiga) -> comissao_valor_seguralta_receber
+    if {"comissao_valor", "comissao_valor_seguralta_receber"} <= cols:
+        con.execute(
+            "UPDATE apolice SET comissao_valor_seguralta_receber = comissao_valor "
+            "WHERE comissao_valor_seguralta_receber IS NULL AND comissao_valor IS NOT NULL"
+        )
 
 
 # ---------- backup ----------

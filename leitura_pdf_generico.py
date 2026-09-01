@@ -124,7 +124,7 @@ def extrair_campos_apolice(texto):
         c["comissao_percentual"] = pct.replace(".", ",")
     cval = _achar(t, r"comiss[ãa]o[^\n]{0,20}?R\$\s*(" + _MOEDA + r")")
     if _dinheiro(cval):
-        c["comissao_valor"] = _dinheiro(cval)
+        c["comissao_valor_seguralta_receber"] = _dinheiro(cval)
 
     # veículo (seguro de automóvel)
     placa = _achar(t, r"placa[^A-Z0-9]{0,10}([A-Z]{3}[- ]?\d[A-Z0-9]\d{2})") \

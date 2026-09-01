@@ -182,7 +182,10 @@ def validar_apolice(dados):
                           ("iof", "IOF"),
                           ("premio_total", "Prêmio total"),
                           ("comissao_percentual", "Comissão (%)"),
-                          ("comissao_valor", "Comissão (valor)")):
+                          ("comissao_valor_seguralta_receber", "Comissão SEGURALTA a receber"),
+                          ("comissao_valor_plenus_receber", "Comissão Plenus a receber"),
+                          ("comissao_valor_seguralta_recebido", "Comissão SEGURALTA recebido"),
+                          ("comissao_valor_plenus_recebido", "Comissão Plenus recebido")):
         if _numero_preenchido_invalido(dados.get(campo)):
             erros.append(f"{rotulo}: valor numérico inválido.")
 
