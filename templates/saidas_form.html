@@ -1,6 +1,10 @@
 {% extends "base.html" %}
 {% set s = saida or {} %}
 {% set lancs = s.lancamentos or [] %}
+{# o gerador (que substitui tudo) só faz sentido antes de existir histórico:
+   some quando a saída já tem algum lançamento pago #}
+{% set tem_pago = lancs | selectattr('data_pagamento') | list | length > 0 %}
+{% set pode_gerar = not s.id or not tem_pago %}
 {% block titulo %}{{ 'Editar saída' if s.id else 'Nova saída' }}{% endblock %}
 {% block cabecalho %}{{ 'Editar saída' if s.id else 'Nova saída' }}{% endblock %}
 
@@ -54,10 +58,14 @@
   <div class="cartao">
     <h2>Lançamentos</h2>
     <p class="dica" style="margin:-4px 0 12px">
-      Cada linha é um pagamento (um mês). Use o gerador para criar várias de uma vez e ajuste o que precisar.
-      A descrição, a categoria e a forma de pagamento acima valem para todas.
+      Cada linha é um pagamento (um mês).
+      {% if pode_gerar %}Use o gerador para criar vários de uma vez e ajuste o que precisar.
+      {% else %}Use <strong>Adicionar mês</strong> para incluir novos meses; os já pagos abrem travados (lápis para editar).
+      {% endif %}
+      A descrição, a categoria e a forma de pagamento acima valem para todos.
     </p>
 
+    {% if pode_gerar %}
     <div class="gerador">
       <div class="grade">
         <div class="campo c-2">
@@ -84,6 +92,7 @@
         </div>
       </div>
     </div>
+    {% endif %}
 
     <div class="tabela-wrap">
       <table class="lista" id="tab-lancamentos">
