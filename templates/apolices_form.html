@@ -239,43 +239,43 @@
     {# ---------- repasse único: os 4 valores achatados ---------- #}
     <div id="comissao-unico" {{ 'hidden' if a.comissao_parcelada }}>
       <div class="grade" style="align-items:end;margin-top:8px">
-        <div class="campo c-4">
+        <div class="campo c-5">
           <label aria-hidden="true">&nbsp;</label>
-          <button type="button" class="btn btn--primario" id="btn-calc-seg-receber" style="width:auto;align-self:flex-start">
+          <button type="button" class="btn btn--primario" id="btn-calc-seg-receber">
             Calcular % do prêmio líquido
           </button>
         </div>
-        <div class="campo c-3">
-          <label for="comissao_valor_seguralta_receber">SEGURALTA — a receber (R$)</label>
+        <div class="campo c-2">
+          <label for="comissao_valor_seguralta_receber">SEGURALTA a receber</label>
           <input id="comissao_valor_seguralta_receber" name="comissao_valor_seguralta_receber"
                  inputmode="decimal" data-num value="{{ a.comissao_valor_seguralta_receber or '' }}">
         </div>
-        <div class="campo c-3">
-          <label for="comissao_valor_seguralta_recebido">SEGURALTA — recebido (R$)</label>
+        <div class="campo c-2">
+          <label for="comissao_valor_seguralta_recebido">SEGURALTA recebido</label>
           <input id="comissao_valor_seguralta_recebido" name="comissao_valor_seguralta_recebido"
                  inputmode="decimal" data-num value="{{ a.comissao_valor_seguralta_recebido or '' }}">
         </div>
 
         <div class="grade__linha" aria-hidden="true"></div>
 
-        <div class="campo c-4">
+        <div class="campo c-5">
           <label aria-hidden="true">&nbsp;</label>
-          <button type="button" class="btn btn--primario" id="btn-calc-plenus-receber" style="width:auto;align-self:flex-start">
+          <button type="button" class="btn btn--primario" id="btn-calc-plenus-receber">
             Calcular 75% do recebido - SEGURALTA
           </button>
         </div>
-        <div class="campo c-3">
-          <label for="comissao_valor_plenus_receber">Plenus — a receber (R$)</label>
+        <div class="campo c-2">
+          <label for="comissao_valor_plenus_receber">Plenus a receber</label>
           <input id="comissao_valor_plenus_receber" name="comissao_valor_plenus_receber"
                  inputmode="decimal" data-num value="{{ a.comissao_valor_plenus_receber or '' }}">
         </div>
-        <div class="campo c-3">
-          <label for="comissao_valor_plenus_recebido">Plenus — recebido (R$)</label>
+        <div class="campo c-2">
+          <label for="comissao_valor_plenus_recebido">Plenus recebido</label>
           <input id="comissao_valor_plenus_recebido" name="comissao_valor_plenus_recebido"
                  inputmode="decimal" data-num value="{{ a.comissao_valor_plenus_recebido or '' }}">
         </div>
         <div class="campo c-3">
-          <label for="data_plenus_recebido">Plenus — data do recebimento</label>
+          <label for="data_plenus_recebido">Plenus recebido em</label>
           <input id="data_plenus_recebido" name="data_plenus_recebido" type="date"
                  value="{{ a.data_plenus_recebido or '' }}">
         </div>
