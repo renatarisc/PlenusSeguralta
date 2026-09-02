@@ -88,6 +88,11 @@ CREATE TABLE IF NOT EXISTS apolice (
     comissao_valor_plenus_recebido REAL,     -- lançado à mão
     data_plenus_recebido TEXT,               -- data em que a Plenus recebeu (ISO)
     comissao_parcelada INTEGER NOT NULL DEFAULT 0,  -- 1 = repasse mensal (usa apolice_comissao/apolice_repasse)
+    -- totais que o RELATÓRIO da corretora informa (p/ conferir divergência vs. soma do sistema)
+    previsto_relatorio_seguralta REAL,
+    recebido_relatorio_seguralta REAL,
+    previsto_relatorio_plenus REAL,
+    recebido_relatorio_plenus REAL,
     lancado_quiver INTEGER NOT NULL DEFAULT 0,   -- 0 = não, 1 = sim
     link_onedrive TEXT,
     veiculo_placa TEXT,                          -- só p/ seguro de automóvel
@@ -221,6 +226,8 @@ _COLUNAS_ESPERADAS = {
         "comissao_valor_seguralta_recebido": "REAL", "comissao_valor_plenus_recebido": "REAL",
         "data_plenus_recebido": "TEXT",
         "comissao_parcelada": "INTEGER NOT NULL DEFAULT 0",
+        "previsto_relatorio_seguralta": "REAL", "recebido_relatorio_seguralta": "REAL",
+        "previsto_relatorio_plenus": "REAL", "recebido_relatorio_plenus": "REAL",
         "lancado_quiver": "INTEGER NOT NULL DEFAULT 0", "link_onedrive": "TEXT",
         "veiculo_placa": "TEXT", "veiculo_descricao": "TEXT",
         "aviso_vigencia_ok": "INTEGER NOT NULL DEFAULT 0", "aviso_vigencia_ok_em": "TEXT",

@@ -337,6 +337,18 @@
         <button type="button" class="btn btn--linha" id="btn-add-comissao">{{ icone('mais') }} Adicionar mês</button>
         <span class="dica" id="total-comissoes" style="margin-left:10px"></span>
       </div>
+      <div class="grade" style="margin-top:8px">
+        <div class="campo c-3">
+          <label for="previsto_relatorio_seguralta">Previsto no relatório da corretora</label>
+          <input id="previsto_relatorio_seguralta" name="previsto_relatorio_seguralta"
+                 inputmode="decimal" data-num value="{{ a.previsto_relatorio_seguralta or '' }}">
+        </div>
+        <div class="campo c-3">
+          <label for="recebido_relatorio_seguralta">Recebido no relatório da corretora</label>
+          <input id="recebido_relatorio_seguralta" name="recebido_relatorio_seguralta"
+                 inputmode="decimal" data-num value="{{ a.recebido_relatorio_seguralta or '' }}">
+        </div>
+      </div>
 
       <h3 class="titulo-secao">Repasses <span>— a Plenus recebe da corretora</span></h3>
       {% if pode_gerar_repasse %}
@@ -375,6 +387,18 @@
       <div style="padding:8px 0 0">
         <button type="button" class="btn btn--linha" id="btn-add-repasse">{{ icone('mais') }} Adicionar mês</button>
         <span class="dica" id="total-repasses" style="margin-left:10px"></span>
+      </div>
+      <div class="grade" style="margin-top:8px">
+        <div class="campo c-3">
+          <label for="previsto_relatorio_plenus">Previsto no relatório da Plenus</label>
+          <input id="previsto_relatorio_plenus" name="previsto_relatorio_plenus"
+                 inputmode="decimal" data-num value="{{ a.previsto_relatorio_plenus or '' }}">
+        </div>
+        <div class="campo c-3">
+          <label for="recebido_relatorio_plenus">Recebido no relatório da Plenus</label>
+          <input id="recebido_relatorio_plenus" name="recebido_relatorio_plenus"
+                 inputmode="decimal" data-num value="{{ a.recebido_relatorio_plenus or '' }}">
+        </div>
       </div>
       </div>{# .dlg__corpo #}
       <div class="dlg__rodape">

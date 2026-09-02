@@ -396,6 +396,8 @@ _CAMPOS_APOLICE = (
     "comissao_valor_seguralta_receber", "comissao_valor_plenus_receber",
     "comissao_valor_seguralta_recebido", "comissao_valor_plenus_recebido",
     "data_plenus_recebido", "comissao_parcelada",
+    "previsto_relatorio_seguralta", "recebido_relatorio_seguralta",
+    "previsto_relatorio_plenus", "recebido_relatorio_plenus",
     "lancado_quiver", "link_onedrive",
     "veiculo_placa", "veiculo_descricao",
     "aviso_vigencia_ok", "aviso_vigencia_ok_em",
@@ -410,7 +412,9 @@ def _apolice_para_form(ap, parcelas=None):
     ap = dict(ap)
     for campo in ("premio_liquido", "iof", "premio_total", "comissao_percentual",
                   "comissao_valor_seguralta_receber", "comissao_valor_plenus_receber",
-                  "comissao_valor_seguralta_recebido", "comissao_valor_plenus_recebido"):
+                  "comissao_valor_seguralta_recebido", "comissao_valor_plenus_recebido",
+                  "previsto_relatorio_seguralta", "recebido_relatorio_seguralta",
+                  "previsto_relatorio_plenus", "recebido_relatorio_plenus"):
         ap[campo] = formatar_numero(ap.get(campo))
     fonte = parcelas if parcelas is not None else ap.get("parcelas", [])
     ap["parcelas"] = [{**p, "valor": formatar_numero(p.get("valor"))} for p in fonte]

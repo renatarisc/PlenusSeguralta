@@ -81,11 +81,23 @@
       editaveis(tr).forEach((el) => { el.removeAttribute("readonly"); el.removeAttribute("tabindex"); });
     }
     function atualizarTotal() {
-      total.textContent = cfg.textoTotal(linhas().map((tr) => ({
+      const rows = linhas().map((tr) => ({
         v1: num(campo(tr, cfg.campoValor).value),
         v2: cfg.campoValor2 ? num(campo(tr, cfg.campoValor2).value) : 0,
         preenchida: preenchida(tr),
-      })));
+      }));
+      let txt = cfg.textoTotal(rows);
+      if (cfg.relPrevisto) {                       // compara com o total do relatório
+        const somaP = rows.reduce((s, r) => s + r.v1, 0);
+        const somaR = rows.reduce((s, r) => s + r.v2, 0);
+        const rp = num((document.getElementById(cfg.relPrevisto) || {}).value);
+        const rr = num((document.getElementById(cfg.relRecebido) || {}).value);
+        const dif = [];
+        if (rp && Math.abs(rp - somaP) >= 0.01) dif.push("previsto");
+        if (rr && Math.abs(rr - somaR) >= 0.01) dif.push("recebido");
+        if (dif.length) txt += "  ⚠ diverge do relatório: " + dif.join(" e ");
+      }
+      total.textContent = txt;
     }
     function novaLinha(d) {
       const tr = tpl.content.firstElementChild.cloneNode(true);
@@ -166,6 +178,11 @@
       });
     }
 
+    [cfg.relPrevisto, cfg.relRecebido].forEach((id) => {
+      const el = id && document.getElementById(id);
+      if (el) el.addEventListener("input", atualizarTotal);
+    });
+
     if (!linhas().length) novaLinha();
     linhas().forEach((tr) => { if (cfg.ehTravada(tr, campo)) travar(tr); });
     atualizarTotal();
@@ -177,6 +194,7 @@
     gerQtd: "ger_com_qtd", gerValor: "ger_com_valor", gerData1: "ger_com_data1",
     campoParcela: "comissao_parcela", campoData: "comissao_data",
     campoValor: "comissao_previsto", campoValor2: "comissao_recebido",
+    relPrevisto: "previsto_relatorio_seguralta", relRecebido: "recebido_relatorio_seguralta",
     ehTravada: (tr, campo) => (campo(tr, "comissao_recebido").value || "").trim() !== "",
     textoTotal: (rows) => {
       if (!rows.length) return "";
@@ -192,6 +210,7 @@
     gerQtd: "ger_rep_qtd", gerValor: "ger_rep_valor", gerData1: "ger_rep_data1",
     campoParcela: "repasse_parcela", campoData: "repasse_data",
     campoValor: "repasse_previsto", campoValor2: "repasse_recebido",
+    relPrevisto: "previsto_relatorio_plenus", relRecebido: "recebido_relatorio_plenus",
     ehTravada: (tr, campo) => (campo(tr, "repasse_recebido").value || "").trim() !== "",
     textoTotal: (rows) => {
       if (!rows.length) return "";
