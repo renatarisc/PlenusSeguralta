@@ -83,9 +83,19 @@
       soma += num(tr.querySelector('[name="parcela_valor"]').value);
       atualizarAtraso(tr);
     });
-    resumo.textContent = ls.length
-      ? ls.length + " parcela(s) · soma R$ " + fmt(soma)
-      : "";
+    if (!ls.length) { resumo.textContent = ""; return; }
+
+    let txt = ls.length + " parcela(s) · soma R$ " + fmt(soma);
+    // conferência: soma das parcelas deve bater com o prêmio total
+    const elTotal = document.getElementById("premio_total");
+    const total = elTotal ? num(elTotal.value) : 0;
+    if (total) {
+      const dif = Math.round((soma - total) * 100) / 100;
+      txt += Math.abs(dif) < 0.01
+        ? ' <span class="selo-ok">✓ confere com o prêmio total</span>'
+        : ' <span class="selo-ruim">⚠ difere do prêmio total em R$ ' + fmt(Math.abs(dif)) + "</span>";
+    }
+    resumo.innerHTML = txt;
   }
 
   function novaLinha(dados) {
@@ -231,11 +241,13 @@
   const pt = document.getElementById("premio_total");
   if (pl && iof && pt) {
     let totalManual = false;
-    pt.addEventListener("input", () => { totalManual = true; });
+    pt.addEventListener("input", () => { totalManual = true; atualizarResumo(); });
     const recalcTotal = () => {
-      if (totalManual) return;
-      if (!pl.value.trim() && !iof.value.trim()) { pt.value = ""; return; }
-      pt.value = fmt(num(pl.value) + num(iof.value));
+      if (!totalManual) {
+        if (!pl.value.trim() && !iof.value.trim()) pt.value = "";
+        else pt.value = fmt(num(pl.value) + num(iof.value));
+      }
+      atualizarResumo();  // a conferência parcelas × prêmio total depende disso
     };
     pl.addEventListener("input", recalcTotal);
     iof.addEventListener("input", recalcTotal);
