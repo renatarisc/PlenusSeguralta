@@ -6,7 +6,7 @@
 
 import os
 import sqlite3
-from datetime import timedelta
+from datetime import date, timedelta
 
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
 from flask_wtf.csrf import CSRFProtect
@@ -397,7 +397,8 @@ _CAMPOS_APOLICE = (
     "forma_pagamento_id", "comissao_percentual",
     "comissao_valor_seguralta_receber", "comissao_valor_plenus_receber",
     "comissao_valor_seguralta_recebido", "comissao_valor_plenus_recebido",
-    "data_plenus_recebido", "comissao_parcelada", "comissao_cocorretagem",
+    "data_plenus_recebido", "plenus_conferido_banco",
+    "comissao_parcelada", "comissao_cocorretagem",
     "previsto_relatorio_seguralta", "recebido_relatorio_seguralta",
     "previsto_relatorio_plenus", "recebido_relatorio_plenus",
     "lancado_quiver", "link_onedrive",
@@ -418,6 +419,9 @@ def _apolice_para_form(ap, parcelas=None):
                   "previsto_relatorio_seguralta", "recebido_relatorio_seguralta",
                   "previsto_relatorio_plenus", "recebido_relatorio_plenus"):
         ap[campo] = formatar_numero(ap.get(campo))
+    # flag 0/1 vinda ora do banco (int), ora do form re-renderizado após erro (str "0"/"1"):
+    # normaliza p/ o template não tratar a string "0" como verdadeira
+    ap["plenus_conferido_banco"] = 1 if str(ap.get("plenus_conferido_banco") or "").strip() in ("1", "sim", "on", "true") else 0
     fonte = parcelas if parcelas is not None else ap.get("parcelas", [])
     ap["parcelas"] = [{**p, "valor": formatar_numero(p.get("valor"))} for p in fonte]
     ap["comissoes"] = [{**c, "valor_previsto": formatar_numero(c.get("valor_previsto")),
@@ -488,6 +492,7 @@ def apolice_form(apolice_id=None):
             request.form.getlist("repasse_previsto"),
             request.form.getlist("repasse_recebido"),
             request.form.getlist("repasse_data"),
+            request.form.getlist("repasse_conferido"),
         )
         if not dados.get("comissao_parcelada"):  # modo "único": ignora as tabelas
             comissoes, repasses = [], []
@@ -584,8 +589,14 @@ def _ler_pdf(alvo):
 
 @app.route("/financeiro/saidas")
 def saidas_lista():
-    mes = request.args.get("mes", type=int)
-    if mes not in range(1, 13):
+    # sem o parâmetro "mes" na URL (navegação normal) → mostra só o mês corrente;
+    # "mes" vazio ("Qualquer mês" escolhido no filtro) → todos os meses.
+    mes_arg = request.args.get("mes")
+    if mes_arg is None:
+        mes = date.today().month
+    elif mes_arg.isdigit() and int(mes_arg) in range(1, 13):
+        mes = int(mes_arg)
+    else:
         mes = None
     status = request.args.get("status", "")
     categoria_id = request.args.get("categoria_id", type=int)
@@ -593,10 +604,13 @@ def saidas_lista():
     saidas = repo.listar_saidas(mes=mes, status=status or None,
                                 categoria_id=categoria_id or None, busca=busca or None)
     total = sum(s["valor"] or 0 for s in saidas)
+    tem_filtro = bool(busca or status or categoria_id) or mes != date.today().month
     return render_template("saidas_lista.html", ativo="saidas_lista",
                            saidas=saidas, total=total, resumo=repo.resumo_saidas(),
                            mes=mes, status=status, categoria_id=categoria_id, busca=busca,
-                           categorias=repo.categorias_saida(), MESES=_MESES)
+                           tem_filtro=tem_filtro, mes_atual=date.today().month,
+                           categorias=repo.categorias_saida(),
+                           descricoes=repo.descricoes_saida(), MESES=_MESES)
 
 
 def _selects_saida():

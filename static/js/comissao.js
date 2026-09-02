@@ -70,7 +70,11 @@
 
     const linhas = () => Array.from(corpo.querySelectorAll("tr.fluxo-linha"));
     const campo = (tr, nome) => tr.querySelector('[name="' + nome + '"]');
-    const editaveis = (tr) => Array.from(tr.querySelectorAll("input:not([type=hidden]), select"));
+    // o select "Conferido no banco" ([data-conf]) NÃO trava junto com a linha —
+    // a conferência do depósito acontece depois que o "recebido" já foi lançado.
+    const editaveis = (tr) =>
+      Array.from(tr.querySelectorAll("input:not([type=hidden]), select"))
+        .filter((el) => !el.hasAttribute("data-conf"));
 
     function preenchida(tr) {
       return editaveis(tr).some((el) => (el.value || "").trim());
@@ -94,12 +98,20 @@
       editaveis(tr).forEach((el) => { el.removeAttribute("readonly"); el.removeAttribute("tabindex"); });
     }
     function atualizarTotal() {
-      const rows = linhas().map((tr) => ({
+      const ls = linhas();
+      let conferidas = 0;
+      ls.forEach((tr) => {
+        const sel = tr.querySelector("[data-conf]");
+        const on = !!sel && sel.value === "1";
+        if (on) conferidas++;
+        tr.classList.toggle("linha-conferida", on);
+      });
+      const rows = ls.map((tr) => ({
         v1: num(campo(tr, cfg.campoValor).value),
         v2: cfg.campoValor2 ? num(campo(tr, cfg.campoValor2).value) : 0,
         preenchida: preenchida(tr),
       }));
-      total.textContent = cfg.textoTotal(rows);
+      total.textContent = cfg.textoTotal(rows, { conferidas });
 
       const elAviso = cfg.avisoEl && document.getElementById(cfg.avisoEl);
       if (elAviso) {                                // divergência × total do relatório
@@ -230,11 +242,13 @@
     relPrevisto: "previsto_relatorio_plenus", relRecebido: "recebido_relatorio_plenus",
     avisoEl: "aviso-rep",
     ehTravada: (tr, campo) => (campo(tr, "repasse_recebido").value || "").trim() !== "",
-    textoTotal: (rows) => {
+    textoTotal: (rows, extra) => {
       if (!rows.length) return "";
       const prev = rows.reduce((s, r) => s + r.v1, 0);
       const receb = rows.reduce((s, r) => s + r.v2, 0);
-      return rows.length + " linha(s) · previsto R$ " + fmt(prev) + " · recebido R$ " + fmt(receb);
+      let t = rows.length + " linha(s) · previsto R$ " + fmt(prev) + " · recebido R$ " + fmt(receb);
+      if (extra && extra.conferidas) t += " · " + extra.conferidas + " conferida(s) no banco";
+      return t;
     },
   });
 

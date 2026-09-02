@@ -28,8 +28,12 @@
       <label for="f-busca">Buscar</label>
       <div class="campo-busca">
         {{ icone('busca') }}
-        <input id="f-busca" type="text" name="busca" value="{{ busca }}" placeholder="Descrição da saída">
+        <input id="f-busca" type="text" name="busca" value="{{ busca }}" list="lista-descricoes"
+               autocomplete="off" placeholder="Descrição da saída">
       </div>
+      <datalist id="lista-descricoes">
+        {% for d in descricoes %}<option value="{{ d }}">{% endfor %}
+      </datalist>
     </div>
     <div class="campo c-2">
       <label for="f-mes">Mês do vencimento</label>
@@ -61,8 +65,8 @@
   </div>
   <div class="filtros__acoes">
     <button class="btn btn--primario" type="submit">{{ icone('busca') }} Buscar</button>
-    {% if busca or mes or status or categoria_id %}
-    <a class="btn btn--linha" href="{{ url_for('saidas_lista') }}">Limpar</a>
+    {% if tem_filtro %}
+    <a class="btn btn--linha" href="{{ url_for('saidas_lista') }}">Limpar (voltar ao mês atual)</a>
     {% endif %}
   </div>
 </form>
@@ -70,60 +74,56 @@
 <div class="cartao" style="padding:0">
   {% if saidas %}
   <div class="tabela-wrap">
-    <table class="lista">
+    <table class="lista lista--saidas">
       <thead>
-        <tr><th>Descrição</th><th>Categoria</th><th>Forma de pgto</th><th>Parcela</th><th>Vencimento</th>
-            <th>Valor</th><th>Situação</th><th></th></tr>
+        <tr>
+          <th>Descrição</th>
+          <th style="width:170px">Vencimento</th>
+          <th style="width:130px;text-align:right">Valor</th>
+          <th style="width:160px"></th>
+        </tr>
       </thead>
       <tbody>
         {% for s in saidas %}
         {% set d = s.dias_restantes %}
-        <tr class="{{ 'apolice-vencida' if s.status == 'vencido' else ('apolice-vencendo' if s.status == 'a_pagar' and d is not none and d <= DIAS_ALERTA_SAIDA) }}"
-            style="{{ 'opacity:.6' if s.status == 'pago' }}">
+        {% set perto = s.status == 'a_pagar' and d is not none and d <= DIAS_ALERTA_SAIDA %}
+        {% set partes = [s.categoria, s.forma_pagamento, s.numero_parcela] | select | list %}
+        <tr class="{{ 'apolice-vencida' if s.status == 'vencido' else ('apolice-vencendo' if perto) }} {{ 'linha-paga' if s.status == 'pago' }}">
           <td>
-            <a href="{{ url_for('saida_form', saida_id=s.id) }}"
-               style="font-weight:600;color:var(--laranja-hover);{{ 'text-decoration:line-through' if s.status == 'pago' }}">{{ s.descricao }}</a>
-            {% if s.fixo_mensal %}<span class="tag-venc" style="background:#e7efe7;color:#3a5a40">fixa mensal</span>{% endif %}
+            <a class="cel-titulo" href="{{ url_for('saida_form', saida_id=s.id) }}">{{ s.descricao }}</a>
+            {% if s.fixo_mensal %}<span class="tag-fixa">fixa mensal</span>{% endif %}
+            {% if partes %}<span class="meta">{{ partes | join(' · ') }}</span>{% endif %}
           </td>
-          <td>{{ s.categoria or '—' }}</td>
-          <td>{{ s.forma_pagamento or '—' }}</td>
-          <td>{{ s.numero_parcela or '—' }}</td>
-          <td>
-            {{ s.data_vencimento|data_br }}
-            {% if s.status == 'vencido' %}
-            <span class="tag-venc tag-venc--fim">vencida há {{ -d }}d</span>
-            {% elif s.status == 'a_pagar' and d is not none and d <= DIAS_ALERTA_SAIDA %}
-            <span class="tag-venc">{{ 'vence hoje' if d == 0 else 'vence em ' ~ d ~ 'd' }}</span>
-            {% endif %}
-          </td>
-          <td>{{ s.valor|moeda }}</td>
-          <td>
-            {% if s.status == 'pago' %}Paga em {{ s.data_pagamento|data_br }}
-            {% elif s.status == 'vencido' %}<span style="color:var(--erro)">Vencida</span>
-            {% else %}A pagar{% endif %}
-          </td>
-          <td class="acoes">
+          <td class="col-venc">
+            <span class="venc-data">{{ s.data_vencimento|data_br }}</span>
             {% if s.status == 'pago' %}
-            <form method="post" action="{{ url_for('saida_pagamento', saida_id=s.id) }}">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <input type="hidden" name="paga" value="0">
-              <input type="hidden" name="voltar" value="{{ url_for('saidas_lista') }}">
-              <button class="btn btn--linha btn--mini" type="submit" title="Desfazer pagamento">desfazer</button>
-            </form>
+            <span class="selo-pago">✓ paga em {{ s.data_pagamento|data_br }}</span>
+            {% elif s.status == 'vencido' %}
+            <span class="tag-venc tag-venc--fim">vencida há {{ -d }}d</span>
+            {% elif perto %}
+            <span class="tag-venc">{{ 'vence hoje' if d == 0 else 'vence em ' ~ d ~ 'd' }}</span>
             {% else %}
+            <span class="selo-apagar">a pagar</span>
+            {% endif %}
+          </td>
+          <td class="col-valor">{{ s.valor|moeda }}</td>
+          <td class="acoes">
             <form method="post" action="{{ url_for('saida_pagamento', saida_id=s.id) }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <input type="hidden" name="paga" value="1">
+              <input type="hidden" name="paga" value="{{ '0' if s.status == 'pago' else '1' }}">
               <input type="hidden" name="voltar" value="{{ url_for('saidas_lista') }}">
+              {% if s.status == 'pago' %}
+              <button class="btn btn--linha btn--mini" type="submit" title="Desfazer pagamento">desfazer</button>
+              {% else %}
               <button class="btn btn--linha btn--mini" type="submit" title="Marcar como paga hoje">{{ icone('ok') }} pagar</button>
+              {% endif %}
             </form>
-            {% endif %}
-            <a class="btn btn--linha btn--mini" href="{{ url_for('saida_form', saida_id=s.id) }}">{{ icone('lapis') }}</a>
+            <a class="btn btn--linha btn--mini" href="{{ url_for('saida_form', saida_id=s.id) }}" title="Editar">{{ icone('lapis') }}</a>
             <form method="post" action="{{ url_for('saida_excluir', saida_id=s.id) }}"
                   onsubmit="return confirm('Excluir a saída &quot;{{ s.descricao }}&quot;?')">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="voltar" value="{{ url_for('saidas_lista') }}">
-              <button class="btn btn--perigo btn--mini" type="submit">{{ icone('lixo') }}</button>
+              <button class="btn btn--perigo btn--mini" type="submit" title="Excluir">{{ icone('lixo') }}</button>
             </form>
           </td>
         </tr>
@@ -133,8 +133,8 @@
   </div>
   {% else %}
   <p class="vazio">
-    {% if busca or mes or status or categoria_id %}Nenhuma saída encontrada para o filtro.
-    {% else %}Nenhuma saída cadastrada ainda.{% endif %}
+    {% if tem_filtro %}Nenhuma saída encontrada para o filtro.
+    {% else %}Nenhuma saída com vencimento em {{ MESES[mes_atual] }}. Use os filtros para ver outros meses.{% endif %}
   </p>
   {% endif %}
 </div>

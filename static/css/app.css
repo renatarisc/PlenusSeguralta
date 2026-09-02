@@ -246,6 +246,24 @@ table.lista tr.apolice-vencida td:first-child { box-shadow: inset 3px 0 0 #a5201
 }
 .tag-venc--fim { background: var(--erro); color: #fff; border-color: var(--erro); }
 
+/* ---------- lista de Saídas (fluxo de caixa): 4 colunas, meta em sub-linha ---------- */
+.lista--saidas td { vertical-align: top; }
+.lista--saidas .cel-titulo { font-weight: 600; color: var(--laranja-hover); }
+.lista--saidas tr.linha-paga .cel-titulo { text-decoration: line-through; color: var(--texto-suave); }
+.lista--saidas tr.linha-paga td { color: var(--texto-suave); }
+.lista--saidas .tag-fixa {
+  display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px;
+  font-size: 10.5px; font-weight: 700; background: #e7efe7; color: #3a5a40; vertical-align: middle;
+}
+.lista--saidas .meta { display: block; margin-top: 3px; font-size: 11.5px; color: var(--texto-suave); }
+.lista--saidas .col-venc .venc-data { display: block; font-size: 12.5px; }
+.lista--saidas .col-venc .tag-venc { margin-left: 0; margin-top: 4px; }
+.lista--saidas .selo-pago { display: block; margin-top: 3px; font-size: 11px; font-weight: 700; color: var(--ok); }
+.lista--saidas .selo-apagar { display: block; margin-top: 3px; font-size: 11px; color: var(--texto-suave); }
+.lista--saidas .col-valor {
+  text-align: right; white-space: nowrap; font-weight: 600; font-variant-numeric: tabular-nums;
+}
+
 /* ---------- tabela de parcelas / lançamentos: campos no mesmo padrão dos formulários ---------- */
 #tab-parcelas td,
 #tab-lancamentos td { padding: 8px 10px; vertical-align: middle; }
@@ -381,6 +399,9 @@ dialog.dlg::backdrop { background: rgba(20, 20, 25, .45); }
   color: var(--laranja-hover); border-bottom: 2px solid var(--laranja-fraco);
 }
 .titulo-secao span { font-weight: 600; color: var(--texto-suave); font-size: 12.5px; }
+/* "Repasses"/"Plenus" é o nome da seção (span só p/ o JS trocar o texto na cocorretagem):
+   mantém o mesmo destaque do "Comissão" ao lado */
+.titulo-secao span#tit-repasse-a { font-weight: 700; color: var(--laranja-hover); font-size: 14px; }
 
 /* ---------- tabelas de comissão / repasse (mesmo padrão) ---------- */
 .tab-fluxo { max-width: 660px; }                 /* campos são curtos: tabela não estica */
@@ -405,6 +426,16 @@ dialog.dlg::backdrop { background: rgba(20, 20, 25, .45); }
 .tab-fluxo tr.linha-travada select {
   background: #f3f9f3; border-color: #cfe3cf; color: var(--texto-suave); pointer-events: none;
 }
+/* "Conferido no banco": segue editável mesmo com a linha travada pelo "recebido" */
+.tab-fluxo th small { font-weight: 400; color: var(--texto-suave); }
+.tab-fluxo td.col-conf { text-align: center; }
+.tab-fluxo tr.linha-travada select[data-conf] {
+  background: var(--branco); border-color: var(--linha); color: var(--texto); pointer-events: auto;
+}
+.tab-fluxo tr.linha-conferida select[data-conf] {
+  border-color: var(--ok); color: var(--ok); font-weight: 700;
+}
+.tab-fluxo tr.linha-conferida td:first-child { box-shadow: inset 3px 0 0 var(--ok); }
 
 /* ---------- barra de busca ---------- */
 .busca { display: flex; gap: 8px; align-items: center; margin-bottom: 14px; max-width: 420px; }

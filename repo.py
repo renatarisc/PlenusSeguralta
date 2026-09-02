@@ -255,7 +255,8 @@ _COLS_APOLICE = (
     "forma_pagamento_id", "comissao_percentual",
     "comissao_valor_seguralta_receber", "comissao_valor_plenus_receber",
     "comissao_valor_seguralta_recebido", "comissao_valor_plenus_recebido",
-    "data_plenus_recebido", "comissao_parcelada", "comissao_cocorretagem",
+    "data_plenus_recebido", "plenus_conferido_banco",
+    "comissao_parcelada", "comissao_cocorretagem",
     "previsto_relatorio_seguralta", "recebido_relatorio_seguralta",
     "previsto_relatorio_plenus", "recebido_relatorio_plenus",
     "lancado_quiver", "link_onedrive",
@@ -287,6 +288,7 @@ def _valores_apolice(dados):
         para_decimal(dados.get("comissao_valor_seguralta_recebido")),
         para_decimal(dados.get("comissao_valor_plenus_recebido")),
         (dados.get("data_plenus_recebido") or "").strip() or None,
+        _sim_nao(dados.get("plenus_conferido_banco")),
         _sim_nao(dados.get("comissao_parcelada")),
         _sim_nao(dados.get("comissao_cocorretagem")),
         para_decimal(dados.get("previsto_relatorio_seguralta")),
@@ -335,12 +337,13 @@ def _inserir_comissoes(con, apolice_id, linhas):
 
 def _inserir_repasses(con, apolice_id, linhas):
     for i, r in enumerate(linhas or []):
+        conf = 1 if r.get("conferido_banco") in (1, "1", True, "sim", "on") else 0
         con.execute(
             "INSERT INTO apolice_repasse "
-            "(apolice_id, parcela, valor_previsto, valor_recebido, data, ordem) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
+            "(apolice_id, parcela, valor_previsto, valor_recebido, data, conferido_banco, ordem) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
             (apolice_id, r.get("parcela"), r.get("valor_previsto"),
-             r.get("valor_recebido"), r.get("data"), i),
+             r.get("valor_recebido"), r.get("data"), conf, i),
         )
 
 
@@ -477,7 +480,7 @@ def obter_apolice(apolice_id):
             (apolice_id,),
         ).fetchall()]
         ap["repasses"] = [dict(x) for x in con.execute(
-            "SELECT id, parcela, valor_previsto, valor_recebido, data "
+            "SELECT id, parcela, valor_previsto, valor_recebido, data, conferido_banco "
             "FROM apolice_repasse WHERE apolice_id = ? ORDER BY ordem, id",
             (apolice_id,),
         ).fetchall()]
@@ -864,6 +867,16 @@ def listar_saidas(mes=None, status=None, categoria_id=None, busca=None):
 def categorias_saida():
     """Lista o cadastro de categorias de saída ([{id, nome}])."""
     return listar_simples("categoria_saida")
+
+
+def descricoes_saida():
+    """Descrições distintas já cadastradas em `saida` (p/ o autocomplete da busca)."""
+    with conexao() as con:
+        return [r[0] for r in con.execute(
+            "SELECT DISTINCT descricao FROM saida "
+            "WHERE descricao IS NOT NULL AND TRIM(descricao) <> '' "
+            "ORDER BY descricao COLLATE NOCASE"
+        ).fetchall()]
 
 
 def saidas_a_pagar(limite_dias):

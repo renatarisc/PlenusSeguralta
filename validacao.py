@@ -186,13 +186,15 @@ def preparar_comissoes(parcelas, previstos, recebidos, datas):
     return linhas, erros
 
 
-def preparar_repasses(parcelas, previstos, recebidos, datas):
+def preparar_repasses(parcelas, previstos, recebidos, datas, conferidos=None):
     """Tabela "Repasses" (Plenus recebe da corretora). Mesma estrutura da comissão:
-    {parcela, valor_previsto(float|None), valor_recebido, data}."""
+    {parcela, valor_previsto(float|None), valor_recebido, data, conferido_banco}.
+    `conferido_banco` (0/1) = o depósito já foi conferido no extrato bancário da Plenus."""
     linhas, erros = [], []
-    z = zip_longest(parcelas or [], previstos or [], recebidos or [], datas or [], fillvalue="")
+    z = zip_longest(parcelas or [], previstos or [], recebidos or [], datas or [],
+                    conferidos or [], fillvalue="")
     n = 0
-    for parc, prev, receb, data in z:
+    for parc, prev, receb, data, conf in z:
         parc = (parc or "").strip()
         prev_txt = (prev or "").strip()
         receb_txt = (receb or "").strip()
@@ -206,7 +208,8 @@ def preparar_repasses(parcelas, previstos, recebidos, datas):
         if receb_txt and vr is None:
             erros.append(f"Repasse {n}: recebido inválido.")
         linhas.append({"parcela": parc or None, "valor_previsto": vp,
-                       "valor_recebido": vr, "data": data or None})
+                       "valor_recebido": vr, "data": data or None,
+                       "conferido_banco": _sim(conf)})
     return linhas, erros
 
 

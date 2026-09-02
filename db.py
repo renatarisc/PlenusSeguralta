@@ -87,6 +87,7 @@ CREATE TABLE IF NOT EXISTS apolice (
     comissao_valor_seguralta_recebido REAL,  -- lançado à mão
     comissao_valor_plenus_recebido REAL,     -- lançado à mão
     data_plenus_recebido TEXT,               -- data em que a Plenus recebeu (ISO)
+    plenus_conferido_banco INTEGER NOT NULL DEFAULT 0,  -- 1 = repasse único conferido no extrato bancário da Plenus
     comissao_parcelada INTEGER NOT NULL DEFAULT 0,  -- 1 = repasse mensal (usa apolice_comissao/apolice_repasse)
     comissao_cocorretagem INTEGER NOT NULL DEFAULT 0,  -- 1 = cocorretagem (SEGURALTA 25% / Plenus 75% da comissão, sem repasse)
     -- totais que o RELATÓRIO da corretora informa (p/ conferir divergência vs. soma do sistema)
@@ -140,6 +141,7 @@ CREATE TABLE IF NOT EXISTS apolice_repasse (
     valor_previsto REAL,
     valor_recebido REAL,
     data TEXT,
+    conferido_banco INTEGER NOT NULL DEFAULT 0,  -- 1 = depósito conferido no extrato bancário da Plenus
     ordem INTEGER NOT NULL DEFAULT 0
 );
 
@@ -226,6 +228,7 @@ _COLUNAS_ESPERADAS = {
         "comissao_valor_seguralta_receber": "REAL", "comissao_valor_plenus_receber": "REAL",
         "comissao_valor_seguralta_recebido": "REAL", "comissao_valor_plenus_recebido": "REAL",
         "data_plenus_recebido": "TEXT",
+        "plenus_conferido_banco": "INTEGER NOT NULL DEFAULT 0",
         "comissao_parcelada": "INTEGER NOT NULL DEFAULT 0",
         "comissao_cocorretagem": "INTEGER NOT NULL DEFAULT 0",
         "previsto_relatorio_seguralta": "REAL", "recebido_relatorio_seguralta": "REAL",
@@ -249,7 +252,8 @@ _COLUNAS_ESPERADAS = {
     },
     "apolice_repasse": {
         "apolice_id": "INTEGER", "parcela": "TEXT", "valor_previsto": "REAL",
-        "valor_recebido": "REAL", "data": "TEXT", "ordem": "INTEGER NOT NULL DEFAULT 0",
+        "valor_recebido": "REAL", "data": "TEXT",
+        "conferido_banco": "INTEGER NOT NULL DEFAULT 0", "ordem": "INTEGER NOT NULL DEFAULT 0",
     },
     "notificacao_parcela": {
         "parcela_id": "INTEGER", "marco": "INTEGER", "data_vencimento": "TEXT",
