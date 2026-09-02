@@ -332,7 +332,7 @@ table.lista tr.apolice-vencida td:first-child { box-shadow: inset 3px 0 0 #a5201
 
 /* janela (dialog) — usada pela comissão parcelada */
 dialog.dlg {
-  width: min(1600px, 96vw); max-height: 94vh; padding: 0; border: none; overflow: hidden;
+  width: min(720px, 92vw); max-height: 96vh; padding: 0; border: none; overflow: hidden;
   border-radius: var(--raio); box-shadow: 0 24px 70px rgba(20, 20, 25, .35);
   background: var(--branco); color: var(--texto);
 }
@@ -365,7 +365,8 @@ dialog.dlg::backdrop { background: rgba(20, 20, 25, .45); }
 .titulo-secao span { font-weight: 600; color: var(--texto-suave); font-size: 12.5px; }
 
 /* ---------- tabelas de comissão / repasse (mesmo padrão) ---------- */
-.tab-fluxo td { padding: 8px 10px; vertical-align: middle; }
+.tab-fluxo { max-width: 660px; }                 /* campos são curtos: tabela não estica */
+.tab-fluxo td { padding: 7px 8px; vertical-align: middle; }
 .tab-fluxo tbody td input,
 .tab-fluxo tbody td select {
   width: 100%; font: inherit; font-size: 13.5px; padding: 8px 10px;
