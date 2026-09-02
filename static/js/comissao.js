@@ -225,9 +225,10 @@
     },
   });
 
-  // ---------- conferência no fim da janela ----------
+  // ---------- conferência (uma no bloco Comissão, outra no bloco Repasses) ----------
   const FATOR_PLENUS = 0.75;
-  const elConf = document.getElementById("conferencia-75");
+  const elConfCom = document.getElementById("conf-comissao");
+  const elConfRep = document.getElementById("conf-repasse");
 
   function somaCampo(corpoId, nome) {
     const c = document.getElementById(corpoId);
@@ -236,34 +237,44 @@
       .reduce((s, el) => s + num(el.value), 0);
   }
   function conferir75() {
-    if (!elConf) return;
     const cR = somaCampo("corpo-comissoes", "comissao_recebido");
     const rR = somaCampo("corpo-repasses", "repasse_recebido");
     const pct = num((document.getElementById("comissao_percentual") || {}).value);
     const premio = num((document.getElementById("premio_liquido") || {}).value);
 
-    if (!(cR || rR || (pct && premio))) { elConf.hidden = true; return; }
-    elConf.hidden = false;
-
-    let html = "<strong>Conferência</strong>";
-
-    if (pct && premio) {
-      const val = Math.round((pct / 100) * premio * 100) / 100;
-      const pctTxt = Number.isInteger(pct) ? String(pct) : fmt(pct);
-      html += "<div>Comissão de " + pctTxt + "% do prêmio líquido = R$ " + fmt(val) + "</div>";
-    } else {
-      html += '<div style="color:var(--texto-suave)">Comissão de …% do prêmio líquido — informe Percentual (%) e Prêmio líquido</div>';
+    // bloco Comissão: comissão = pct% do prêmio líquido
+    if (elConfCom) {
+      if (!(pct && premio) && !cR) {
+        elConfCom.hidden = true;
+      } else {
+        elConfCom.hidden = false;
+        let l;
+        if (pct && premio) {
+          const val = Math.round((pct / 100) * premio * 100) / 100;
+          const pctTxt = Number.isInteger(pct) ? String(pct) : fmt(pct);
+          l = "Comissão de " + pctTxt + "% do prêmio líquido = R$ " + fmt(val);
+        } else {
+          l = '<span style="color:var(--texto-suave)">Informe Percentual (%) e Prêmio líquido</span>';
+        }
+        elConfCom.innerHTML = "<strong>Conferência</strong><div>" + l + "</div>";
+      }
     }
 
-    const esp = Math.round(FATOR_PLENUS * cR * 100) / 100;
-    const lan = Math.round(rR * 100) / 100;
-    const ok = Math.abs(esp - lan) < 0.01;
-    html += "<div>Repasse de 75% da comissão recebida = R$ " + fmt(esp) +
-      " · repasse recebido lançado R$ " + fmt(lan) +
-      ' <span class="' + (ok ? "ok" : "ruim") + '">' +
-      (ok ? "✓" : "⚠ diferença R$ " + fmt(Math.abs(esp - lan))) + "</span></div>";
-
-    elConf.innerHTML = html;
+    // bloco Repasses: repasse = 75% da comissão recebida
+    if (elConfRep) {
+      if (!(cR || rR)) {
+        elConfRep.hidden = true;
+      } else {
+        elConfRep.hidden = false;
+        const esp = Math.round(FATOR_PLENUS * cR * 100) / 100;
+        const lan = Math.round(rR * 100) / 100;
+        const ok = Math.abs(esp - lan) < 0.01;
+        elConfRep.innerHTML = "<strong>Conferência</strong><div>Repasse de 75% da comissão recebida = R$ " +
+          fmt(esp) + " · repasse recebido lançado R$ " + fmt(lan) +
+          ' <span class="' + (ok ? "ok" : "ruim") + '">' +
+          (ok ? "✓" : "⚠ diferença R$ " + fmt(Math.abs(esp - lan))) + "</span></div>";
+      }
+    }
   }
 
   const corpoDlg = document.querySelector("#dlg-comissao .dlg__corpo");
