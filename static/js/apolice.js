@@ -241,26 +241,48 @@
     iof.addEventListener("input", recalcTotal);
   }
 
-  // ---- comissão: SEGURALTA a receber = prêmio líq. * % ----
+  // ---- comissão do bloco "único" (muda quando é cocorretagem) ----
+  const chkCoco = document.getElementById("comissao_cocorretagem");
+  const ehCoco = () => !!(chkCoco && chkCoco.checked);
   const btnSeg = document.getElementById("btn-calc-seg-receber");
-  if (btnSeg) {
-    btnSeg.addEventListener("click", () => {
-      const premio = num(document.getElementById("premio_liquido").value);
-      const pct = num(document.getElementById("comissao_percentual").value);
-      if (!premio || !pct) { alert("Preencha o prêmio líquido e o percentual."); return; }
-      document.getElementById("comissao_valor_seguralta_receber").value =
-        fmt(Math.round(premio * pct) / 100);
-    });
+  const btnPlenus = document.getElementById("btn-calc-plenus-receber");
+
+  function relabelComissao() {
+    if (btnSeg) btnSeg.textContent = ehCoco()
+      ? "Calcular 25% da comissão" : "Calcular % do prêmio líquido";
+    if (btnPlenus) btnPlenus.textContent = ehCoco()
+      ? "Calcular 75% da comissão" : "Calcular 75% do recebido - SEGURALTA";
+  }
+  if (chkCoco) chkCoco.addEventListener("change", relabelComissao);
+  relabelComissao();
+
+  function comissaoBase() {
+    const premio = num(document.getElementById("premio_liquido").value);
+    const pct = num(document.getElementById("comissao_percentual").value);
+    return { premio, pct, base: Math.round(premio * pct) / 100 };  // pct já é %
   }
 
-  // ---- comissão: Plenus a receber = 75% do que a SEGURALTA recebeu ----
-  const btnPlenus = document.getElementById("btn-calc-plenus-receber");
+  if (btnSeg) {
+    btnSeg.addEventListener("click", () => {
+      const { premio, pct, base } = comissaoBase();
+      if (!premio || !pct) { alert("Preencha o prêmio líquido e o percentual."); return; }
+      const v = ehCoco() ? Math.round(base * 25) / 100 : base;
+      document.getElementById("comissao_valor_seguralta_receber").value = fmt(v);
+    });
+  }
   if (btnPlenus) {
     btnPlenus.addEventListener("click", () => {
-      const segRecebido = num(document.getElementById("comissao_valor_seguralta_recebido").value);
-      if (!segRecebido) { alert("Preencha o valor recebido pela SEGURALTA."); return; }
-      document.getElementById("comissao_valor_plenus_receber").value =
-        fmt(Math.round(segRecebido * 75) / 100);
+      if (ehCoco()) {
+        const { premio, pct, base } = comissaoBase();
+        if (!premio || !pct) { alert("Preencha o prêmio líquido e o percentual."); return; }
+        document.getElementById("comissao_valor_plenus_receber").value =
+          fmt(Math.round(base * 75) / 100);
+      } else {
+        const segRecebido = num(document.getElementById("comissao_valor_seguralta_recebido").value);
+        if (!segRecebido) { alert("Preencha o valor recebido pela SEGURALTA."); return; }
+        document.getElementById("comissao_valor_plenus_receber").value =
+          fmt(Math.round(segRecebido * 75) / 100);
+      }
     });
   }
 

@@ -395,7 +395,7 @@ _CAMPOS_APOLICE = (
     "forma_pagamento_id", "comissao_percentual",
     "comissao_valor_seguralta_receber", "comissao_valor_plenus_receber",
     "comissao_valor_seguralta_recebido", "comissao_valor_plenus_recebido",
-    "data_plenus_recebido", "comissao_parcelada",
+    "data_plenus_recebido", "comissao_parcelada", "comissao_cocorretagem",
     "previsto_relatorio_seguralta", "recebido_relatorio_seguralta",
     "previsto_relatorio_plenus", "recebido_relatorio_plenus",
     "lancado_quiver", "link_onedrive",

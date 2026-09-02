@@ -227,11 +227,18 @@
         <input id="comissao_percentual" name="comissao_percentual" inputmode="decimal" data-num
                value="{{ a.comissao_percentual or '' }}">
       </div>
-      <div class="campo c-12">
+      <div class="campo c-4">
         <label class="check">
           <input type="checkbox" id="comissao_parcelada" name="comissao_parcelada" value="1"
                  {{ 'checked' if a.comissao_parcelada }}>
           Comissão em parcelas (repasse mensal)
+        </label>
+      </div>
+      <div class="campo c-8">
+        <label class="check">
+          <input type="checkbox" id="comissao_cocorretagem" name="comissao_cocorretagem" value="1"
+                 {{ 'checked' if a.comissao_cocorretagem }}>
+          Cocorretagem — SEGURALTA 25% / Plenus 75% da comissão (sem repasse)
         </label>
       </div>
     </div>
@@ -296,11 +303,11 @@
     {# ---------- a janela (dialog) com as duas tabelas ---------- #}
     <dialog id="dlg-comissao" class="dlg">
       <div class="dlg__cab">
-        <strong>Comissão parcelada (repasse mensal)</strong>
+        <strong id="dlg-com-titulo">Comissão parcelada (repasse mensal)</strong>
         <button type="button" class="btn btn--linha btn--mini" data-fechar-comissao title="Fechar">{{ icone('x') }}</button>
       </div>
       <div class="dlg__corpo">
-      <h3 class="titulo-secao">Comissão <span>— a Seguralta recebe da seguradora</span></h3>
+      <h3 class="titulo-secao">Comissão <span id="tit-comissao">— a Seguralta recebe da seguradora</span></h3>
       {% if pode_gerar_comissao %}
       <div class="gerador">
         <div class="grade">
@@ -355,7 +362,7 @@
       </div>
       <div id="conf-comissao" class="conferencia" hidden></div>
 
-      <h3 class="titulo-secao">Repasses <span>— a Plenus recebe da Seguralta</span></h3>
+      <h3 class="titulo-secao"><span id="tit-repasse-a">Repasses</span> <span id="tit-repasse-b">— a Plenus recebe da Seguralta</span></h3>
       {% if pode_gerar_repasse %}
       <div class="gerador">
         <div class="grade">

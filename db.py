@@ -88,6 +88,7 @@ CREATE TABLE IF NOT EXISTS apolice (
     comissao_valor_plenus_recebido REAL,     -- lançado à mão
     data_plenus_recebido TEXT,               -- data em que a Plenus recebeu (ISO)
     comissao_parcelada INTEGER NOT NULL DEFAULT 0,  -- 1 = repasse mensal (usa apolice_comissao/apolice_repasse)
+    comissao_cocorretagem INTEGER NOT NULL DEFAULT 0,  -- 1 = cocorretagem (SEGURALTA 25% / Plenus 75% da comissão, sem repasse)
     -- totais que o RELATÓRIO da corretora informa (p/ conferir divergência vs. soma do sistema)
     previsto_relatorio_seguralta REAL,
     recebido_relatorio_seguralta REAL,
@@ -226,6 +227,7 @@ _COLUNAS_ESPERADAS = {
         "comissao_valor_seguralta_recebido": "REAL", "comissao_valor_plenus_recebido": "REAL",
         "data_plenus_recebido": "TEXT",
         "comissao_parcelada": "INTEGER NOT NULL DEFAULT 0",
+        "comissao_cocorretagem": "INTEGER NOT NULL DEFAULT 0",
         "previsto_relatorio_seguralta": "REAL", "recebido_relatorio_seguralta": "REAL",
         "previsto_relatorio_plenus": "REAL", "recebido_relatorio_plenus": "REAL",
         "lancado_quiver": "INTEGER NOT NULL DEFAULT 0", "link_onedrive": "TEXT",

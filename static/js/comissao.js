@@ -48,6 +48,19 @@
     sync();
   }
 
+  // ---------- cocorretagem: ajusta textos da janela ----------
+  const chkCoco = document.getElementById("comissao_cocorretagem");
+  const ehCoco = () => !!(chkCoco && chkCoco.checked);
+  function textosCoco() {
+    const co = ehCoco();
+    const set = (id, txt) => { const e = document.getElementById(id); if (e) e.textContent = txt; };
+    set("dlg-com-titulo", co ? "Comissão parcelada — cocorretagem" : "Comissão parcelada (repasse mensal)");
+    set("tit-repasse-a", co ? "Plenus" : "Repasses");
+    set("tit-repasse-b", co ? "— a Plenus recebe da seguradora" : "— a Plenus recebe da Seguralta");
+  }
+  if (chkCoco) chkCoco.addEventListener("change", () => { textosCoco(); conferir75(); });
+  textosCoco();
+
   // ---------- controlador genérico de tabela (comissão / repasse) ----------
   function montarFluxo(cfg) {
     const corpo = document.getElementById(cfg.corpo);
@@ -236,43 +249,54 @@
     return Array.from(c.querySelectorAll('[name="' + nome + '"]'))
       .reduce((s, el) => s + num(el.value), 0);
   }
+  function selo(esp, lan) {
+    const ok = Math.abs(esp - lan) < 0.01;
+    return ' <span class="' + (ok ? "ok" : "ruim") + '">' +
+      (ok ? "✓ confere" : "⚠ Diferença de R$ " + fmt(Math.abs(esp - lan))) + "</span>";
+  }
   function conferir75() {
     const cR = somaCampo("corpo-comissoes", "comissao_recebido");
     const rR = somaCampo("corpo-repasses", "repasse_recebido");
     const pct = num((document.getElementById("comissao_percentual") || {}).value);
     const premio = num((document.getElementById("premio_liquido") || {}).value);
+    const base = Math.round((pct / 100) * premio * 100) / 100;   // comissão = pct% × prêmio líquido
+    const co = ehCoco();
 
-    // bloco Comissão: comissão = pct% do prêmio líquido
+    // bloco Comissão
     if (elConfCom) {
       if (!(pct && premio) && !cR) {
         elConfCom.hidden = true;
       } else {
         elConfCom.hidden = false;
         let l;
-        if (pct && premio) {
-          const val = Math.round((pct / 100) * premio * 100) / 100;
-          const pctTxt = Number.isInteger(pct) ? String(pct) : fmt(pct);
-          l = "Comissão de " + pctTxt + "% do prêmio líquido = R$ " + fmt(val);
-        } else {
+        if (!(pct && premio)) {
           l = '<span style="color:var(--texto-suave)">Informe Percentual (%) e Prêmio líquido</span>';
+        } else if (co) {
+          const esp = Math.round(base * 25) / 100;
+          l = "SEGURALTA = 25% da comissão = R$ " + fmt(esp) + (cR ? selo(esp, cR) : "");
+        } else {
+          const pctTxt = Number.isInteger(pct) ? String(pct) : fmt(pct);
+          l = "Comissão de " + pctTxt + "% do prêmio líquido = R$ " + fmt(base);
         }
         elConfCom.innerHTML = "<strong>Conferência</strong><div>" + l + "</div>";
       }
     }
 
-    // bloco Repasses: repasse = 75% da comissão recebida
+    // bloco Repasses / Plenus
     if (elConfRep) {
-      if (!(cR || rR)) {
+      if (!(cR || rR) && !(co && pct && premio)) {
         elConfRep.hidden = true;
       } else {
         elConfRep.hidden = false;
-        const esp = Math.round(FATOR_PLENUS * cR * 100) / 100;
-        const lan = Math.round(rR * 100) / 100;
-        const ok = Math.abs(esp - lan) < 0.01;
-        elConfRep.innerHTML = "<strong>Conferência</strong><div>Repasse de 75% da comissão recebida = R$ " +
-          fmt(esp) +
-          ' <span class="' + (ok ? "ok" : "ruim") + '">' +
-          (ok ? "✓ confere" : "⚠ Diferença de R$ " + fmt(Math.abs(esp - lan))) + "</span></div>";
+        let l;
+        if (co) {
+          const esp = Math.round(base * 75) / 100;
+          l = "Plenus = 75% da comissão = R$ " + fmt(esp) + (rR ? selo(esp, Math.round(rR * 100) / 100) : "");
+        } else {
+          const esp = Math.round(FATOR_PLENUS * cR * 100) / 100;
+          l = "Repasse de 75% da comissão recebida = R$ " + fmt(esp) + selo(esp, Math.round(rR * 100) / 100);
+        }
+        elConfRep.innerHTML = "<strong>Conferência</strong><div>" + l + "</div>";
       }
     }
   }
