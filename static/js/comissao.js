@@ -223,4 +223,40 @@
       return rows.length + " linha(s) · previsto R$ " + fmt(prev) + " · recebido R$ " + fmt(receb);
     },
   });
+
+  // ---------- conferência: repasse à Plenus deve ser 75% da comissão ----------
+  const FATOR_PLENUS = 0.75;
+  const elConf = document.getElementById("conferencia-75");
+
+  function somaCampo(corpoId, nome) {
+    const c = document.getElementById(corpoId);
+    if (!c) return 0;
+    return Array.from(c.querySelectorAll('[name="' + nome + '"]'))
+      .reduce((s, el) => s + num(el.value), 0);
+  }
+  function linhaConf(rot, baseComissao, repasseLancado) {
+    const esp = Math.round(FATOR_PLENUS * baseComissao * 100) / 100;
+    const lan = Math.round(repasseLancado * 100) / 100;
+    const ok = Math.abs(esp - lan) < 0.01;
+    return "<div>" + rot + ": 75% da comissão = R$ " + fmt(esp) +
+      " · repasse lançado = R$ " + fmt(lan) +
+      ' <span class="' + (ok ? "ok" : "ruim") + '">' +
+      (ok ? "✓" : "⚠ diferença R$ " + fmt(Math.abs(esp - lan))) + "</span></div>";
+  }
+  function conferir75() {
+    if (!elConf) return;
+    const cP = somaCampo("corpo-comissoes", "comissao_previsto");
+    const cR = somaCampo("corpo-comissoes", "comissao_recebido");
+    const rP = somaCampo("corpo-repasses", "repasse_previsto");
+    const rR = somaCampo("corpo-repasses", "repasse_recebido");
+    if (!(cP || cR || rP || rR)) { elConf.hidden = true; return; }
+    elConf.hidden = false;
+    elConf.innerHTML =
+      "<strong>Conferência — o repasse à Plenus deve ser 75% da comissão</strong>" +
+      linhaConf("previsto", cP, rP) + linhaConf("recebido", cR, rR);
+  }
+
+  const corpoDlg = document.querySelector("#dlg-comissao .dlg__corpo");
+  if (corpoDlg) corpoDlg.addEventListener("input", conferir75);
+  conferir75();
 })();

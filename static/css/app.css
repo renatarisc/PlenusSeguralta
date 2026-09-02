@@ -313,6 +313,15 @@ table.lista tr.apolice-vencida td:first-child { box-shadow: inset 3px 0 0 #a5201
 /* aviso de divergência (total do relatório × soma do sistema) */
 .aviso-diverge { color: #b26a00; font-weight: 700; }
 
+/* conferência da regra dos 75% (repasse × comissão) */
+.conferencia {
+  margin-top: 16px; padding: 10px 12px; border-radius: var(--raio);
+  background: var(--fundo); border: 1px solid var(--linha); font-size: 12.5px; line-height: 1.7;
+}
+.conferencia strong { display: block; margin-bottom: 3px; font-size: 12px; color: var(--texto); }
+.conferencia .ok { color: #2f7d32; font-weight: 700; }
+.conferencia .ruim { color: #b26a00; font-weight: 700; }
+
 /* janela (dialog) — usada pela comissão parcelada */
 dialog.dlg {
   width: min(940px, 94vw); max-height: 88vh; padding: 0; border: none;
