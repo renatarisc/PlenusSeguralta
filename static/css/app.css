@@ -310,6 +310,9 @@ table.lista tr.apolice-vencida td:first-child { box-shadow: inset 3px 0 0 #a5201
 #tab-parcelas tr.linha-liberada [data-remover-parcela],
 .tab-fluxo tr.linha-liberada [data-remover] { display: none; }
 
+/* aviso de divergência (total do relatório × soma do sistema) */
+.aviso-diverge { color: #b26a00; font-weight: 700; }
+
 /* janela (dialog) — usada pela comissão parcelada */
 dialog.dlg {
   width: min(940px, 94vw); max-height: 88vh; padding: 0; border: none;

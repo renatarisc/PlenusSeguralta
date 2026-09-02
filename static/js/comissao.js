@@ -87,17 +87,21 @@
         preenchida: preenchida(tr),
       }));
       let txt = cfg.textoTotal(rows);
+      let aviso = "";
       if (cfg.relPrevisto) {                       // compara com o total do relatório
         const somaP = rows.reduce((s, r) => s + r.v1, 0);
         const somaR = rows.reduce((s, r) => s + r.v2, 0);
         const rp = num((document.getElementById(cfg.relPrevisto) || {}).value);
         const rr = num((document.getElementById(cfg.relRecebido) || {}).value);
         const dif = [];
-        if (rp && Math.abs(rp - somaP) >= 0.01) dif.push("previsto");
-        if (rr && Math.abs(rr - somaR) >= 0.01) dif.push("recebido");
-        if (dif.length) txt += "  ⚠ diverge do relatório: " + dif.join(" e ");
+        if (rp && Math.abs(rp - somaP) >= 0.01)
+          dif.push("previsto relatório R$ " + fmt(rp) + " × sistema R$ " + fmt(somaP));
+        if (rr && Math.abs(rr - somaR) >= 0.01)
+          dif.push("recebido relatório R$ " + fmt(rr) + " × sistema R$ " + fmt(somaR));
+        if (dif.length)
+          aviso = ' <span class="aviso-diverge">⚠ ' + dif.join(" · ") + "</span>";
       }
-      total.textContent = txt;
+      total.innerHTML = txt + aviso;
     }
     function novaLinha(d) {
       const tr = tpl.content.firstElementChild.cloneNode(true);
