@@ -324,7 +324,7 @@ table.lista tr.apolice-vencida td:first-child { box-shadow: inset 3px 0 0 #a5201
 
 /* janela (dialog) — usada pela comissão parcelada */
 dialog.dlg {
-  width: min(940px, 94vw); max-height: 88vh; padding: 0; border: none;
+  width: min(1600px, 96vw); max-height: 94vh; padding: 0; border: none;
   border-radius: var(--raio); box-shadow: 0 24px 70px rgba(20, 20, 25, .35);
   background: var(--branco); color: var(--texto);
 }
