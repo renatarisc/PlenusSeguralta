@@ -276,7 +276,8 @@
           l = "Seguralta: 25% da comissão = R$ " + fmt(esp) + (cR ? selo(esp, cR) : "");
         } else {
           const pctTxt = Number.isInteger(pct) ? String(pct) : fmt(pct);
-          l = "Comissão de " + pctTxt + "% do prêmio líquido = R$ " + fmt(base);
+          l = "Comissão de " + pctTxt + "% do prêmio líquido = R$ " + fmt(base) +
+            (cR ? selo(base, Math.round(cR * 100) / 100) : "");
         }
         elConfCom.innerHTML = "<strong>Conferência</strong><div>" + l + "</div>";
       }
