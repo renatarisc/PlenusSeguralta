@@ -239,13 +239,13 @@
     {# ---------- repasse único: os 4 valores achatados ---------- #}
     <div id="comissao-unico" {{ 'hidden' if a.comissao_parcelada }}>
       <div class="grade" style="align-items:end;margin-top:8px">
-        <div class="campo c-5">
+        <div class="campo c-4">
           <label aria-hidden="true">&nbsp;</label>
-          <button type="button" class="btn btn--primario" id="btn-calc-seg-receber">
+          <button type="button" class="btn btn--primario" id="btn-calc-seg-receber" style="width:auto;align-self:flex-start">
             Calcular % do prêmio líquido
           </button>
         </div>
-        <div class="campo c-4">
+        <div class="campo c-3">
           <label for="comissao_valor_seguralta_receber">SEGURALTA — a receber (R$)</label>
           <input id="comissao_valor_seguralta_receber" name="comissao_valor_seguralta_receber"
                  inputmode="decimal" data-num value="{{ a.comissao_valor_seguralta_receber or '' }}">
@@ -258,13 +258,13 @@
 
         <div class="grade__linha" aria-hidden="true"></div>
 
-        <div class="campo c-5">
+        <div class="campo c-4">
           <label aria-hidden="true">&nbsp;</label>
-          <button type="button" class="btn btn--primario" id="btn-calc-plenus-receber">
+          <button type="button" class="btn btn--primario" id="btn-calc-plenus-receber" style="width:auto;align-self:flex-start">
             Calcular 75% do recebido - SEGURALTA
           </button>
         </div>
-        <div class="campo c-4">
+        <div class="campo c-3">
           <label for="comissao_valor_plenus_receber">Plenus — a receber (R$)</label>
           <input id="comissao_valor_plenus_receber" name="comissao_valor_plenus_receber"
                  inputmode="decimal" data-num value="{{ a.comissao_valor_plenus_receber or '' }}">
