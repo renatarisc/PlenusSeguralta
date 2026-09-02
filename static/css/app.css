@@ -332,18 +332,25 @@ table.lista tr.apolice-vencida td:first-child { box-shadow: inset 3px 0 0 #a5201
 
 /* janela (dialog) — usada pela comissão parcelada */
 dialog.dlg {
-  width: min(1600px, 96vw); max-height: 94vh; padding: 0; border: none;
+  width: min(1600px, 96vw); max-height: 94vh; padding: 0; border: none; overflow: hidden;
   border-radius: var(--raio); box-shadow: 0 24px 70px rgba(20, 20, 25, .35);
   background: var(--branco); color: var(--texto);
 }
 dialog.dlg[open] { display: flex; flex-direction: column; }
 dialog.dlg::backdrop { background: rgba(20, 20, 25, .45); }
+
+/* cabeçalho estilo "barra de título" de janela */
 .dlg__cab {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 14px 18px; border-bottom: 1px solid var(--linha);
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 10px 12px 10px 16px; background: var(--grafite); color: var(--texto-inv);
+  flex: 0 0 auto;
 }
-.dlg__cab strong { font-size: 14px; color: var(--laranja-hover); }
-.dlg__corpo { padding: 4px 18px 18px; overflow-y: auto; }
+.dlg__cab strong { font-size: 13px; font-weight: 700; color: #fff; letter-spacing: .02em; }
+.dlg__cab .btn {
+  background: transparent; border-color: rgba(255, 255, 255, .28); color: #fff;
+}
+.dlg__cab .btn:hover { background: rgba(255, 255, 255, .14); border-color: rgba(255, 255, 255, .5); }
+.dlg__corpo { padding: 14px 18px 18px; overflow-y: auto; flex: 1 1 auto; }
 .dlg__rodape {
   display: flex; gap: 8px; justify-content: flex-end;
   padding: 12px 18px; border-top: 1px solid var(--linha); background: var(--fundo);
