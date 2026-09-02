@@ -80,6 +80,18 @@ a { color: inherit; text-decoration: none; }
 }
 .barra__recolher { margin: 8px; border-top: 1px solid rgba(255, 255, 255, .08); border-radius: 0; padding-top: 16px; }
 
+/* grupo do menu (Cadastros auxiliares) */
+.nav__grupo { display: flex; flex-direction: column; gap: 2px; }
+.nav__caret { margin-left: auto; display: inline-flex; transition: transform .15s; }
+.nav__caret svg { width: 16px; height: 16px; }
+.nav__grupo.aberto .nav__caret { transform: rotate(180deg); }
+.nav__filhos { display: none; flex-direction: column; gap: 2px; }
+.nav__grupo.aberto .nav__filhos { display: flex; }
+.nav__subitem { padding-left: 34px; font-size: 13px; color: var(--texto-inv-suave); }
+.nav__subitem .nav__icone svg { width: 16px; height: 16px; }
+.app.recolhido .nav__caret { display: none; }
+.app.recolhido .nav__subitem { padding-left: 12px; }
+
 .app.recolhido .marca__nome,
 .app.recolhido .nav__texto { display: none; }
 .app.recolhido .nav__item,

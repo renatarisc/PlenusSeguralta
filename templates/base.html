@@ -30,6 +30,8 @@
   'sair':      '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>',
   'saida':     '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>',
   'ok':        '<path d="M20 6 9 17l-5-5"/>',
+  'pasta':     '<path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.6-.8L10.6 3.8A2 2 0 0 0 9 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z"/>',
+  'caret':     '<path d="m6 9 6 6 6-6"/>',
 } %}
 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">{{ svgs.get(nome, '')|safe }}</svg>
 {%- endmacro %}
@@ -46,6 +48,26 @@
     <nav class="nav">
       {% for m in MENU %}
       {% if m.divisoria_antes %}<div class="nav__sep" aria-hidden="true"></div>{% endif %}
+      {% if m.grupo %}
+        {% set grupo_ativo = (m.filhos | selectattr('rota', 'equalto', ativo) | list) | length > 0 %}
+        <div class="nav__grupo {{ 'aberto' if grupo_ativo }}" data-grupo="{{ m.grupo }}">
+          <button type="button" class="nav__item nav__grupo-cab" onclick="alternarGrupo(this)" title="{{ m.grupo }}">
+            <span class="nav__icone">{{ icone(m.icone) }}</span>
+            <span class="nav__texto">{{ m.grupo }}</span>
+            <span class="nav__caret">{{ icone('caret') }}</span>
+          </button>
+          <div class="nav__filhos">
+            {% for f in m.filhos %}
+            {% set atv = (ativo == f.rota and (not f.slug or f.slug == request.view_args.get('slug'))) %}
+            <a class="nav__item nav__subitem {{ 'nav__item--ativo' if atv }}"
+               href="{{ url_for(f.rota, slug=f.slug) if f.slug else url_for(f.rota) }}" title="{{ f.texto }}">
+              <span class="nav__icone">{{ icone(f.icone) }}</span>
+              <span class="nav__texto">{{ f.texto }}</span>
+            </a>
+            {% endfor %}
+          </div>
+        </div>
+      {% else %}
       {% set href = url_for(m.rota, slug=m.slug) if m.slug else url_for(m.rota) %}
       {% set atv = (ativo == m.rota and (not m.slug or m.slug == request.view_args.get('slug'))) %}
       <a class="nav__item {{ 'nav__item--ativo' if atv }}" href="{{ href }}" title="{{ m.texto }}">
@@ -55,6 +77,7 @@
         <span class="nav__badge" title="{{ qtd_vencendo }} apólice(s) vencendo">{{ qtd_vencendo }}</span>
         {% endif %}
       </a>
+      {% endif %}
       {% endfor %}
     </nav>
     <button class="barra__recolher" onclick="alternarRecolhido()" title="Recolher/expandir">
@@ -104,6 +127,21 @@
     try { localStorage.setItem("plenus.menuRecolhido", r ? "1" : "0"); } catch (e) {}
   }
   try { if (localStorage.getItem("plenus.menuRecolhido") === "1") app.classList.add("recolhido"); } catch (e) {}
+
+  // ---- grupos do menu (abre/fecha, lembra no localStorage) ----
+  function chaveGrupo(nome) { return "plenus.grupo." + nome; }
+  function alternarGrupo(botao) {
+    const g = botao.closest(".nav__grupo");
+    const aberto = g.classList.toggle("aberto");
+    try { localStorage.setItem(chaveGrupo(g.dataset.grupo), aberto ? "1" : "0"); } catch (e) {}
+  }
+  document.querySelectorAll(".nav__grupo").forEach(function (g) {
+    try {
+      const v = localStorage.getItem(chaveGrupo(g.dataset.grupo));
+      if (v === "1") g.classList.add("aberto");
+      else if (v === "0" && !g.querySelector(".nav__item--ativo")) g.classList.remove("aberto");
+    } catch (e) {}
+  });
 </script>
 {% block scripts %}{% endblock %}
 </body>

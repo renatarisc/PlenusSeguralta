@@ -94,10 +94,12 @@ app.jinja_env.globals["MENU"] = [
     {"rota": "clientes_lista", "texto": "Clientes", "icone": "clientes"},
     {"rota": "apolices", "texto": "Apólices", "icone": "apolices"},
     {"rota": "saidas_lista", "texto": "Saídas", "icone": "saida", "divisoria_antes": True},
-    {"rota": "cadastro_simples", "texto": "Categorias de Saída", "icone": "tag", "slug": "categoria-saida"},
-    {"rota": "cadastro_simples", "texto": "Seguradoras", "icone": "predio", "slug": "seguradora", "divisoria_antes": True},
-    {"rota": "cadastro_simples", "texto": "Tipos de Seguro", "icone": "tag", "slug": "tipo-seguro"},
-    {"rota": "cadastro_simples", "texto": "Formas de Pagamento", "icone": "pagamento", "slug": "forma-pagamento"},
+    {"grupo": "Cadastros auxiliares", "icone": "pasta", "divisoria_antes": True, "filhos": [
+        {"rota": "cadastro_simples", "texto": "Formas de Pagamento", "icone": "pagamento", "slug": "forma-pagamento"},
+        {"rota": "cadastro_simples", "texto": "Tipos de Seguro", "icone": "tag", "slug": "tipo-seguro"},
+        {"rota": "cadastro_simples", "texto": "Seguradoras", "icone": "predio", "slug": "seguradora"},
+        {"rota": "cadastro_simples", "texto": "Categorias de Saída", "icone": "tag", "slug": "categoria-saida"},
+    ]},
     {"rota": "usuarios_lista", "texto": "Usuários", "icone": "cadeado", "divisoria_antes": True},
 ]
 
