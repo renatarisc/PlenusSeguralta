@@ -86,22 +86,21 @@
         v2: cfg.campoValor2 ? num(campo(tr, cfg.campoValor2).value) : 0,
         preenchida: preenchida(tr),
       }));
-      let txt = cfg.textoTotal(rows);
-      let aviso = "";
-      if (cfg.relPrevisto) {                       // compara com o total do relatório
+      total.textContent = cfg.textoTotal(rows);
+
+      const elAviso = cfg.avisoEl && document.getElementById(cfg.avisoEl);
+      if (elAviso) {                                // divergência × total do relatório
         const somaP = rows.reduce((s, r) => s + r.v1, 0);
         const somaR = rows.reduce((s, r) => s + r.v2, 0);
         const rp = num((document.getElementById(cfg.relPrevisto) || {}).value);
         const rr = num((document.getElementById(cfg.relRecebido) || {}).value);
         const dif = [];
         if (rp && Math.abs(rp - somaP) >= 0.01)
-          dif.push("previsto relatório R$ " + fmt(rp) + " × sistema R$ " + fmt(somaP));
+          dif.push("previsto: relatório R$ " + fmt(rp) + " × sistema R$ " + fmt(somaP));
         if (rr && Math.abs(rr - somaR) >= 0.01)
-          dif.push("recebido relatório R$ " + fmt(rr) + " × sistema R$ " + fmt(somaR));
-        if (dif.length)
-          aviso = ' <span class="aviso-diverge">⚠ ' + dif.join(" · ") + "</span>";
+          dif.push("recebido: relatório R$ " + fmt(rr) + " × sistema R$ " + fmt(somaR));
+        elAviso.textContent = dif.length ? "⚠ " + dif.join(" · ") : "";
       }
-      total.innerHTML = txt + aviso;
     }
     function novaLinha(d) {
       const tr = tpl.content.firstElementChild.cloneNode(true);
@@ -199,6 +198,7 @@
     campoParcela: "comissao_parcela", campoData: "comissao_data",
     campoValor: "comissao_previsto", campoValor2: "comissao_recebido",
     relPrevisto: "previsto_relatorio_seguralta", relRecebido: "recebido_relatorio_seguralta",
+    avisoEl: "aviso-com",
     ehTravada: (tr, campo) => (campo(tr, "comissao_recebido").value || "").trim() !== "",
     textoTotal: (rows) => {
       if (!rows.length) return "";
@@ -215,6 +215,7 @@
     campoParcela: "repasse_parcela", campoData: "repasse_data",
     campoValor: "repasse_previsto", campoValor2: "repasse_recebido",
     relPrevisto: "previsto_relatorio_plenus", relRecebido: "recebido_relatorio_plenus",
+    avisoEl: "aviso-rep",
     ehTravada: (tr, campo) => (campo(tr, "repasse_recebido").value || "").trim() !== "",
     textoTotal: (rows) => {
       if (!rows.length) return "";

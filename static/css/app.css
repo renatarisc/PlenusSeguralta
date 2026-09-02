@@ -310,8 +310,16 @@ table.lista tr.apolice-vencida td:first-child { box-shadow: inset 3px 0 0 #a5201
 #tab-parcelas tr.linha-liberada [data-remover-parcela],
 .tab-fluxo tr.linha-liberada [data-remover] { display: none; }
 
+/* faixa dos campos "total do relatório da corretora" (diferencia da tabela acima) */
+.rel-box {
+  margin-top: 10px; padding: 10px 12px; border-radius: var(--raio);
+  background: #eef4fb; border: 1px solid #d6e4f2;
+}
+.rel-box .grade { margin-bottom: 0; }
+.rel-box .campo input { background: var(--branco); }
+
 /* aviso de divergência (total do relatório × soma do sistema) */
-.aviso-diverge { color: #b26a00; font-weight: 700; }
+.aviso-diverge { color: #b26a00; font-weight: 700; font-size: 12px; }
 
 /* conferência da regra dos 75% (repasse × comissão) */
 .conferencia {
