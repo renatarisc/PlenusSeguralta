@@ -299,7 +299,7 @@
         <button type="button" class="btn btn--linha btn--mini" data-fechar-comissao title="Fechar">{{ icone('x') }}</button>
       </div>
       <div class="dlg__corpo">
-      <h3 class="titulo-secao">Comissão <span>— a corretora recebe da seguradora</span></h3>
+      <h3 class="titulo-secao">Comissão <span>— a Seguralta recebe da seguradora</span></h3>
       {% if pode_gerar_comissao %}
       <div class="gerador">
         <div class="grade">
@@ -340,12 +340,12 @@
       <div class="rel-box">
         <div class="grade" style="align-items:end">
           <div class="campo c-3">
-            <label for="previsto_relatorio_seguralta">Previsto no relatório da corretora</label>
+            <label for="previsto_relatorio_seguralta">Comissão prevista no relatório</label>
             <input id="previsto_relatorio_seguralta" name="previsto_relatorio_seguralta"
                    inputmode="decimal" data-num value="{{ a.previsto_relatorio_seguralta or '' }}">
           </div>
           <div class="campo c-3">
-            <label for="recebido_relatorio_seguralta">Recebido no relatório da corretora</label>
+            <label for="recebido_relatorio_seguralta">Comissão recebida no relatório</label>
             <input id="recebido_relatorio_seguralta" name="recebido_relatorio_seguralta"
                    inputmode="decimal" data-num value="{{ a.recebido_relatorio_seguralta or '' }}">
           </div>
@@ -353,7 +353,7 @@
         </div>
       </div>
 
-      <h3 class="titulo-secao">Repasses <span>— a Plenus recebe da corretora</span></h3>
+      <h3 class="titulo-secao">Repasses <span>— a Plenus recebe da Seguralta</span></h3>
       {% if pode_gerar_repasse %}
       <div class="gerador">
         <div class="grade">
@@ -394,12 +394,12 @@
       <div class="rel-box">
         <div class="grade" style="align-items:end">
           <div class="campo c-3">
-            <label for="previsto_relatorio_plenus">Previsto no relatório da Plenus</label>
+            <label for="previsto_relatorio_plenus">Repasse previsto no relatório</label>
             <input id="previsto_relatorio_plenus" name="previsto_relatorio_plenus"
                    inputmode="decimal" data-num value="{{ a.previsto_relatorio_plenus or '' }}">
           </div>
           <div class="campo c-3">
-            <label for="recebido_relatorio_plenus">Recebido no relatório da Plenus</label>
+            <label for="recebido_relatorio_plenus">Repasse recebido no relatório</label>
             <input id="recebido_relatorio_plenus" name="recebido_relatorio_plenus"
                    inputmode="decimal" data-num value="{{ a.recebido_relatorio_plenus or '' }}">
           </div>
