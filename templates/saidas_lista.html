@@ -24,12 +24,12 @@
 
 <form class="cartao filtros" method="get">
   <div class="grade">
-    <div class="campo c-5">
+    <div class="campo c-4">
       <label for="f-busca">Buscar</label>
       <div class="campo-busca">
         {{ icone('busca') }}
-        <input id="f-busca" type="text" name="busca" value="{{ busca }}" list="lista-descricoes"
-               autocomplete="off" placeholder="Descrição da saída">
+        <input id="f-busca" type="search" name="busca" value="{{ busca }}" list="lista-descricoes"
+               autocomplete="off" placeholder="Descrição da saída" onfocus="this.select()">
       </div>
       <datalist id="lista-descricoes">
         {% for d in descricoes %}<option value="{{ d }}">{% endfor %}
@@ -53,13 +53,30 @@
         <option value="pago" {{ 'selected' if status == 'pago' }}>Paga</option>
       </select>
     </div>
-    <div class="campo c-3">
+    <div class="campo c-2">
       <label for="f-cat">Categoria</label>
       <select id="f-cat" name="categoria_id">
         <option value="">Todas</option>
         {% for c in categorias %}
         <option value="{{ c.id }}" {{ 'selected' if categoria_id == c.id }}>{{ c.nome }}</option>
         {% endfor %}
+      </select>
+    </div>
+    <div class="campo c-2">
+      <label for="f-forma">Forma de pgto</label>
+      <select id="f-forma" name="forma_pagamento_id">
+        <option value="">Todas</option>
+        {% for f in formas %}
+        <option value="{{ f.id }}" {{ 'selected' if forma_id == f.id }}>{{ f.nome }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="campo c-2">
+      <label for="f-fixa">Fixa mensal</label>
+      <select id="f-fixa" name="fixo">
+        <option value="">Todas</option>
+        <option value="1" {{ 'selected' if fixo == '1' }}>Só fixas mensais</option>
+        <option value="0" {{ 'selected' if fixo == '0' }}>Sem as fixas</option>
       </select>
     </div>
   </div>
@@ -71,6 +88,8 @@
   </div>
 </form>
 
+{# volta pra ESTA lista (com a busca/filtros atuais) depois de pagar/excluir/editar #}
+{% set url_lista = url_for('saidas_lista', **request.args) %}
 <div class="cartao" style="padding:0">
   {% if saidas %}
   <div class="tabela-wrap">
@@ -111,18 +130,18 @@
             <form method="post" action="{{ url_for('saida_pagamento', saida_id=s.id) }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="paga" value="{{ '0' if s.status == 'pago' else '1' }}">
-              <input type="hidden" name="voltar" value="{{ url_for('saidas_lista') }}">
+              <input type="hidden" name="voltar" value="{{ url_lista }}">
               {% if s.status == 'pago' %}
               <button class="btn btn--linha btn--mini" type="submit" title="Desfazer pagamento">desfazer</button>
               {% else %}
               <button class="btn btn--linha btn--mini" type="submit" title="Marcar como paga hoje">{{ icone('ok') }} pagar</button>
               {% endif %}
             </form>
-            <a class="btn btn--linha btn--mini" href="{{ url_for('saida_form', saida_id=s.id) }}" title="Editar">{{ icone('lapis') }}</a>
+            <a class="btn btn--linha btn--mini" href="{{ url_for('saida_form', saida_id=s.id, voltar=url_lista) }}" title="Editar">{{ icone('lapis') }}</a>
             <form method="post" action="{{ url_for('saida_excluir', saida_id=s.id) }}"
                   onsubmit="return confirm('Excluir a saída &quot;{{ s.descricao }}&quot;?')">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <input type="hidden" name="voltar" value="{{ url_for('saidas_lista') }}">
+              <input type="hidden" name="voltar" value="{{ url_lista }}">
               <button class="btn btn--perigo btn--mini" type="submit" title="Excluir">{{ icone('lixo') }}</button>
             </form>
           </td>

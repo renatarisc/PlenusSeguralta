@@ -834,7 +834,8 @@ def _status_saida(s, hoje):
     return "vencido" if d < 0 else "a_pagar"
 
 
-def listar_saidas(mes=None, status=None, categoria_id=None, busca=None):
+def listar_saidas(mes=None, status=None, categoria_id=None, busca=None,
+                  forma_pagamento_id=None, fixo=None):
     with conexao() as con:
         linhas = [dict(l) for l in con.execute(
             "SELECT s.id, s.descricao, s.categoria_id, s.forma_pagamento_id, s.valor, "
@@ -857,6 +858,11 @@ def listar_saidas(mes=None, status=None, categoria_id=None, busca=None):
         linhas = [s for s in linhas if s["status"] == status]
     if categoria_id:
         linhas = [s for s in linhas if s.get("categoria_id") == int(categoria_id)]
+    if forma_pagamento_id:
+        linhas = [s for s in linhas if s.get("forma_pagamento_id") == int(forma_pagamento_id)]
+    if fixo in ("0", "1", 0, 1):
+        alvo_fixo = int(fixo)
+        linhas = [s for s in linhas if (1 if s.get("fixo_mensal") else 0) == alvo_fixo]
     termo = (busca or "").strip()
     if termo:
         alvo = _sem_acento_minusculo(termo)

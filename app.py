@@ -600,16 +600,23 @@ def saidas_lista():
         mes = None
     status = request.args.get("status", "")
     categoria_id = request.args.get("categoria_id", type=int)
+    forma_id = request.args.get("forma_pagamento_id", type=int)
+    fixo = request.args.get("fixo", "")
+    if fixo not in ("0", "1"):
+        fixo = ""
     busca = request.args.get("busca", "").strip()
     saidas = repo.listar_saidas(mes=mes, status=status or None,
-                                categoria_id=categoria_id or None, busca=busca or None)
+                                categoria_id=categoria_id or None, busca=busca or None,
+                                forma_pagamento_id=forma_id or None, fixo=fixo or None)
     total = sum(s["valor"] or 0 for s in saidas)
-    tem_filtro = bool(busca or status or categoria_id) or mes != date.today().month
+    tem_filtro = bool(busca or status or categoria_id or forma_id or fixo) or mes != date.today().month
     return render_template("saidas_lista.html", ativo="saidas_lista",
                            saidas=saidas, total=total, resumo=repo.resumo_saidas(),
                            mes=mes, status=status, categoria_id=categoria_id, busca=busca,
+                           forma_id=forma_id, fixo=fixo,
                            tem_filtro=tem_filtro, mes_atual=date.today().month,
                            categorias=repo.categorias_saida(),
+                           formas=repo.listar_simples("forma_pagamento"),
                            descricoes=repo.descricoes_saida(), MESES=_MESES)
 
 
@@ -621,10 +628,14 @@ def _selects_saida():
 @app.route("/financeiro/saidas/nova", methods=["GET", "POST"])
 @app.route("/financeiro/saidas/<int:saida_id>", methods=["GET", "POST"])
 def saida_form(saida_id=None):
+    # "voltar" (caminho interno) leva de volta pra lista com a busca/filtros ativos
+    voltar = request.form.get("voltar") or request.args.get("voltar") or ""
+    if not (voltar.startswith("/") and not voltar.startswith("//")):
+        voltar = ""
     grupo = repo.obter_grupo_saida(saida_id) if saida_id else None
     if saida_id and not grupo:
         flash("Saída não encontrada.", "erro")
-        return redirect(url_for("saidas_lista"))
+        return redirect(voltar or url_for("saidas_lista"))
 
     if request.method == "POST":
         comum = {
@@ -649,13 +660,13 @@ def saida_form(saida_id=None):
                                    saida={**comum, "id": saida_id,
                                           "serie_id": grupo["serie_id"] if grupo else None,
                                           "lancamentos": linhas},
-                                   **_selects_saida())
+                                   voltar=voltar, **_selects_saida())
         repo.salvar_grupo_saida(saida_id, comum, linhas)
         flash("Saída salva.", "ok")
-        return redirect(url_for("saidas_lista"))
+        return redirect(voltar or url_for("saidas_lista"))
 
     return render_template("saidas_form.html", ativo="saidas_lista",
-                           saida=grupo, **_selects_saida())
+                           saida=grupo, voltar=voltar, **_selects_saida())
 
 
 @app.route("/financeiro/saidas/<int:saida_id>/excluir", methods=["POST"])

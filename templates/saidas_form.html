@@ -9,13 +9,14 @@
 {% block cabecalho %}{{ 'Editar saída' if s.id else 'Nova saída' }}{% endblock %}
 
 {% block acoes %}
-<a class="btn btn--linha" href="{{ url_for('saidas_lista') }}">{{ icone('voltar') }} Voltar</a>
+<a class="btn btn--linha" href="{{ voltar or url_for('saidas_lista') }}">{{ icone('voltar') }} Voltar</a>
 {% endblock %}
 
 {% block conteudo %}
 <form class="form" method="post" novalidate
       action="{{ url_for('saida_form', saida_id=s.id) if s.id else url_for('saida_form') }}">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="voltar" value="{{ voltar }}">
 
   <div class="cartao">
     <h2>Dados da saída</h2>
@@ -122,7 +123,7 @@
   </div>
 
   <div class="rodape-form">
-    <a class="btn btn--linha" href="{{ url_for('saidas_lista') }}">Cancelar</a>
+    <a class="btn btn--linha" href="{{ voltar or url_for('saidas_lista') }}">Cancelar</a>
     <button class="btn btn--primario" type="submit">Salvar</button>
   </div>
 </form>
