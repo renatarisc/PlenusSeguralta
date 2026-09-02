@@ -273,7 +273,7 @@
           l = '<span style="color:var(--texto-suave)">Informe Percentual (%) e Prêmio líquido</span>';
         } else if (co) {
           const esp = Math.round(base * 25) / 100;
-          l = "SEGURALTA = 25% da comissão = R$ " + fmt(esp) + (cR ? selo(esp, cR) : "");
+          l = "Seguralta: 25% da comissão = R$ " + fmt(esp) + (cR ? selo(esp, cR) : "");
         } else {
           const pctTxt = Number.isInteger(pct) ? String(pct) : fmt(pct);
           l = "Comissão de " + pctTxt + "% do prêmio líquido = R$ " + fmt(base);
@@ -291,7 +291,7 @@
         let l;
         if (co) {
           const esp = Math.round(base * 75) / 100;
-          l = "Plenus = 75% da comissão = R$ " + fmt(esp) + (rR ? selo(esp, Math.round(rR * 100) / 100) : "");
+          l = "Plenus: 75% da comissão = R$ " + fmt(esp) + (rR ? selo(esp, Math.round(rR * 100) / 100) : "");
         } else {
           const esp = Math.round(FATOR_PLENUS * cR * 100) / 100;
           l = "Repasse de 75% da comissão recebida = R$ " + fmt(esp) + selo(esp, Math.round(rR * 100) / 100);
