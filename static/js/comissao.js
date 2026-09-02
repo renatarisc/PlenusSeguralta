@@ -269,10 +269,9 @@
         const esp = Math.round(FATOR_PLENUS * cR * 100) / 100;
         const lan = Math.round(rR * 100) / 100;
         const ok = Math.abs(esp - lan) < 0.01;
-        elConfRep.innerHTML = "<strong>Conferência</strong><div>Repasse de 75% da comissão recebida = R$ " +
-          fmt(esp) + " · repasse recebido lançado R$ " + fmt(lan) +
-          ' <span class="' + (ok ? "ok" : "ruim") + '">' +
-          (ok ? "✓" : "⚠ diferença R$ " + fmt(Math.abs(esp - lan))) + "</span></div>";
+        elConfRep.innerHTML = "<strong>Conferência</strong><div>Repasse = 75% da comissão recebida " +
+          '<span class="' + (ok ? "ok" : "ruim") + '">' +
+          (ok ? "✓ confere" : "⚠ Diferença de R$ " + fmt(Math.abs(esp - lan))) + "</span></div>";
       }
     }
   }
