@@ -227,18 +227,16 @@
         <input id="comissao_percentual" name="comissao_percentual" inputmode="decimal" data-num
                value="{{ a.comissao_percentual or '' }}">
       </div>
-      <div class="campo c-4">
+      <div class="campo c-12" style="gap:8px">
         <label class="check">
           <input type="checkbox" id="comissao_parcelada" name="comissao_parcelada" value="1"
                  {{ 'checked' if a.comissao_parcelada }}>
-          Comissão em parcelas (repasse mensal)
+          Comissão em parcelas
         </label>
-      </div>
-      <div class="campo c-8">
         <label class="check">
           <input type="checkbox" id="comissao_cocorretagem" name="comissao_cocorretagem" value="1"
                  {{ 'checked' if a.comissao_cocorretagem }}>
-          Cocorretagem — SEGURALTA 25% / Plenus 75% da comissão (sem repasse)
+          Cocorretagem — Seguralta 25% e Plenus 75% da comissão
         </label>
       </div>
     </div>

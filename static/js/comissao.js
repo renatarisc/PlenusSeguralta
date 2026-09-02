@@ -54,7 +54,7 @@
   function textosCoco() {
     const co = ehCoco();
     const set = (id, txt) => { const e = document.getElementById(id); if (e) e.textContent = txt; };
-    set("dlg-com-titulo", co ? "Comissão parcelada — cocorretagem" : "Comissão parcelada (repasse mensal)");
+    set("dlg-com-titulo", co ? "Comissão parcelada — cocorretagem" : "Comissão parcelada");
     set("tit-repasse-a", co ? "Plenus" : "Repasses");
     set("tit-repasse-b", co ? "— a Plenus recebe da seguradora" : "— a Plenus recebe da Seguralta");
   }
