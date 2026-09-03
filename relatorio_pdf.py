@@ -181,9 +181,26 @@ def _linha_item(s, oc):
     ]
 
 
-def _walk(arv, nivel, oc, rows, sty):
+def _walk(arv, nivel, oc, rows, sty, resumo=False):
     oc = oc + ([arv["chave"]] if arv["chave"] in ("descricao", "situacao") else [])
     for g in arv["grupos"]:
+        folha = not g.get("sub")
+        if resumo and folha:
+            # resumido: uma linha por grupo (rótulo + contagem + soma), sem parcelas
+            rs = len(rows)
+            rot = "%s   %s   (%d lç · paga %s · em aberto %s)" % (
+                arv["campo"].upper(), g["rotulo"], g["qtd"],
+                _m(g["soma_paga"]), _m(g["soma_aberto"]))
+            rows.append([_p(rot, _sub_b if nivel == 1 else _sub), "", "", "",
+                         _p(_m(g["soma"]), _sub_r), ""])
+            sty += [
+                ("SPAN", (0, rs), (3, rs)),
+                ("BACKGROUND", (0, rs), (-1, rs), CINZA_SUB),
+                ("LINEBELOW", (0, rs), (-1, rs), 0.4, CINZA_LINHA),
+                ("LEFTPADDING", (0, rs), (0, rs), 5 + (nivel - 1) * 14),
+            ]
+            continue
+
         r = len(rows)
         rot = "%s   %s" % (arv["campo"].upper(), g["rotulo"])
         rows.append([_p(rot, _grp1 if nivel == 1 else _grp2), "", "", "", "", ""])
@@ -196,7 +213,7 @@ def _walk(arv, nivel, oc, rows, sty):
             ("LEFTPADDING", (0, r), (0, r), 5 + (nivel - 1) * 14),
         ]
         if g.get("sub"):
-            _walk(g["sub"], nivel + 1, oc, rows, sty)
+            _walk(g["sub"], nivel + 1, oc, rows, sty, resumo)
         else:
             for s in g["itens"]:
                 rows.append(_linha_item(s, oc))
@@ -214,7 +231,11 @@ def _walk(arv, nivel, oc, rows, sty):
 
 
 def _tabela(ctx):
-    rows = [[_p(c, _th_r if i == 4 else (_th_c if i else _th)) for i, c in enumerate(COLS)]]
+    resumo = ctx.get("modo") == "resumo"
+    if resumo:
+        rows = [[_p("Grupo", _th), "", "", "", _p("Valor", _th_r), ""]]
+    else:
+        rows = [[_p(c, _th_r if i == 4 else (_th_c if i else _th)) for i, c in enumerate(COLS)]]
     sty = [
         ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
@@ -225,9 +246,11 @@ def _tabela(ctx):
         ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.white]),
         ("LINEBELOW", (0, 1), (-1, -2), 0.25, CINZA_LINHA),
     ]
+    if resumo:
+        sty += [("SPAN", (0, 0), (3, 0)), ("SPAN", (4, 0), (5, 0))]
     if ctx["arvore"]:
-        _walk(ctx["arvore"], 1, [], rows, sty)
-    else:
+        _walk(ctx["arvore"], 1, [], rows, sty, resumo)
+    elif not resumo:
         for s in ctx["linhas"]:
             rows.append(_linha_item(s, []))
 

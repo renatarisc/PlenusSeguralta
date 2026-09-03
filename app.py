@@ -806,6 +806,7 @@ def _relatorio_contexto(slug):
     if ordem not in {k for k, _ in _ORDEM_OPCOES}:
         ordem = "vencimento"
     ordem_dir = "desc" if request.args.get("ordem_dir") == "desc" else "asc"
+    modo = "resumo" if request.args.get("modo") == "resumo" else "completo"
 
     linhas, arvore, resumo = [], None, None
     if tipo == "saidas":
@@ -843,7 +844,7 @@ def _relatorio_contexto(slug):
         data_ini=data_ini, data_fim=data_fim, base_data=base_data, status=status,
         categoria_id=categoria_id, forma_id=forma_id, fixo=fixo, busca=busca,
         categoria_nome=cat_nome, forma_nome=forma_nome,
-        g1=g1, g2=g2, ordem=ordem, ordem_dir=ordem_dir, tem_filtro=tem_filtro,
+        g1=g1, g2=g2, ordem=ordem, ordem_dir=ordem_dir, modo=modo, tem_filtro=tem_filtro,
         linhas=linhas, arvore=arvore, resumo=resumo, presets=presets)
 
 

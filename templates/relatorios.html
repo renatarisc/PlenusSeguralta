@@ -20,15 +20,24 @@
 </tr>
 {% endmacro %}
 
-{% macro bloco(arv, nivel, oc=[]) %}
+{% macro bloco(arv, nivel, oc=[], resumo=false) %}
   {% set oc = oc + ([arv.chave] if arv.chave in ('descricao', 'situacao') else []) %}
   {% for g in arv.grupos %}
   <tbody class="rel-grp rel-grp--{{ nivel }}">
+    {% if resumo and not g.sub %}
+    {# resumido: uma linha por grupo, sem as parcelas #}
+    <tr class="rel-sub rel-sub--{{ nivel }}">
+      <td colspan="4"><span class="rel-campo">{{ arv.campo }}</span>{{ g.rotulo }}
+        <small>({{ g.qtd }} lç · paga {{ g.soma_paga|moeda }} · em aberto {{ g.soma_aberto|moeda }})</small></td>
+      <td class="col-valor">{{ g.soma|moeda }}</td>
+      <td></td>
+    </tr>
+    {% else %}
     <tr class="rel-cab rel-cab--{{ nivel }}">
       <td colspan="6"><span class="rel-campo">{{ arv.campo }}</span>{{ g.rotulo }}</td>
     </tr>
     {% if g.sub %}
-      {{ bloco(g.sub, nivel + 1, oc) }}
+      {{ bloco(g.sub, nivel + 1, oc, resumo) }}
     {% else %}
       {% for s in g.itens %}{{ linha(s, oc) }}{% endfor %}
     {% endif %}
@@ -38,6 +47,7 @@
       <td class="col-valor">{{ g.soma|moeda }}</td>
       <td></td>
     </tr>
+    {% endif %}
   </tbody>
   {% endfor %}
 {% endmacro %}
@@ -161,7 +171,7 @@
         </select>
       </div>
     </div>
-    <div class="campo c-3">
+    <div class="campo c-2">
       <label for="r-ordem">Ordenar por</label>
       <select id="r-ordem" name="ordem">
         {% for k, rot in ordem_opcoes %}
@@ -169,11 +179,18 @@
         {% endfor %}
       </select>
     </div>
-    <div class="campo c-3">
+    <div class="campo c-2">
       <label for="r-dir">Direção</label>
       <select id="r-dir" name="ordem_dir">
         <option value="asc" {{ 'selected' if ordem_dir == 'asc' }}>Crescente</option>
         <option value="desc" {{ 'selected' if ordem_dir == 'desc' }}>Decrescente</option>
+      </select>
+    </div>
+    <div class="campo c-2">
+      <label for="r-modo">Detalhe</label>
+      <select id="r-modo" name="modo">
+        <option value="completo" {{ 'selected' if modo != 'resumo' }}>Completo</option>
+        <option value="resumo" {{ 'selected' if modo == 'resumo' }}>Só subtotais</option>
       </select>
     </div>
   </div>
@@ -217,15 +234,19 @@
         <col style="width:15%"><col style="width:15%"><col style="width:13%">
       </colgroup>
       <thead>
+        {% if modo == 'resumo' %}
+        <tr><th colspan="4">Grupo</th><th class="col-valor" colspan="2">Valor</th></tr>
+        {% else %}
         <tr>
           <th>Descrição</th><th class="rel-col-c">Parc.</th>
           <th class="rel-col-c">Vencimento</th><th class="rel-col-c">Pagamento</th>
           <th class="col-valor">Valor</th><th class="rel-col-c">Situação</th>
         </tr>
+        {% endif %}
       </thead>
       {% if arvore %}
-        {{ bloco(arvore, 1) }}
-      {% else %}
+        {{ bloco(arvore, 1, [], modo == 'resumo') }}
+      {% elif modo != 'resumo' %}
         <tbody>
           {% for s in linhas %}{{ linha(s) }}{% endfor %}
         </tbody>
