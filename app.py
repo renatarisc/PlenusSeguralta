@@ -778,9 +778,9 @@ def fluxo_relatorios(slug):
     # a usuária usa os atalhos ou digita as datas
     data_ini = request.args.get("data_ini", "").strip()
     data_fim = request.args.get("data_fim", "").strip()
-    base_data = request.args.get("base_data", "vencimento")
+    base_data = request.args.get("base_data", "")
     if base_data not in ("vencimento", "pagamento"):
-        base_data = "vencimento"
+        base_data = ""  # nenhum → recorta por vencimento OU pagamento
     status = request.args.get("status", "")
     categoria_id = request.args.get("categoria_id", type=int)
     forma_id = request.args.get("forma_pagamento_id", type=int)
@@ -822,7 +822,7 @@ def fluxo_relatorios(slug):
         }
 
     tem_filtro = bool(status or categoria_id or forma_id or fixo or busca
-                      or data_ini or data_fim or g1 or base_data != "vencimento")
+                      or data_ini or data_fim or g1 or base_data)
     titulo = "Fluxo de caixa — Relatório de " + ("saídas" if tipo == "saidas" else "entradas")
     return render_template(
         "relatorios.html", ativo="fluxo_relatorios", titulo=titulo,

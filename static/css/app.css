@@ -268,18 +268,25 @@ table.lista tr.apolice-vencida td:first-child { box-shadow: inset 3px 0 0 #a5201
 .filtros.rel-filtros .grade { gap: 12px 14px; align-items: start; }
 .rel-presets { display: flex; flex-wrap: wrap; gap: 6px; }
 
+/* 1ª linha: quadrinho de período (tamanho do conteúdo) + Descrição ocupa o resto */
+.rel-linha1 { display: flex; gap: 14px; align-items: flex-start; }
+.rel-linha1 > .campo { flex: 1 1 auto; min-width: 200px; }
+
 /* grupo destacado dos filtros que definem a data */
 .rel-periodo {
+  flex: 0 0 auto;
   background: var(--fundo); border: 1px solid var(--linha); border-radius: var(--raio);
-  padding: 8px 12px; align-self: start;
+  padding: 8px 12px;
 }
 .rel-periodo__campos { display: flex; flex-wrap: nowrap; gap: 10px 12px; align-items: flex-start; }
 .rel-periodo__campos > .campo { flex: 0 0 auto; }
 .rel-periodo__campos > .campo:not(.rel-periodo__atalhos) { width: 140px; }
-.rel-periodo__campos input[type="date"] { background: var(--branco); }
-.rel-periodo__atalhos { flex: 1 1 auto; min-width: 0; }
+.rel-periodo__campos input[type="date"] { height: 36px; background: var(--branco); }
+.rel-periodo__atalhos { flex: 0 0 auto; }
 .rel-periodo__atalhos .rel-presets { flex-wrap: nowrap; align-items: flex-start; gap: 8px; }
-.rel-periodo__atalhos .rel-presets .btn { padding: 8px 11px; font-size: 12.5px; white-space: nowrap; }
+.rel-periodo__atalhos .rel-presets .btn {
+  height: 36px; padding: 0 11px; font-size: 12.5px; white-space: nowrap;
+}
 /* "Agrupar por" + "Depois por" sempre juntos na mesma linha */
 .rel-agrupar { display: flex; gap: 12px; align-self: start; }
 .rel-agrupar .campo { flex: 1 1 0; min-width: 0; }
@@ -527,4 +534,6 @@ dialog.dlg::backdrop { background: rgba(20, 20, 25, .45); }
   .c-5, .c-6, .c-7, .c-8, .c-9 { grid-column: 1 / -1; }
   .rel-periodo__campos { flex-wrap: wrap; }
   .rel-agrupar { flex-wrap: wrap; }
+  .rel-linha1 { flex-wrap: wrap; }
+  .rel-linha1 > .campo { flex-basis: 100%; }
 }

@@ -46,37 +46,40 @@
 {% block conteudo %}
 <form class="cartao filtros rel-filtros" method="get">
   <div class="grade">
-    <div class="rel-periodo c-8">
-      <div class="rel-periodo__campos">
-        <div class="campo">
-          <label for="r-ini">De</label>
-          <input id="r-ini" type="date" name="data_ini" value="{{ data_ini }}">
-        </div>
-        <div class="campo">
-          <label for="r-fim">Até</label>
-          <input id="r-fim" type="date" name="data_fim" value="{{ data_fim }}">
-        </div>
-        <div class="campo rel-periodo__atalhos">
-          <label aria-hidden="true">&nbsp;</label>
-          <div class="rel-presets">
-            <button type="button" class="btn btn--linha" data-ini="{{ presets.mes[0] }}" data-fim="{{ presets.mes[1] }}">Este mês</button>
-            <button type="button" class="btn btn--linha" data-ini="{{ presets.mes_passado[0] }}" data-fim="{{ presets.mes_passado[1] }}">Mês passado</button>
-            <button type="button" class="btn btn--linha" data-ini="{{ presets.ano[0] }}" data-fim="{{ presets.ano[1] }}">Este ano</button>
+    <div class="rel-linha1 c-12">
+      <div class="rel-periodo">
+        <div class="rel-periodo__campos">
+          <div class="campo">
+            <label for="r-ini">De</label>
+            <input id="r-ini" type="date" name="data_ini" value="{{ data_ini }}">
+          </div>
+          <div class="campo">
+            <label for="r-fim">Até</label>
+            <input id="r-fim" type="date" name="data_fim" value="{{ data_fim }}">
+          </div>
+          <div class="campo rel-periodo__atalhos">
+            <label aria-hidden="true">&nbsp;</label>
+            <div class="rel-presets">
+              <button type="button" class="btn btn--linha" data-ini="{{ presets.mes[0] }}" data-fim="{{ presets.mes[1] }}">Este mês</button>
+              <button type="button" class="btn btn--linha" data-ini="{{ presets.mes_passado[0] }}" data-fim="{{ presets.mes_passado[1] }}">Mês passado</button>
+              <button type="button" class="btn btn--linha" data-ini="{{ presets.ano[0] }}" data-fim="{{ presets.ano[1] }}">Este ano</button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <div class="campo c-4">
-      <label for="r-busca">Descrição da saída</label>
-      <input id="r-busca" type="search" name="busca" value="{{ busca }}" list="lista-descricoes"
-             autocomplete="off" onfocus="this.select()">
-      <datalist id="lista-descricoes">{% for d in descricoes %}<option value="{{ d }}">{% endfor %}</datalist>
+      <div class="campo">
+        <label for="r-busca">Descrição da saída</label>
+        <input id="r-busca" type="search" name="busca" value="{{ busca }}" list="lista-descricoes"
+               autocomplete="off" onfocus="this.select()">
+        <datalist id="lista-descricoes">{% for d in descricoes %}<option value="{{ d }}">{% endfor %}</datalist>
+      </div>
     </div>
 
     <div class="campo c-2">
       <label for="r-base">Por data de</label>
       <select id="r-base" name="base_data">
+        <option value="" {{ 'selected' if not base_data }}>Vencimento ou pagamento</option>
         <option value="vencimento" {{ 'selected' if base_data == 'vencimento' }}>Vencimento</option>
         <option value="pagamento" {{ 'selected' if base_data == 'pagamento' }}>Pagamento</option>
       </select>
@@ -177,7 +180,7 @@
   <button type="button" class="btn btn--linha btn--mini" onclick="window.print()">Imprimir / PDF</button>
   <span class="dica">
     {{ 'Sem agrupamento' if not arvore else ('Agrupado por ' ~ arvore.campo ~ (' e ' ~ arvore.grupos[0].sub.campo if arvore.grupos and arvore.grupos[0].sub else '')) }}
-    · por data de {{ base_data }}{% if data_ini or data_fim %} ({{ data_ini|data_br if data_ini else '…' }} a {{ data_fim|data_br if data_fim else '…' }}){% endif %}
+    · por data de {{ base_data or 'vencimento ou pagamento' }}{% if data_ini or data_fim %} ({{ data_ini|data_br if data_ini else '…' }} a {{ data_fim|data_br if data_fim else '…' }}){% endif %}
   </span>
 </div>
 

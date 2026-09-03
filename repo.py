@@ -857,13 +857,26 @@ def listar_saidas(mes=None, status=None, categoria_id=None, busca=None,
 
     if mes:
         linhas = [s for s in linhas if (s.get("data_vencimento") or "")[5:7] == f"{int(mes):02d}"]
-    campo_data = "data_pagamento" if base_data == "pagamento" else "data_vencimento"
+
     if base_data == "pagamento":
+        # só pagas, recortadas pela data do pagamento
         linhas = [s for s in linhas if s.get("data_pagamento")]
-    if data_ini:
-        linhas = [s for s in linhas if (s.get(campo_data) or "") >= data_ini]
-    if data_fim:
-        linhas = [s for s in linhas if (s.get(campo_data) or "") <= data_fim]
+        campos_periodo = ("data_pagamento",)
+    elif base_data == "vencimento":
+        campos_periodo = ("data_vencimento",)
+    else:
+        # nenhum escolhido → casa se o vencimento OU o pagamento cai no intervalo
+        campos_periodo = ("data_vencimento", "data_pagamento")
+
+    def _no_intervalo(s):
+        for campo in campos_periodo:
+            d = s.get(campo) or ""
+            if d and (not data_ini or d >= data_ini) and (not data_fim or d <= data_fim):
+                return True
+        return False
+
+    if data_ini or data_fim:
+        linhas = [s for s in linhas if _no_intervalo(s)]
     if status in ("pago", "a_pagar", "vencido"):
         linhas = [s for s in linhas if s["status"] == status]
     if categoria_id:
