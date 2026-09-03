@@ -767,9 +767,9 @@ def fluxo_relatorios():
         "mes_passado": (fim_mes_passado.replace(day=1).isoformat(), fim_mes_passado.isoformat()),
         "ano": (hoje.replace(month=1, day=1).isoformat(), hoje.isoformat()),
     }
-    # sem NENHUM parâmetro de data na URL → começa no mês corrente
-    tem_periodo_arg = "data_ini" in request.args or "data_fim" in request.args
-    data_ini = request.args.get("data_ini", "").strip() or ("" if tem_periodo_arg else ini_mes)
+    # os campos De/Até nascem VAZIOS (sem período = todos os lançamentos);
+    # a usuária usa os atalhos ou digita as datas
+    data_ini = request.args.get("data_ini", "").strip()
     data_fim = request.args.get("data_fim", "").strip()
     base_data = request.args.get("base_data", "vencimento")
     if base_data not in ("vencimento", "pagamento"):
@@ -814,9 +814,8 @@ def fluxo_relatorios():
             "qtd_aberto": sum(1 for s in linhas if s["status"] != "pago"),
         }
 
-    tem_filtro = bool(status or categoria_id or forma_id or fixo or busca or data_fim
-                      or g1 or base_data != "vencimento"
-                      or (data_ini and data_ini != ini_mes))
+    tem_filtro = bool(status or categoria_id or forma_id or fixo or busca
+                      or data_ini or data_fim or g1 or base_data != "vencimento")
     return render_template(
         "relatorios.html", ativo="fluxo_relatorios", titulo="Fluxo de caixa — Relatórios",
         tipo=tipo, data_ini=data_ini, data_fim=data_fim, base_data=base_data, status=status,
