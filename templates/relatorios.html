@@ -79,7 +79,7 @@
     <div class="campo c-2">
       <label for="r-base">Por data de</label>
       <select id="r-base" name="base_data">
-        <option value="" {{ 'selected' if not base_data }}>Vencimento ou pagamento</option>
+        <option value="" {{ 'selected' if not base_data }}>—</option>
         <option value="vencimento" {{ 'selected' if base_data == 'vencimento' }}>Vencimento</option>
         <option value="pagamento" {{ 'selected' if base_data == 'pagamento' }}>Pagamento</option>
       </select>
