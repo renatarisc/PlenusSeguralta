@@ -265,20 +265,21 @@ table.lista tr.apolice-vencida td:first-child { box-shadow: inset 3px 0 0 #a5201
 }
 
 /* ---------- relatório de fluxo de caixa ---------- */
-.rel-filtros .grade { gap: 10px 14px; }
+.filtros.rel-filtros .grade { gap: 12px 14px; align-items: start; }
 .rel-presets { display: flex; flex-wrap: wrap; gap: 6px; }
 
 /* grupo destacado dos filtros que definem a data */
 .rel-periodo {
   background: var(--fundo); border: 1px solid var(--linha); border-radius: var(--raio);
-  padding: 8px 12px 6px; align-self: start;
+  padding: 8px 12px; align-self: start;
 }
-.rel-periodo__campos { display: flex; gap: 12px; align-items: flex-start; }
-.rel-periodo__campos .campo { flex: 0 0 auto; }
+.rel-periodo__campos { display: flex; flex-wrap: wrap; gap: 10px 12px; align-items: flex-start; }
+.rel-periodo__campos > .campo { flex: 0 0 auto; }
+.rel-periodo__campos > .campo:not(.rel-periodo__atalhos) { width: 150px; }
 .rel-periodo__campos input[type="date"] { background: var(--branco); }
 .rel-periodo__atalhos { flex: 1 1 auto; min-width: 0; }
 .rel-periodo__atalhos .rel-presets { align-items: flex-start; gap: 8px; }
-.rel-periodo__atalhos .rel-presets .btn { padding: 8px 12px; }
+.rel-periodo__atalhos .rel-presets .btn { padding: 8px 11px; font-size: 12.5px; }
 /* "Agrupar por" + "Depois por" sempre juntos na mesma linha */
 .rel-agrupar { display: flex; gap: 12px; align-self: start; }
 .rel-agrupar .campo { flex: 1 1 0; min-width: 0; }
