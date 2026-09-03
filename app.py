@@ -772,10 +772,15 @@ def fluxo_relatorios(slug):
     hoje = date.today()
     ini_mes = hoje.replace(day=1).isoformat()
     fim_mes_passado = hoje.replace(day=1) - timedelta(days=1)
+    prox_mes_1 = (date(hoje.year + 1, 1, 1) if hoje.month == 12
+                  else date(hoje.year, hoje.month + 1, 1))
+    fim_mes = (prox_mes_1 - timedelta(days=1)).isoformat()
+    # atalhos cobrem o PERÍODO INTEIRO (não param no dia de hoje), pra pegar
+    # também as parcelas ainda a vencer no mês / ano
     presets = {
-        "mes": (ini_mes, hoje.isoformat()),
+        "mes": (ini_mes, fim_mes),
         "mes_passado": (fim_mes_passado.replace(day=1).isoformat(), fim_mes_passado.isoformat()),
-        "ano": (hoje.replace(month=1, day=1).isoformat(), hoje.isoformat()),
+        "ano": (hoje.replace(month=1, day=1).isoformat(), hoje.replace(month=12, day=31).isoformat()),
     }
     # os campos De/Até nascem VAZIOS (sem período = todos os lançamentos);
     # a usuária usa os atalhos ou digita as datas
