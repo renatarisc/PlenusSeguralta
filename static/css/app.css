@@ -269,7 +269,7 @@ table.lista tr.apolice-vencida td:first-child { box-shadow: inset 3px 0 0 #a5201
 .rel-presets { display: flex; flex-wrap: wrap; gap: 6px; }
 
 /* 1ª linha: quadrinho de período (tamanho do conteúdo) + Descrição ocupa o resto */
-.rel-linha1 { display: flex; gap: 14px; align-items: center; }
+.rel-linha1 { display: flex; gap: 14px; align-items: flex-end; }
 .rel-linha1 > .campo { flex: 1 1 auto; min-width: 200px; }
 
 /* grupo destacado dos filtros que definem a data */
