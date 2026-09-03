@@ -8,7 +8,8 @@ import os
 import sqlite3
 from datetime import date, datetime, timedelta
 
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
+from flask import (Flask, render_template, request, redirect, url_for, flash, jsonify,
+                   session, Response, abort)
 from flask_wtf.csrf import CSRFProtect
 from werkzeug.middleware.proxy_fix import ProxyFix
 
@@ -762,12 +763,12 @@ def fluxo_relatorios_raiz():
     return redirect(url_for("fluxo_relatorios", slug="saidas"))
 
 
-@app.route("/financeiro/relatorios/<slug>")
-def fluxo_relatorios(slug):
-    # a escolha saídas × entradas vem do MENU (URL), não mais de um filtro na tela
+def _relatorio_contexto(slug):
+    """Lê a querystring, aplica filtros/agrupamento e devolve TODO o contexto do
+    relatório (usado pela tela HTML e pelo PDF). `None` se o slug for inválido."""
     tipo = slug if slug in ("saidas", "entradas") else None
     if tipo is None:
-        return redirect(url_for("fluxo_relatorios", slug="saidas"))
+        return None
 
     hoje = date.today()
     ini_mes = hoje.replace(day=1).isoformat()
@@ -832,17 +833,43 @@ def fluxo_relatorios(slug):
     tem_filtro = bool(status or categoria_id or forma_id or fixo or busca
                       or data_ini or data_fim or g1 or base_data)
     titulo = "Fluxo de caixa — Relatório de " + ("saídas" if tipo == "saidas" else "entradas")
+    cat_nome = next((c["nome"] for c in repo.categorias_saida() if c["id"] == categoria_id), None)
+    forma_nome = next((f["nome"] for f in repo.listar_simples("forma_pagamento")
+                       if f["id"] == forma_id), None)
     agora = datetime.now()
-    return render_template(
-        "relatorios.html", ativo="fluxo_relatorios", titulo=titulo,
+    return dict(
+        tipo=tipo, titulo=titulo,
         emissao_data=agora.strftime("%d/%m/%Y"), emissao_hora=agora.strftime("%H:%M"),
-        tipo=tipo, data_ini=data_ini, data_fim=data_fim, base_data=base_data, status=status,
+        data_ini=data_ini, data_fim=data_fim, base_data=base_data, status=status,
         categoria_id=categoria_id, forma_id=forma_id, fixo=fixo, busca=busca,
+        categoria_nome=cat_nome, forma_nome=forma_nome,
         g1=g1, g2=g2, ordem=ordem, ordem_dir=ordem_dir, tem_filtro=tem_filtro,
-        linhas=linhas, arvore=arvore, resumo=resumo, presets=presets,
+        linhas=linhas, arvore=arvore, resumo=resumo, presets=presets)
+
+
+@app.route("/financeiro/relatorios/<slug>")
+def fluxo_relatorios(slug):
+    # a escolha saídas × entradas vem do MENU (URL), não mais de um filtro na tela
+    ctx = _relatorio_contexto(slug)
+    if ctx is None:
+        return redirect(url_for("fluxo_relatorios", slug="saidas"))
+    return render_template(
+        "relatorios.html", ativo="fluxo_relatorios", **ctx,
         categorias=repo.categorias_saida(), formas=repo.listar_simples("forma_pagamento"),
         descricoes=repo.descricoes_saida(), grupo_opcoes=_GRUPO_OPCOES,
         ordem_opcoes=_ORDEM_OPCOES, MESES=_MESES)
+
+
+@app.route("/financeiro/relatorios/<slug>/pdf")
+def fluxo_relatorios_pdf(slug):
+    ctx = _relatorio_contexto(slug)
+    if ctx is None:
+        abort(404)
+    import relatorio_pdf
+    pdf = relatorio_pdf.gerar(ctx)
+    nome = f"relatorio-{ctx['tipo']}-{date.today().isoformat()}.pdf"
+    return Response(pdf, mimetype="application/pdf",
+                    headers={"Content-Disposition": f'attachment; filename="{nome}"'})
 
 
 if __name__ == "__main__":

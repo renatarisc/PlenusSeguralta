@@ -200,7 +200,10 @@
 </div>
 
 <div class="rel-acoes">
-  <button type="button" class="btn btn--linha btn--mini" onclick="window.print()">Imprimir / PDF</button>
+  <a class="btn btn--primario btn--mini" href="{{ url_for('fluxo_relatorios_pdf', slug=tipo, **request.args) }}">
+    {{ icone('relatorio') }} Baixar PDF
+  </a>
+  <button type="button" class="btn btn--linha btn--mini" onclick="window.print()">Imprimir pelo navegador</button>
 </div>
 
 <div class="cartao" style="padding:0">
