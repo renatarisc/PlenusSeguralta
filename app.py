@@ -6,7 +6,7 @@
 
 import os
 import sqlite3
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
 from flask_wtf.csrf import CSRFProtect
@@ -832,8 +832,10 @@ def fluxo_relatorios(slug):
     tem_filtro = bool(status or categoria_id or forma_id or fixo or busca
                       or data_ini or data_fim or g1 or base_data)
     titulo = "Fluxo de caixa — Relatório de " + ("saídas" if tipo == "saidas" else "entradas")
+    agora = datetime.now()
     return render_template(
         "relatorios.html", ativo="fluxo_relatorios", titulo=titulo,
+        emissao_data=agora.strftime("%d/%m/%Y"), emissao_hora=agora.strftime("%H:%M"),
         tipo=tipo, data_ini=data_ini, data_fim=data_fim, base_data=base_data, status=status,
         categoria_id=categoria_id, forma_id=forma_id, fixo=fixo, busca=busca,
         g1=g1, g2=g2, ordem=ordem, ordem_dir=ordem_dir, tem_filtro=tem_filtro,

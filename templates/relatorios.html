@@ -43,6 +43,30 @@
 {% endmacro %}
 
 {% block conteudo %}
+{# cabeçalho só do PDF impresso (escondido na tela via CSS) #}
+<div class="pdf-cab">
+  <div class="pdf-cab__marca">
+    <svg class="pdf-cab__logo" viewBox="0 0 32 32" width="38" height="38" aria-hidden="true">
+      <path d="M14 4 L30 30 H2 Z" fill="#2b2b2b"/>
+      <path d="M22.5 15 L30 30 H15 Z" fill="#e8641e"/>
+    </svg>
+    <div class="pdf-cab__tit">
+      <strong>SEGURALTA</strong>
+      <span>Fluxo de caixa · Relatório de {{ 'saídas' if tipo == 'saidas' else 'entradas' }}</span>
+    </div>
+  </div>
+  <div class="pdf-cab__meta">
+    <div>Emitido em {{ emissao_data }} às {{ emissao_hora }}</div>
+    <div>
+      {%- if data_ini or data_fim -%}
+        Período: {{ data_ini|data_br if data_ini else '…' }} a {{ data_fim|data_br if data_fim else '…' }}
+      {%- else -%}
+        Todos os lançamentos
+      {%- endif -%}
+    </div>
+  </div>
+</div>
+
 <form class="cartao filtros rel-filtros" method="get">
   <div class="grade">
     <div class="rel-linha1 c-12">
