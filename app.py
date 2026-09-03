@@ -698,7 +698,7 @@ def entradas_lista():
 
 # ---- relatório de fluxo de caixa (dinâmico: filtros + agrupamento em 2 níveis) ----
 
-_GRUPO_OPCOES = [("", "—"), ("categoria", "Categoria"),
+_GRUPO_OPCOES = [("", "—"), ("descricao", "Descrição da saída"), ("categoria", "Categoria"),
                  ("forma", "Forma de pagamento"), ("situacao", "Situação"),
                  ("mes", "Mês do vencimento"), ("fixo", "Fixa mensal")]
 _ORDEM_OPCOES = [("vencimento", "Vencimento"), ("pagamento", "Pagamento"),
@@ -713,6 +713,9 @@ def _rotulo_mes_iso(iso):
 
 # cada função devolve (chave_de_ordenação, rótulo_exibido)
 _GRUPOS_SAIDA = {
+    "descricao": ("Descrição", lambda s: (
+        repo._sem_acento_minusculo(s.get("descricao") or "") or "zzz",
+        s.get("descricao") or "Sem descrição")),
     "categoria": ("Categoria", lambda s: (
         repo._sem_acento_minusculo(s.get("categoria") or "") or "zzz",
         s.get("categoria") or "Sem categoria")),
