@@ -247,7 +247,7 @@ def _tabela(ctx):
         ("LINEBELOW", (0, 1), (-1, -2), 0.25, CINZA_LINHA),
     ]
     if resumo:
-        sty += [("SPAN", (0, 0), (3, 0)), ("SPAN", (4, 0), (5, 0))]
+        sty += [("SPAN", (0, 0), (3, 0))]
     if ctx["arvore"]:
         _walk(ctx["arvore"], 1, [], rows, sty, resumo)
     elif not resumo:
