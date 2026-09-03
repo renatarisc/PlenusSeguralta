@@ -93,7 +93,11 @@ app.jinja_env.globals["MENU"] = [
     {"rota": "dashboard", "texto": "Painel", "icone": "painel"},
     {"rota": "clientes_lista", "texto": "Clientes", "icone": "clientes"},
     {"rota": "apolices", "texto": "Apólices", "icone": "apolices"},
-    {"rota": "saidas_lista", "texto": "Saídas", "icone": "saida", "divisoria_antes": True},
+    {"grupo": "Fluxo de caixa", "icone": "fluxo", "divisoria_antes": True, "filhos": [
+        {"rota": "saidas_lista", "texto": "Saídas", "icone": "saida"},
+        {"rota": "entradas_lista", "texto": "Entradas", "icone": "entrada"},
+        {"rota": "fluxo_relatorios", "texto": "Relatórios", "icone": "relatorio"},
+    ]},
     {"grupo": "Cadastros auxiliares", "icone": "pasta", "divisoria_antes": True, "filhos": [
         {"rota": "cadastro_simples", "texto": "Formas de Pagamento", "icone": "pagamento", "slug": "forma-pagamento"},
         {"rota": "cadastro_simples", "texto": "Tipos de Seguro", "icone": "tag", "slug": "tipo-seguro"},
@@ -682,6 +686,19 @@ def saida_pagamento(saida_id):
                            request.form.get("data_pagamento"))
     flash("Saída atualizada.", "ok")
     return _voltar_seguro()
+
+
+@app.route("/financeiro/entradas")
+def entradas_lista():
+    return render_template("em_breve.html", ativo="entradas_lista", titulo="Entradas",
+                           mensagem="O controle de entradas (contas a receber) ainda será construído.")
+
+
+@app.route("/financeiro/relatorios")
+def fluxo_relatorios():
+    return render_template("em_breve.html", ativo="fluxo_relatorios",
+                           titulo="Relatórios — fluxo de caixa",
+                           mensagem="Os relatórios de fluxo de caixa ainda serão construídos.")
 
 
 if __name__ == "__main__":

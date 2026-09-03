@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block titulo %}{{ titulo }}{% endblock %}
+{% block cabecalho %}{{ titulo }}{% endblock %}
+
+{% block conteudo %}
+<div class="cartao">
+  <p class="vazio">{{ mensagem or "Esta área ainda está em construção." }}</p>
+</div>
+{% endblock %}
