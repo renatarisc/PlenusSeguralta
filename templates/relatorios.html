@@ -175,10 +175,6 @@
 
 <div class="rel-acoes">
   <button type="button" class="btn btn--linha btn--mini" onclick="window.print()">Imprimir / PDF</button>
-  <span class="dica">
-    {{ 'Sem agrupamento' if not arvore else ('Agrupado por ' ~ arvore.campo ~ (' e ' ~ arvore.grupos[0].sub.campo if arvore.grupos and arvore.grupos[0].sub else '')) }}
-    · por data de {{ base_data or 'vencimento ou pagamento' }}{% if data_ini or data_fim %} ({{ data_ini|data_br if data_ini else '…' }} a {{ data_fim|data_br if data_fim else '…' }}){% endif %}
-  </span>
 </div>
 
 <div class="cartao" style="padding:0">
