@@ -291,7 +291,8 @@ table.lista tr.apolice-vencida td:first-child { box-shadow: inset 3px 0 0 #a5201
 .rel-agrupar { display: flex; gap: 12px; align-self: start; }
 .rel-agrupar .campo { flex: 1 1 0; min-width: 0; }
 .rel-stats { margin-top: 14px; }
-.rel-acoes { display: flex; align-items: center; gap: 12px; margin: 12px 2px; flex-wrap: wrap; }
+.rel-acoes { display: flex; align-items: stretch; gap: 12px; margin: 12px 2px; flex-wrap: wrap; }
+.rel-acoes .btn { min-height: 30px; }
 /* larguras fixas (colgroup 30/12/15/15/15/13); dados centralizados => ritmo parelho.
    Descrição sem % gigante: fica com 30% e as demais dividem o resto. */
 .rel-tabela { table-layout: fixed; }
