@@ -267,6 +267,19 @@ table.lista tr.apolice-vencida td:first-child { box-shadow: inset 3px 0 0 #a5201
 /* ---------- relatório de fluxo de caixa ---------- */
 .rel-filtros .grade { gap: 10px 14px; }
 .rel-presets { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* grupo destacado dos filtros que definem a data */
+.rel-periodo {
+  background: var(--fundo); border: 1px solid var(--linha); border-radius: var(--raio);
+  padding: 8px 12px 6px; align-self: start;
+}
+.rel-periodo__campos { display: flex; gap: 12px; align-items: flex-end; }
+.rel-periodo__campos .campo { flex: 0 0 auto; }
+.rel-periodo__campos input[type="date"] { background: var(--branco); }
+.rel-periodo__atalhos { flex: 1 1 auto; min-width: 0; }
+.rel-periodo__nota {
+  display: block; margin-top: 6px; font-size: 10.5px; color: var(--texto-suave);
+}
 .rel-stats { margin-top: 14px; }
 .rel-acoes { display: flex; align-items: center; gap: 12px; margin: 12px 2px; flex-wrap: wrap; }
 .rel-tabela th, .rel-tabela td { padding: 6px 10px; font-size: 12.5px; vertical-align: middle; }
@@ -509,4 +522,5 @@ dialog.dlg::backdrop { background: rgba(20, 20, 25, .45); }
   .grade { grid-template-columns: repeat(6, 1fr); }
   .c-2, .c-3, .c-4 { grid-column: span 3; }
   .c-5, .c-6, .c-7, .c-8, .c-9 { grid-column: 1 / -1; }
+  .rel-periodo__campos { flex-wrap: wrap; }
 }
