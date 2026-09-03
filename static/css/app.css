@@ -277,10 +277,7 @@ table.lista tr.apolice-vencida td:first-child { box-shadow: inset 3px 0 0 #a5201
 .rel-periodo__campos .campo { flex: 0 0 auto; }
 .rel-periodo__campos input[type="date"] { background: var(--branco); }
 .rel-periodo__atalhos { flex: 1 1 auto; min-width: 0; }
-.rel-periodo__atalhos .rel-presets { min-height: 35px; align-items: flex-start; }
-.rel-periodo__nota {
-  display: block; margin-top: 4px; font-size: 10.5px; color: var(--texto-suave);
-}
+.rel-periodo__atalhos .rel-presets { align-items: flex-start; }
 /* "Agrupar por" + "Depois por" sempre juntos na mesma linha */
 .rel-agrupar { display: flex; gap: 12px; align-self: start; }
 .rel-agrupar .campo { flex: 1 1 0; min-width: 0; }
