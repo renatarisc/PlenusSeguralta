@@ -292,11 +292,11 @@ table.lista tr.apolice-vencida td:first-child { box-shadow: inset 3px 0 0 #a5201
 .rel-agrupar .campo { flex: 1 1 0; min-width: 0; }
 .rel-stats { margin-top: 14px; }
 .rel-acoes { display: flex; align-items: center; gap: 12px; margin: 12px 2px; flex-wrap: wrap; }
-/* auto-layout + padding horizontal igual => distância parelha entre as colunas;
-   a Descrição (mais longa) absorve a folga */
-.rel-tabela th, .rel-tabela td { padding: 7px 16px; font-size: 12.5px; vertical-align: middle; }
-.rel-tabela .rel-col-desc { width: 99%; }        /* empurra as demais pro tamanho do conteúdo */
-.rel-tabela .rel-desc { font-weight: 600; }
+/* larguras fixas (colgroup 30/12/15/15/15/13); dados centralizados => ritmo parelho.
+   Descrição sem % gigante: fica com 30% e as demais dividem o resto. */
+.rel-tabela { table-layout: fixed; }
+.rel-tabela th, .rel-tabela td { padding: 7px 12px; font-size: 12.5px; vertical-align: middle; }
+.rel-tabela .rel-desc { font-weight: 600; overflow-wrap: anywhere; }
 .rel-tabela .rel-col-c { text-align: center; }
 .rel-nowrap { white-space: nowrap; }
 .rel-tabela .col-valor { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
