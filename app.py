@@ -695,11 +695,137 @@ def entradas_lista():
                            mensagem="O controle de entradas (contas a receber) ainda será construído.")
 
 
+# ---- relatório de fluxo de caixa (dinâmico: filtros + agrupamento em 2 níveis) ----
+
+_GRUPO_OPCOES = [("", "— sem agrupar —"), ("categoria", "Categoria"),
+                 ("forma", "Forma de pagamento"), ("situacao", "Situação"),
+                 ("mes", "Mês do vencimento"), ("fixo", "Fixa mensal")]
+_ORDEM_OPCOES = [("vencimento", "Vencimento"), ("pagamento", "Pagamento"),
+                 ("valor", "Valor"), ("descricao", "Descrição")]
+
+
+def _rotulo_mes_iso(iso):
+    if not iso or len(iso) < 7:
+        return ("zzzz", "Sem data")
+    return (iso[:7], f"{_MESES[int(iso[5:7])]}/{iso[:4]}")
+
+
+# cada função devolve (chave_de_ordenação, rótulo_exibido)
+_GRUPOS_SAIDA = {
+    "categoria": ("Categoria", lambda s: (
+        repo._sem_acento_minusculo(s.get("categoria") or "") or "zzz",
+        s.get("categoria") or "Sem categoria")),
+    "forma": ("Forma de pagamento", lambda s: (
+        repo._sem_acento_minusculo(s.get("forma_pagamento") or "") or "zzz",
+        s.get("forma_pagamento") or "Sem forma")),
+    "situacao": ("Situação", lambda s: {
+        "vencido": (0, "Vencida"), "a_pagar": (1, "A pagar"), "pago": (2, "Paga"),
+    }.get(s["status"], (3, s["status"]))),
+    "mes": ("Mês do vencimento", lambda s: _rotulo_mes_iso(s.get("data_vencimento"))),
+    "fixo": ("Fixa mensal", lambda s: (0, "Fixa mensal") if s.get("fixo_mensal") else (1, "Avulsa")),
+}
+
+
+def _soma_valor(itens):
+    return sum(x.get("valor") or 0 for x in itens)
+
+
+def _agrupar_saidas(linhas, chaves):
+    """chaves = lista de 0..2 nomes de _GRUPOS_SAIDA. Devolve {campo, grupos:[...]} ou None."""
+    if not chaves:
+        return None
+    campo_rotulo, fn = _GRUPOS_SAIDA[chaves[0]]
+    baldes = {}
+    for s in linhas:
+        ordk, rot = fn(s)
+        baldes.setdefault((ordk, rot), []).append(s)
+    grupos = []
+    for chave in sorted(baldes):
+        itens = baldes[chave]
+        total = _soma_valor(itens)
+        pago = _soma_valor([x for x in itens if x["status"] == "pago"])
+        grupos.append({
+            "rotulo": chave[1], "qtd": len(itens), "soma": total,
+            "soma_paga": pago, "soma_aberto": total - pago,
+            "itens": itens if len(chaves) == 1 else None,
+            "sub": _agrupar_saidas(itens, chaves[1:]) if len(chaves) > 1 else None,
+        })
+    return {"campo": campo_rotulo, "grupos": grupos}
+
+
 @app.route("/financeiro/relatorios")
 def fluxo_relatorios():
-    return render_template("em_breve.html", ativo="fluxo_relatorios",
-                           titulo="Fluxo de caixa — Relatórios",
-                           mensagem="Os relatórios de fluxo de caixa ainda serão construídos.")
+    tipo = request.args.get("tipo", "saidas")
+    if tipo not in ("saidas", "entradas"):
+        tipo = "saidas"
+
+    hoje = date.today()
+    ini_mes = hoje.replace(day=1).isoformat()
+    fim_mes_passado = hoje.replace(day=1) - timedelta(days=1)
+    presets = {
+        "mes": (ini_mes, hoje.isoformat()),
+        "mes_passado": (fim_mes_passado.replace(day=1).isoformat(), fim_mes_passado.isoformat()),
+        "ano": (hoje.replace(month=1, day=1).isoformat(), hoje.isoformat()),
+    }
+    # sem NENHUM parâmetro de data na URL → começa no mês corrente
+    tem_periodo_arg = "data_ini" in request.args or "data_fim" in request.args
+    data_ini = request.args.get("data_ini", "").strip() or ("" if tem_periodo_arg else ini_mes)
+    data_fim = request.args.get("data_fim", "").strip()
+    base_data = request.args.get("base_data", "vencimento")
+    if base_data not in ("vencimento", "pagamento"):
+        base_data = "vencimento"
+    status = request.args.get("status", "")
+    categoria_id = request.args.get("categoria_id", type=int)
+    forma_id = request.args.get("forma_pagamento_id", type=int)
+    fixo = request.args.get("fixo", "")
+    if fixo not in ("0", "1"):
+        fixo = ""
+    busca = request.args.get("busca", "").strip()
+    validos = set(_GRUPOS_SAIDA)
+    g1 = request.args.get("g1", "")
+    g1 = g1 if g1 in validos else ""
+    g2 = request.args.get("g2", "")
+    g2 = g2 if (g2 in validos and g2 != g1) else ""
+    ordem = request.args.get("ordem", "vencimento")
+    if ordem not in {k for k, _ in _ORDEM_OPCOES}:
+        ordem = "vencimento"
+    ordem_dir = "desc" if request.args.get("ordem_dir") == "desc" else "asc"
+
+    linhas, arvore, resumo = [], None, None
+    if tipo == "saidas":
+        linhas = repo.listar_saidas(
+            status=status or None, categoria_id=categoria_id or None,
+            forma_pagamento_id=forma_id or None, fixo=fixo or None, busca=busca or None,
+            data_ini=data_ini or None, data_fim=data_fim or None, base_data=base_data)
+        ordkey = {
+            "vencimento": lambda s: s.get("data_vencimento") or "",
+            "pagamento": lambda s: s.get("data_pagamento") or "",
+            "valor": lambda s: s.get("valor") or 0,
+            "descricao": lambda s: repo._sem_acento_minusculo(s.get("descricao") or ""),
+        }[ordem]
+        linhas.sort(key=ordkey, reverse=(ordem_dir == "desc"))
+        chaves = [c for c in (g1, g2) if c]
+        arvore = _agrupar_saidas(linhas, chaves)
+        total = _soma_valor(linhas)
+        pago = _soma_valor([s for s in linhas if s["status"] == "pago"])
+        resumo = {
+            "qtd": len(linhas), "soma": total, "soma_paga": pago, "soma_aberto": total - pago,
+            "qtd_paga": sum(1 for s in linhas if s["status"] == "pago"),
+            "qtd_aberto": sum(1 for s in linhas if s["status"] != "pago"),
+        }
+
+    tem_filtro = bool(status or categoria_id or forma_id or fixo or busca or data_fim
+                      or g1 or base_data != "vencimento"
+                      or (data_ini and data_ini != ini_mes))
+    return render_template(
+        "relatorios.html", ativo="fluxo_relatorios", titulo="Fluxo de caixa — Relatórios",
+        tipo=tipo, data_ini=data_ini, data_fim=data_fim, base_data=base_data, status=status,
+        categoria_id=categoria_id, forma_id=forma_id, fixo=fixo, busca=busca,
+        g1=g1, g2=g2, ordem=ordem, ordem_dir=ordem_dir, tem_filtro=tem_filtro,
+        linhas=linhas, arvore=arvore, resumo=resumo, presets=presets,
+        categorias=repo.categorias_saida(), formas=repo.listar_simples("forma_pagamento"),
+        descricoes=repo.descricoes_saida(), grupo_opcoes=_GRUPO_OPCOES,
+        ordem_opcoes=_ORDEM_OPCOES, MESES=_MESES)
 
 
 if __name__ == "__main__":

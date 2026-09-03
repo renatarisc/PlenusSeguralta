@@ -835,7 +835,10 @@ def _status_saida(s, hoje):
 
 
 def listar_saidas(mes=None, status=None, categoria_id=None, busca=None,
-                  forma_pagamento_id=None, fixo=None):
+                  forma_pagamento_id=None, fixo=None,
+                  data_ini=None, data_fim=None, base_data="vencimento"):
+    """`data_ini`/`data_fim` (ISO, inclusivo) recortam por `base_data`:
+    'vencimento' → `data_vencimento`; 'pagamento' → `data_pagamento` (exclui não pagas)."""
     with conexao() as con:
         linhas = [dict(l) for l in con.execute(
             "SELECT s.id, s.descricao, s.categoria_id, s.forma_pagamento_id, s.valor, "
@@ -854,6 +857,13 @@ def listar_saidas(mes=None, status=None, categoria_id=None, busca=None,
 
     if mes:
         linhas = [s for s in linhas if (s.get("data_vencimento") or "")[5:7] == f"{int(mes):02d}"]
+    campo_data = "data_pagamento" if base_data == "pagamento" else "data_vencimento"
+    if base_data == "pagamento":
+        linhas = [s for s in linhas if s.get("data_pagamento")]
+    if data_ini:
+        linhas = [s for s in linhas if (s.get(campo_data) or "") >= data_ini]
+    if data_fim:
+        linhas = [s for s in linhas if (s.get(campo_data) or "") <= data_fim]
     if status in ("pago", "a_pagar", "vencido"):
         linhas = [s for s in linhas if s["status"] == status]
     if categoria_id:

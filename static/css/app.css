@@ -264,6 +264,42 @@ table.lista tr.apolice-vencida td:first-child { box-shadow: inset 3px 0 0 #a5201
   text-align: right; white-space: nowrap; font-weight: 600; font-variant-numeric: tabular-nums;
 }
 
+/* ---------- relatório de fluxo de caixa ---------- */
+.rel-filtros .grade { gap: 10px 14px; }
+.rel-presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.rel-stats { margin-top: 14px; }
+.rel-acoes { display: flex; align-items: center; gap: 12px; margin: 12px 2px; flex-wrap: wrap; }
+.rel-tabela th, .rel-tabela td { padding: 6px 10px; font-size: 12.5px; vertical-align: middle; }
+.rel-tabela .rel-desc { font-weight: 600; }
+.rel-nowrap { white-space: nowrap; }
+.rel-tabela .col-valor { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.rel-tabela .selo-pago  { color: var(--ok); font-weight: 700; }
+.rel-tabela .selo-apagar { color: var(--texto-suave); }
+.rel-tabela .tag-fixa {
+  display: inline-block; padding: 0 6px; border-radius: 999px; font-size: 10px; font-weight: 700;
+  background: #e7efe7; color: #3a5a40; vertical-align: middle;
+}
+.rel-tabela tr.rel-paga td { color: var(--texto-suave); }
+.rel-cab td { background: #eceff3; font-weight: 700; border-top: 1px solid var(--linha); }
+.rel-cab--2 td { background: #f3f5f8; font-weight: 600; }
+.rel-cab--2 td:first-child { padding-left: 22px; }
+.rel-campo { color: var(--texto-suave); font-weight: 600; }
+.rel-qtd { text-align: right; white-space: nowrap; color: var(--texto-suave); font-size: 11px; }
+.rel-sub td { color: var(--texto-suave); font-size: 11.5px; background: #fafbfc; }
+.rel-sub--1 td { font-weight: 700; color: var(--texto); }
+.rel-sub small, .rel-total small { font-weight: 400; color: var(--texto-suave); }
+.rel-total td { border-top: 2px solid var(--grafite); font-weight: 800; font-size: 13px; }
+
+@media print {
+  .barra, .topo, .flash, .rel-filtros, .rel-acoes, .nav__badge { display: none !important; }
+  .app { display: block; }
+  .conteudo { margin: 0; }
+  .pagina { padding: 0; }
+  .cartao { box-shadow: none; border: none; }
+  .rel-tabela th, .rel-tabela td { padding: 4px 6px; font-size: 10.5px; }
+  .rel-cab td, .rel-sub td, .rel-total td { background: transparent !important; }
+}
+
 /* ---------- tabela de parcelas / lançamentos: campos no mesmo padrão dos formulários ---------- */
 #tab-parcelas td,
 #tab-lancamentos td { padding: 8px 10px; vertical-align: middle; }
