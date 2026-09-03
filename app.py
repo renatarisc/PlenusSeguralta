@@ -96,7 +96,8 @@ app.jinja_env.globals["MENU"] = [
     {"grupo": "Fluxo de caixa", "icone": "fluxo", "divisoria_antes": True, "filhos": [
         {"rota": "saidas_lista", "texto": "Saídas", "icone": "saida"},
         {"rota": "entradas_lista", "texto": "Entradas", "icone": "entrada"},
-        {"rota": "fluxo_relatorios", "texto": "Relatórios", "icone": "relatorio"},
+        {"rota": "fluxo_relatorios", "slug": "saidas", "texto": "Relatório de saídas", "icone": "relatorio"},
+        {"rota": "fluxo_relatorios", "slug": "entradas", "texto": "Relatório de entradas", "icone": "relatorio"},
     ]},
     {"grupo": "Cadastros auxiliares", "icone": "pasta", "divisoria_antes": True, "filhos": [
         {"rota": "cadastro_simples", "texto": "Formas de Pagamento", "icone": "pagamento", "slug": "forma-pagamento"},
@@ -754,10 +755,16 @@ def _agrupar_saidas(linhas, chaves):
 
 
 @app.route("/financeiro/relatorios")
-def fluxo_relatorios():
-    tipo = request.args.get("tipo", "saidas")
-    if tipo not in ("saidas", "entradas"):
-        tipo = "saidas"
+def fluxo_relatorios_raiz():
+    return redirect(url_for("fluxo_relatorios", slug="saidas"))
+
+
+@app.route("/financeiro/relatorios/<slug>")
+def fluxo_relatorios(slug):
+    # a escolha saídas × entradas vem do MENU (URL), não mais de um filtro na tela
+    tipo = slug if slug in ("saidas", "entradas") else None
+    if tipo is None:
+        return redirect(url_for("fluxo_relatorios", slug="saidas"))
 
     hoje = date.today()
     ini_mes = hoje.replace(day=1).isoformat()
@@ -816,8 +823,9 @@ def fluxo_relatorios():
 
     tem_filtro = bool(status or categoria_id or forma_id or fixo or busca
                       or data_ini or data_fim or g1 or base_data != "vencimento")
+    titulo = "Fluxo de caixa — Relatório de " + ("saídas" if tipo == "saidas" else "entradas")
     return render_template(
-        "relatorios.html", ativo="fluxo_relatorios", titulo="Fluxo de caixa — Relatórios",
+        "relatorios.html", ativo="fluxo_relatorios", titulo=titulo,
         tipo=tipo, data_ini=data_ini, data_fim=data_fim, base_data=base_data, status=status,
         categoria_id=categoria_id, forma_id=forma_id, fixo=fixo, busca=busca,
         g1=g1, g2=g2, ordem=ordem, ordem_dir=ordem_dir, tem_filtro=tem_filtro,

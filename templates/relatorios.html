@@ -1,6 +1,6 @@
 {% extends "base.html" %}
-{% block titulo %}Fluxo de caixa — Relatórios{% endblock %}
-{% block cabecalho %}Fluxo de caixa — Relatórios{% endblock %}
+{% block titulo %}{{ titulo }}{% endblock %}
+{% block cabecalho %}{{ titulo }}{% endblock %}
 
 {# ---------- macros ---------- #}
 {% macro linha(s) %}
@@ -46,14 +46,6 @@
 {% block conteudo %}
 <form class="cartao filtros rel-filtros" method="get">
   <div class="grade">
-    <div class="campo c-2">
-      <label for="r-tipo">Relatório de</label>
-      <select id="r-tipo" name="tipo">
-        <option value="saidas" {{ 'selected' if tipo == 'saidas' }}>Saídas</option>
-        <option value="entradas" {{ 'selected' if tipo == 'entradas' }}>Entradas</option>
-      </select>
-    </div>
-
     <div class="rel-periodo c-7">
       <div class="rel-periodo__campos">
         <div class="campo">
@@ -65,7 +57,6 @@
           <input id="r-fim" type="date" name="data_fim" value="{{ data_fim }}">
         </div>
         <div class="campo rel-periodo__atalhos">
-          <label>Atalhos de período</label>
           <div class="rel-presets">
             <button type="button" class="btn btn--linha btn--mini" data-ini="{{ presets.mes[0] }}" data-fim="{{ presets.mes[1] }}">Este mês</button>
             <button type="button" class="btn btn--linha btn--mini" data-ini="{{ presets.mes_passado[0] }}" data-fim="{{ presets.mes_passado[1] }}">Mês passado</button>
@@ -160,7 +151,7 @@
   </div>
   <div class="filtros__acoes">
     <button class="btn btn--primario" type="submit">{{ icone('relatorio') }} Gerar relatório</button>
-    {% if tem_filtro %}<a class="btn btn--linha" href="{{ url_for('fluxo_relatorios', tipo=tipo) }}">Limpar</a>{% endif %}
+    {% if tem_filtro %}<a class="btn btn--linha" href="{{ url_for('fluxo_relatorios', slug=tipo) }}">Limpar</a>{% endif %}
   </div>
 </form>
 
