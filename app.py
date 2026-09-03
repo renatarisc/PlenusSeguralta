@@ -690,14 +690,15 @@ def saida_pagamento(saida_id):
 
 @app.route("/financeiro/entradas")
 def entradas_lista():
-    return render_template("em_breve.html", ativo="entradas_lista", titulo="Entradas",
+    return render_template("em_breve.html", ativo="entradas_lista",
+                           titulo="Fluxo de caixa — Entradas",
                            mensagem="O controle de entradas (contas a receber) ainda será construído.")
 
 
 @app.route("/financeiro/relatorios")
 def fluxo_relatorios():
     return render_template("em_breve.html", ativo="fluxo_relatorios",
-                           titulo="Relatórios — fluxo de caixa",
+                           titulo="Fluxo de caixa — Relatórios",
                            mensagem="Os relatórios de fluxo de caixa ainda serão construídos.")
 
 
