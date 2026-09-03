@@ -23,9 +23,8 @@
   {% for g in arv.grupos %}
   <tbody class="rel-grp rel-grp--{{ nivel }}">
     <tr class="rel-cab rel-cab--{{ nivel }}">
-      <td colspan="5"><span class="rel-campo">{{ arv.campo }}:</span> {{ g.rotulo }}</td>
+      <td colspan="6"><span class="rel-campo">{{ arv.campo }}:</span> {{ g.rotulo }}</td>
       <td class="col-valor">{{ g.soma|moeda }}</td>
-      <td class="rel-qtd">{{ g.qtd }} lç.</td>
     </tr>
     {% if g.sub %}
       {{ bloco(g.sub, nivel + 1) }}
