@@ -186,12 +186,15 @@ def _walk(arv, nivel, oc, rows, sty, resumo=False):
     for g in arv["grupos"]:
         folha = not g.get("sub")
         if resumo and folha:
-            # resumido: uma linha por grupo (rótulo + contagem + soma), sem parcelas
+            # resumido: uma linha por grupo (rótulo + contagem + soma), sem parcelas.
+            # 3 pesos, igual à tela: campo pequeno cinza · rótulo em negrito · (contagem) cinza
             rs = len(rows)
-            rot = "%s   %s   (%d lç · paga %s · em aberto %s)" % (
-                arv["campo"].upper(), g["rotulo"], g["qtd"],
+            rot = ('<font size="5.5" color="#5b6068">%s</font>  '
+                   '<b><font color="#2b2b2b">%s</font></b>  '
+                   '<font size="6" color="#5b6068">(%d lç · paga %s · em aberto %s)</font>') % (
+                escape(arv["campo"].upper()), escape(g["rotulo"]), g["qtd"],
                 _m(g["soma_paga"]), _m(g["soma_aberto"]))
-            rows.append([_p(rot, _sub_b if nivel == 1 else _sub), "", "", "",
+            rows.append([Paragraph(rot, _cel), "", "", "",
                          _p(_m(g["soma"]), _sub_r), ""])
             sty += [
                 ("SPAN", (0, rs), (3, rs)),
