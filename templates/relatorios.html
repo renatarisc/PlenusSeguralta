@@ -85,12 +85,9 @@
     </div>
 
     <div class="campo c-3">
-      <label for="r-busca">Buscar descrição</label>
-      <div class="campo-busca">
-        {{ icone('busca') }}
-        <input id="r-busca" type="search" name="busca" value="{{ busca }}" list="lista-descricoes"
-               autocomplete="off" placeholder="Descrição da saída" onfocus="this.select()">
-      </div>
+      <label for="r-busca">Descrição da saída</label>
+      <input id="r-busca" type="search" name="busca" value="{{ busca }}" list="lista-descricoes"
+             autocomplete="off" onfocus="this.select()">
       <datalist id="lista-descricoes">{% for d in descricoes %}<option value="{{ d }}">{% endfor %}</datalist>
     </div>
     <div class="campo c-2">
