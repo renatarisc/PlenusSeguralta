@@ -273,13 +273,17 @@ table.lista tr.apolice-vencida td:first-child { box-shadow: inset 3px 0 0 #a5201
   background: var(--fundo); border: 1px solid var(--linha); border-radius: var(--raio);
   padding: 8px 12px 6px; align-self: start;
 }
-.rel-periodo__campos { display: flex; gap: 12px; align-items: flex-end; }
+.rel-periodo__campos { display: flex; gap: 12px; align-items: flex-start; }
 .rel-periodo__campos .campo { flex: 0 0 auto; }
 .rel-periodo__campos input[type="date"] { background: var(--branco); }
 .rel-periodo__atalhos { flex: 1 1 auto; min-width: 0; }
+.rel-periodo__atalhos .rel-presets { min-height: 35px; align-items: flex-start; }
 .rel-periodo__nota {
-  display: block; margin-top: 6px; font-size: 10.5px; color: var(--texto-suave);
+  display: block; margin-top: 4px; font-size: 10.5px; color: var(--texto-suave);
 }
+/* "Agrupar por" + "Depois por" sempre juntos na mesma linha */
+.rel-agrupar { display: flex; gap: 12px; align-self: start; }
+.rel-agrupar .campo { flex: 1 1 0; min-width: 0; }
 .rel-stats { margin-top: 14px; }
 .rel-acoes { display: flex; align-items: center; gap: 12px; margin: 12px 2px; flex-wrap: wrap; }
 .rel-tabela th, .rel-tabela td { padding: 6px 10px; font-size: 12.5px; vertical-align: middle; }
@@ -523,4 +527,5 @@ dialog.dlg::backdrop { background: rgba(20, 20, 25, .45); }
   .c-2, .c-3, .c-4 { grid-column: span 3; }
   .c-5, .c-6, .c-7, .c-8, .c-9 { grid-column: 1 / -1; }
   .rel-periodo__campos { flex-wrap: wrap; }
+  .rel-agrupar { flex-wrap: wrap; }
 }
