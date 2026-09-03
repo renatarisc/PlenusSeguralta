@@ -54,29 +54,12 @@
       </select>
     </div>
     <div class="campo c-2">
-      <label for="f-cat">Categoria</label>
-      <select id="f-cat" name="categoria_id">
-        <option value="">Todas</option>
-        {% for c in categorias %}
-        <option value="{{ c.id }}" {{ 'selected' if categoria_id == c.id }}>{{ c.nome }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="campo c-2">
       <label for="f-forma">Forma de pgto</label>
       <select id="f-forma" name="forma_pagamento_id">
         <option value="">Todas</option>
         {% for f in formas %}
         <option value="{{ f.id }}" {{ 'selected' if forma_id == f.id }}>{{ f.nome }}</option>
         {% endfor %}
-      </select>
-    </div>
-    <div class="campo c-2">
-      <label for="f-fixa">Fixa mensal</label>
-      <select id="f-fixa" name="fixo">
-        <option value="">Todas</option>
-        <option value="1" {{ 'selected' if fixo == '1' }}>Só fixas mensais</option>
-        <option value="0" {{ 'selected' if fixo == '0' }}>Sem as fixas</option>
       </select>
     </div>
   </div>
