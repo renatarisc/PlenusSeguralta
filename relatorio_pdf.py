@@ -49,8 +49,6 @@ _tot = ParagraphStyle("tot", parent=_cel, fontName="Helvetica-Bold", fontSize=8.
 _tot_r = ParagraphStyle("totR", parent=_tot, alignment=TA_RIGHT)
 _vazio = ParagraphStyle("vazio", parent=_cel, fontSize=9, textColor=CINZA_TXT,
                         alignment=TA_CENTER, spaceBefore=24)
-_filtros = ParagraphStyle("filtros", parent=_cel, fontSize=7.4, textColor=CINZA_TXT,
-                          spaceAfter=6)
 
 
 def _d(iso):
@@ -111,6 +109,12 @@ def _cabecalho(cnv, doc, ctx):
     cnv.setStrokeColor(GRAFITE)
     cnv.setLineWidth(1.3)
     cnv.line(MARGEM, topo - 34, w - MARGEM, topo - 34)
+
+    ft = _filtros_ativos(ctx)
+    if ft:
+        cnv.setFont("Helvetica-Oblique", 7)
+        cnv.setFillColor(CINZA_TXT)
+        cnv.drawRightString(w - MARGEM, topo - 44, "Filtros: " + ft)
 
 
 class _NumCanvas(_canvas.Canvas):
@@ -252,10 +256,8 @@ def gerar(ctx):
     doc.addPageTemplates([PageTemplate(
         id="pt", frames=[frame], onPage=lambda cnv, d: _cabecalho(cnv, d, ctx))])
 
+    # "Filtros: …" é desenhado no cabeçalho (à direita, sob a régua) — não vai no story
     story = []
-    ft = _filtros_ativos(ctx)
-    if ft:
-        story.append(_p("Filtros: " + ft, _filtros))
     if not ctx["linhas"]:
         story.append(_p("Nenhum lançamento no período/filtro escolhido.", _vazio))
     else:
