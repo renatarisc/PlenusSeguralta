@@ -54,7 +54,7 @@
       </select>
     </div>
     <div class="campo c-2">
-      <label for="r-base">Período conta a</label>
+      <label for="r-base">Por data de</label>
       <select id="r-base" name="base_data">
         <option value="vencimento" {{ 'selected' if base_data == 'vencimento' }}>Vencimento</option>
         <option value="pagamento" {{ 'selected' if base_data == 'pagamento' }}>Pagamento</option>
@@ -180,7 +180,7 @@
   <button type="button" class="btn btn--linha btn--mini" onclick="window.print()">Imprimir / PDF</button>
   <span class="dica">
     {{ 'Sem agrupamento' if not arvore else ('Agrupado por ' ~ arvore.campo ~ (' e ' ~ arvore.grupos[0].sub.campo if arvore.grupos and arvore.grupos[0].sub else '')) }}
-    · período por {{ base_data }}{% if data_ini or data_fim %} ({{ data_ini|data_br if data_ini else '…' }} a {{ data_fim|data_br if data_fim else '…' }}){% endif %}
+    · por data de {{ base_data }}{% if data_ini or data_fim %} ({{ data_ini|data_br if data_ini else '…' }} a {{ data_fim|data_br if data_fim else '…' }}){% endif %}
   </span>
 </div>
 
