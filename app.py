@@ -754,7 +754,7 @@ def _agrupar_saidas(linhas, chaves):
             "itens": itens if len(chaves) == 1 else None,
             "sub": _agrupar_saidas(itens, chaves[1:]) if len(chaves) > 1 else None,
         })
-    return {"campo": campo_rotulo, "grupos": grupos}
+    return {"campo": campo_rotulo, "chave": chaves[0], "grupos": grupos}
 
 
 @app.route("/financeiro/relatorios")
