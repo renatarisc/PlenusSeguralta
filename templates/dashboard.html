@@ -126,7 +126,7 @@
       </thead>
       <tbody>
         {% for s in contas_pagar %}
-        <tr class="{{ 'apolice-vencida' if s.dias_restantes is not none and s.dias_restantes < 0 else 'apolice-vencendo' }}">
+        <tr>
           <td><a href="{{ url_for('saida_form', saida_id=s.id) }}"
                  style="font-weight:600;color:var(--laranja-hover)">{{ s.descricao }}</a></td>
           <td>{{ s.categoria or '—' }}</td>
