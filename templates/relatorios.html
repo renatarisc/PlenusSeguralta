@@ -7,7 +7,6 @@
 <tr class="{{ 'rel-paga' if s.status == 'pago' }}">
   <td class="rel-desc">{{ s.descricao }}{% if s.fixo_mensal %} <span class="tag-fixa">fixa</span>{% endif %}</td>
   <td>{{ s.categoria or '—' }}</td>
-  <td>{{ s.forma_pagamento or '—' }}</td>
   <td>{{ s.numero_parcela or '—' }}</td>
   <td class="rel-nowrap">{{ s.data_vencimento|data_br }}</td>
   <td class="rel-nowrap">{{ s.data_pagamento|data_br if s.data_pagamento else '—' }}</td>
@@ -24,7 +23,7 @@
   {% for g in arv.grupos %}
   <tbody class="rel-grp rel-grp--{{ nivel }}">
     <tr class="rel-cab rel-cab--{{ nivel }}">
-      <td colspan="6"><span class="rel-campo">{{ arv.campo }}:</span> {{ g.rotulo }}</td>
+      <td colspan="5"><span class="rel-campo">{{ arv.campo }}:</span> {{ g.rotulo }}</td>
       <td class="col-valor">{{ g.soma|moeda }}</td>
       <td class="rel-qtd">{{ g.qtd }} lç.</td>
     </tr>
@@ -34,7 +33,7 @@
       {% for s in g.itens %}{{ linha(s) }}{% endfor %}
     {% endif %}
     <tr class="rel-sub rel-sub--{{ nivel }}">
-      <td colspan="6">Subtotal — {{ g.rotulo }}
+      <td colspan="5">Subtotal — {{ g.rotulo }}
         <small>({{ g.qtd }} lç · paga {{ g.soma_paga|moeda }} · em aberto {{ g.soma_aberto|moeda }})</small></td>
       <td class="col-valor">{{ g.soma|moeda }}</td>
       <td></td>
@@ -192,7 +191,7 @@
     <table class="lista rel-tabela">
       <thead>
         <tr>
-          <th>Descrição</th><th>Categoria</th><th>Forma de pgto</th><th>Parc.</th>
+          <th>Descrição</th><th>Categoria</th><th>Parc.</th>
           <th class="rel-nowrap">Vencimento</th><th class="rel-nowrap">Pagamento</th>
           <th class="col-valor">Valor</th><th>Situação</th>
         </tr>
@@ -206,7 +205,7 @@
       {% endif %}
       <tfoot>
         <tr class="rel-total">
-          <td colspan="6">Total geral <small>({{ resumo.qtd }} lç · paga {{ resumo.soma_paga|moeda }} · em aberto {{ resumo.soma_aberto|moeda }})</small></td>
+          <td colspan="5">Total geral <small>({{ resumo.qtd }} lç · paga {{ resumo.soma_paga|moeda }} · em aberto {{ resumo.soma_aberto|moeda }})</small></td>
           <td class="col-valor">{{ resumo.soma|moeda }}</td>
           <td></td>
         </tr>
