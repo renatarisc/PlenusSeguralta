@@ -107,7 +107,7 @@
         {% set d = s.dias_restantes %}
         {% set perto = s.status == 'a_pagar' and d is not none and d <= DIAS_ALERTA_SAIDA %}
         {% set partes = [s.forma_pagamento, s.numero_parcela] | select | list %}
-        <tr class="{{ 'apolice-vencida' if s.status == 'vencido' else ('apolice-vencendo' if perto) }} {{ 'linha-paga' if s.status == 'pago' }}">
+        <tr class="{{ 'linha-paga' if s.status == 'pago' }}">
           <td>
             <a class="cel-titulo" href="{{ url_for('saida_form', saida_id=s.id) }}">{{ s.descricao }}</a>
             {% if s.fixo_mensal %}<span class="tag-fixa">fixa mensal</span>{% endif %}
