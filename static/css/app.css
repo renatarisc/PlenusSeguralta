@@ -324,6 +324,7 @@ table.lista tr.apolice-vencida td:first-child { box-shadow: inset 3px 0 0 #a5201
 .rel-total td { border-top: 2px solid var(--grafite); font-weight: 800; font-size: 13px; }
 
 @media print {
+  @page { margin: 14mm 12mm; }
   .barra, .topo, .flash, .rel-filtros, .rel-acoes, .nav__badge { display: none !important; }
   .app { display: block; }
   .conteudo { margin: 0; }
@@ -331,6 +332,10 @@ table.lista tr.apolice-vencida td:first-child { box-shadow: inset 3px 0 0 #a5201
   .cartao { box-shadow: none; border: none; }
   .rel-tabela th, .rel-tabela td { padding: 4px 6px; font-size: 10.5px; }
   .rel-cab td, .rel-sub td, .rel-total td { background: transparent !important; }
+  /* não quebrar uma linha no meio; cabeçalho de grupo não fica sozinho no pé da página */
+  .rel-tabela tr { break-inside: avoid; }
+  .rel-cab { break-after: avoid; }
+  .rel-stats { break-inside: avoid; }
 }
 
 /* ---------- tabela de parcelas / lançamentos: campos no mesmo padrão dos formulários ---------- */

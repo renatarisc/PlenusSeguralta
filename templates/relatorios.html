@@ -203,13 +203,14 @@
           {% for s in linhas %}{{ linha(s) }}{% endfor %}
         </tbody>
       {% endif %}
-      <tfoot>
+      {# total geral num tbody normal (não <tfoot>) pra NÃO repetir em toda página impressa #}
+      <tbody>
         <tr class="rel-total">
           <td colspan="4">Total geral <small>({{ resumo.qtd }} lç · paga {{ resumo.soma_paga|moeda }} · em aberto {{ resumo.soma_aberto|moeda }})</small></td>
           <td class="col-valor">{{ resumo.soma|moeda }}</td>
           <td></td>
         </tr>
-      </tfoot>
+      </tbody>
     </table>
   </div>
   {% endif %}
