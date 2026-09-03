@@ -7,7 +7,6 @@
 {% macro linha(s, oc=[]) %}
 <tr class="{{ 'rel-paga' if s.status == 'pago' }}">
   <td class="rel-desc">{% if 'descricao' not in oc %}{{ s.descricao }}{% if s.fixo_mensal %} <span class="tag-fixa">fixa</span>{% endif %}{% endif %}</td>
-  <td>{% if 'categoria' not in oc %}{{ s.categoria or '—' }}{% endif %}</td>
   <td>{{ s.numero_parcela or '—' }}</td>
   <td class="rel-nowrap">{{ s.data_vencimento|data_br }}</td>
   <td class="rel-nowrap">{{ s.data_pagamento|data_br if s.data_pagamento else '—' }}</td>
@@ -22,11 +21,11 @@
 {% endmacro %}
 
 {% macro bloco(arv, nivel, oc=[]) %}
-  {% set oc = oc + ([arv.chave] if arv.chave in ('descricao', 'categoria', 'situacao') else []) %}
+  {% set oc = oc + ([arv.chave] if arv.chave in ('descricao', 'situacao') else []) %}
   {% for g in arv.grupos %}
   <tbody class="rel-grp rel-grp--{{ nivel }}">
     <tr class="rel-cab rel-cab--{{ nivel }}">
-      <td colspan="7"><span class="rel-campo">{{ arv.campo }}</span>{{ g.rotulo }}</td>
+      <td colspan="6"><span class="rel-campo">{{ arv.campo }}</span>{{ g.rotulo }}</td>
     </tr>
     {% if g.sub %}
       {{ bloco(g.sub, nivel + 1, oc) }}
@@ -34,7 +33,7 @@
       {% for s in g.itens %}{{ linha(s, oc) }}{% endfor %}
     {% endif %}
     <tr class="rel-sub rel-sub--{{ nivel }}">
-      <td colspan="5">Subtotal
+      <td colspan="4">Subtotal
         <small>{{ g.qtd }} lç · paga {{ g.soma_paga|moeda }} · em aberto {{ g.soma_aberto|moeda }}</small></td>
       <td class="col-valor">{{ g.soma|moeda }}</td>
       <td></td>
@@ -188,7 +187,7 @@
     <table class="lista rel-tabela">
       <thead>
         <tr>
-          <th>Descrição</th><th>Categoria</th><th>Parc.</th>
+          <th>Descrição</th><th>Parc.</th>
           <th class="rel-nowrap">Vencimento</th><th class="rel-nowrap">Pagamento</th>
           <th class="col-valor">Valor</th><th>Situação</th>
         </tr>
@@ -202,7 +201,7 @@
       {% endif %}
       <tfoot>
         <tr class="rel-total">
-          <td colspan="5">Total geral <small>({{ resumo.qtd }} lç · paga {{ resumo.soma_paga|moeda }} · em aberto {{ resumo.soma_aberto|moeda }})</small></td>
+          <td colspan="4">Total geral <small>({{ resumo.qtd }} lç · paga {{ resumo.soma_paga|moeda }} · em aberto {{ resumo.soma_aberto|moeda }})</small></td>
           <td class="col-valor">{{ resumo.soma|moeda }}</td>
           <td></td>
         </tr>
