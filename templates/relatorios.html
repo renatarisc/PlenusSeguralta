@@ -52,6 +52,71 @@
   {% endfor %}
 {% endmacro %}
 
+{# ---------- macros do relatório de ENTRADAS (repasses de comissão) ---------- #}
+{% macro linha_ent(p) %}
+<tr class="{{ 'rel-paga' if p.paga }}">
+  <td class="rel-desc">{{ p.parcela or '—' }}</td>
+  <td class="rel-col-c">{{ p.data|data_br if p.data else '—' }}</td>
+  <td class="col-valor">{{ p.valor_previsto|moeda }}</td>
+  <td class="col-valor">{{ p.valor_recebido|moeda if p.valor_recebido is not none else '—' }}</td>
+  <td class="rel-col-c">{{ 'Sim' if p.conferido_banco else 'Não' }}</td>
+  <td class="rel-col-c">
+    {%- if p.paga %}<span class="selo-pago">Paga</span>
+    {%- else %}<span class="selo-apagar">A receber</span>{% endif -%}
+  </td>
+</tr>
+{% endmacro %}
+
+{% macro sub_ent(nivel, rotulo, g, prefixo, sufixo='') %}
+<tr class="rel-sub rel-sub--{{ nivel }}">
+  <td colspan="3">{{ prefixo }}{{ rotulo }}
+    <small>({{ g.qtd }} parc · recebido {{ g.soma_paga|moeda }} · a receber {{ g.soma_aberto|moeda }})</small>{{ sufixo }}</td>
+  <td class="col-valor"><strong>{{ g.soma|moeda }}</strong></td>
+  <td></td><td></td>
+</tr>
+{% endmacro %}
+
+{% macro apolice_ent(ap, modo='completo', topo=false) %}
+<tr class="rel-cab rel-cab--3{{ ' rel-ap-topo' if topo }}"><td colspan="6">
+  <strong>{{ ap.cliente_nome }}</strong>
+  <small>· apólice {{ ap.numero_apolice or '—' }}
+    · prêmio líquido {{ ap.premio_liquido|moeda }}
+    · comissão {% if ap.comissao_percentual is not none %}{{ ap.comissao_percentual|numero }}%{% else %}—{% endif %}</small>
+</td></tr>
+{% if ap.divergencia %}
+<tr class="rel-diverg"><td colspan="6">
+  ⚠ Divergência com o relatório da corretora —
+  {% for d in ap.divergencia %}{{ d.campo }}: sistema {{ d.sistema|moeda }} · relatório {{ d.relatorio|moeda }}{{ ' · ' if not loop.last }}{% endfor %}
+</td></tr>
+{% endif %}
+{% if modo == 'completo' %}{% for p in ap.parcelas %}{{ linha_ent(p) }}{% endfor %}{% endif %}
+{{ sub_ent(3, '', ap, 'Total da apólice', ' — COCORRETAGEM' if ap.cocorretagem else '') }}
+{% endmacro %}
+
+{# árvore de 0..2 níveis à escolha (tipo/seguradora/mês); apólice é sempre a folha.
+   modo: completo (grupos→apólices→parcelas) · resumo (grupos→apólices, sem parcelas) ·
+   grupos (só os totais dos grupos — o grupo mais interno vira 1 linha, sem apólices) #}
+{% macro bloco_ent(node, nivel, modo='completo') %}
+  {% if node.campo %}
+    {% for g in node.grupos %}
+    {% if modo == 'grupos' and not g.sub.campo %}
+    <tr class="rel-resumo {{ 'rel-zebra' if loop.index is even }}">
+      <td colspan="3">{{ g.rotulo }}
+        <small>({{ g.qtd }} parc · recebido {{ g.soma_paga|moeda }} · a receber {{ g.soma_aberto|moeda }})</small></td>
+      <td class="col-valor">{{ g.soma|moeda }}</td>
+      <td></td><td></td>
+    </tr>
+    {% else %}
+    <tr class="rel-cab rel-cab--{{ nivel }}"><td colspan="6"><span class="rel-campo">{{ node.campo }}</span>{{ g.rotulo }}</td></tr>
+    {{ bloco_ent(g.sub, nivel + 1, modo) }}
+    {{ sub_ent(nivel, g.rotulo, g, 'Subtotal ') }}
+    {% endif %}
+    {% endfor %}
+  {% elif modo != 'grupos' %}
+    {% for ap in node.apolices %}{{ apolice_ent(ap, modo, nivel == 1) }}{% endfor %}
+  {% endif %}
+{% endmacro %}
+
 {% block conteudo %}
 {# cabeçalho só do PDF impresso (escondido na tela via CSS) #}
 <div class="pdf-cab">
@@ -101,13 +166,52 @@
         </div>
       </div>
 
+      {% if tipo != 'entradas' %}
       <div class="campo">
         <label for="r-busca">Descrição da saída</label>
         <input id="r-busca" type="search" name="busca" value="{{ busca }}" list="lista-descricoes"
                autocomplete="off" onfocus="this.select()">
         <datalist id="lista-descricoes">{% for d in descricoes %}<option value="{{ d }}">{% endfor %}</datalist>
       </div>
+      {% endif %}
     </div>
+
+    {% if tipo == 'entradas' %}
+    <div class="campo c-3">
+      <label for="r-sit">Situação da parcela</label>
+      <select id="r-sit" name="situacao">
+        <option value="">Todas</option>
+        <option value="paga" {{ 'selected' if situacao == 'paga' }}>Paga (recebida)</option>
+        <option value="nao_paga" {{ 'selected' if situacao == 'nao_paga' }}>Não paga (a receber)</option>
+      </select>
+    </div>
+    <div class="rel-agrupar c-6">
+      <div class="campo">
+        <label for="r-g1">Agrupar por</label>
+        <select id="r-g1" name="g1">
+          {% for k, rot in grupo_opcoes_entrada %}
+          <option value="{{ k }}" {{ 'selected' if g1 == k }}>{{ rot }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="campo">
+        <label for="r-g2">Depois por</label>
+        <select id="r-g2" name="g2">
+          {% for k, rot in grupo_opcoes_entrada %}
+          {% if not k or k != g1 %}<option value="{{ k }}" {{ 'selected' if g2 == k }}>{{ rot }}</option>{% endif %}
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="campo c-3">
+      <label for="r-modo">Detalhe</label>
+      <select id="r-modo" name="modo">
+        <option value="completo" {{ 'selected' if modo == 'completo' }}>Completo</option>
+        <option value="resumo" {{ 'selected' if modo == 'resumo' }}>Só o total por apólice</option>
+        <option value="grupos" {{ 'selected' if modo == 'grupos' }}>Só os totais dos grupos</option>
+      </select>
+    </div>
+    {% else %}
 
     <div class="campo c-2">
       <label for="r-base">Por data de</label>
@@ -193,6 +297,7 @@
         <option value="resumo" {{ 'selected' if modo == 'resumo' }}>Só subtotais</option>
       </select>
     </div>
+    {% endif %}
   </div>
   <div class="filtros__acoes">
     <button class="btn btn--primario" type="submit">{{ icone('relatorio') }} Gerar relatório</button>
@@ -201,9 +306,56 @@
 </form>
 
 {% if tipo == 'entradas' %}
-<div class="cartao">
-  <p class="vazio">O módulo de <strong>Entradas</strong> ainda não foi construído — o relatório de entradas
-    fica disponível quando ele existir.</p>
+
+<div class="stats rel-stats">
+  <div class="stat"><div class="stat__valor">{{ resumo.qtd_apolices }}</div><div class="stat__rotulo">Apólices</div></div>
+  <div class="stat"><div class="stat__valor">{{ resumo.soma|moeda }}</div><div class="stat__rotulo">Total</div></div>
+  <div class="stat"><div class="stat__valor">{{ resumo.soma_paga|moeda }}</div>
+    <div class="stat__rotulo">Recebido ({{ resumo.qtd_paga }})</div></div>
+  <div class="stat"><div class="stat__valor" style="color:{{ 'var(--erro)' if resumo.soma_aberto else 'inherit' }}">{{ resumo.soma_aberto|moeda }}</div>
+    <div class="stat__rotulo">A receber ({{ resumo.qtd_aberto }})</div></div>
+</div>
+
+{% if resumo.qtd_diverg %}
+<p class="rel-diverg-nota">⚠ {{ resumo.qtd_diverg }} apólice(s) com divergência entre a soma do repasse no sistema e o total informado no relatório da corretora — detalhe em cada apólice abaixo.</p>
+{% endif %}
+
+<div class="rel-acoes">
+  <a class="btn btn--primario btn--mini" href="{{ url_for('fluxo_relatorios_pdf', slug=tipo, **request.args) }}">
+    {{ icone('relatorio') }} Baixar PDF
+  </a>
+  <button type="button" class="btn btn--linha btn--mini" onclick="window.print()">Imprimir pelo navegador</button>
+</div>
+
+<div class="cartao" style="padding:0">
+  {% if not linhas %}
+  <p class="vazio">Nenhuma parcela de repasse no período/filtro escolhido.</p>
+  {% else %}
+  <div class="tabela-wrap">
+    <table class="lista rel-tabela">
+      <colgroup>
+        <col style="width:16%"><col style="width:14%"><col style="width:17%">
+        <col style="width:17%"><col style="width:14%"><col style="width:22%">
+      </colgroup>
+      <thead>
+        <tr>
+          <th>Parcela</th><th class="rel-col-c">Data</th>
+          <th class="col-valor">Previsto</th><th class="col-valor">Recebido</th>
+          <th class="rel-col-c">Conf. banco</th><th class="rel-col-c">Situação</th>
+        </tr>
+      </thead>
+      <tbody>{{ bloco_ent(arvore, 1, modo) }}</tbody>
+      <tbody>
+        <tr class="rel-total">
+          <td colspan="3">Total geral
+            <small>({{ resumo.qtd_apolices }} apólice(s) · {{ resumo.qtd }} parc · recebido {{ resumo.soma_paga|moeda }} · a receber {{ resumo.soma_aberto|moeda }})</small></td>
+          <td class="col-valor">{{ resumo.soma|moeda }}</td>
+          <td></td><td></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
 </div>
 {% else %}
 

@@ -85,7 +85,7 @@
           <input id="ger_data1" type="date">
         </div>
         <div class="campo c-2">
-          <button type="button" class="btn btn--primario" id="btn-gerar-lancamentos">Gerar tabela</button>
+          <button type="button" class="btn btn--primario" id="btn-gerar-lancamentos">Gerar parcelas</button>
         </div>
       </div>
     </div>
@@ -117,7 +117,7 @@
       </table>
     </div>
     <div style="padding:10px 0 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <button type="button" class="btn btn--linha" id="btn-add-lancamento">{{ icone('mais') }} Adicionar mês</button>
+      <button type="button" class="btn {{ 'btn--linha' if lancs else 'btn--primario' }}" id="btn-add-lancamento">{{ icone('mais') }} {{ 'Adicionar mês' if lancs else 'Adicionar parcela única' }}</button>
       <span class="dica" id="resumo-lancamentos" style="margin-left:6px"></span>
     </div>
   </div>

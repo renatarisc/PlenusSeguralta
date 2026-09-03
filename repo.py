@@ -933,3 +933,95 @@ def resumo_saidas():
             "WHERE data_pagamento IS NULL AND data_vencimento < ?", (date.today().isoformat(),)
         ).fetchone()[0]
     return {"a_pagar_mes": a_pagar_mes, "vencido": vencido}
+
+
+# ---------- entradas (contas a receber = repasses de comissão) ----------
+
+def listar_entradas_repasse(data_ini=None, data_fim=None):
+    """Uma linha por PARCELA de repasse — o dinheiro que a Plenus recebe da
+    corretora, vinculado à comissão de cada apólice. Junta dois casos:
+
+    * repasse parcelado: linhas de `apolice_repasse`;
+    * repasse único / cocorretagem: apólices sem linhas em `apolice_repasse`,
+      montadas dos campos "Plenus a receber/recebido/recebido em" da própria
+      apólice (parcela rotulada "única").
+
+    `data_ini`/`data_fim` (ISO) recortam pela data da parcela. Situação
+    (paga × a receber) é aplicada depois, na camada da rota. Cada dict traz:
+    apolice_id, cliente_nome, tipo_seguro_nome, seguradora_nome, numero_apolice,
+    premio_liquido, comissao_percentual, parcela, data, valor_previsto,
+    valor_recebido, conferido_banco, origem."""
+    cols_apolice = (
+        "       c.nome AS cliente_nome, t.nome AS tipo_seguro_nome, "
+        "       sg.nome AS seguradora_nome, "
+        "       a.numero_apolice, a.premio_liquido, a.comissao_percentual, "
+        "       COALESCE(a.comissao_cocorretagem, 0) AS comissao_cocorretagem ")
+    joins = (" FROM apolice a "
+             " LEFT JOIN cliente c     ON c.id = a.cliente_id "
+             " LEFT JOIN tipo_seguro t ON t.id = a.tipo_seguro_id "
+             " LEFT JOIN seguradora sg ON sg.id = a.seguradora_id ")
+    with conexao() as con:
+        parceladas = con.execute(
+            "SELECT a.id AS apolice_id, " + cols_apolice + ", "
+            "       r.parcela, r.data, r.valor_previsto, r.valor_recebido, "
+            "       COALESCE(r.conferido_banco, 0) AS conferido_banco "
+            "  FROM apolice_repasse r "
+            "  JOIN apolice a          ON a.id = r.apolice_id "
+            "  LEFT JOIN cliente c     ON c.id = a.cliente_id "
+            "  LEFT JOIN tipo_seguro t ON t.id = a.tipo_seguro_id "
+            "  LEFT JOIN seguradora sg ON sg.id = a.seguradora_id "
+            " ORDER BY a.id, r.ordem, r.id"
+        ).fetchall()
+        unicas = con.execute(
+            "SELECT a.id AS apolice_id, " + cols_apolice + ", "
+            "       a.comissao_valor_plenus_receber  AS valor_previsto, "
+            "       a.comissao_valor_plenus_recebido AS valor_recebido, "
+            "       a.data_plenus_recebido           AS data, "
+            "       COALESCE(a.plenus_conferido_banco, 0) AS conferido_banco "
+            + joins +
+            " WHERE NOT EXISTS (SELECT 1 FROM apolice_repasse r WHERE r.apolice_id = a.id) "
+            " ORDER BY a.id"
+        ).fetchall()
+
+    linhas = []
+    for row in parceladas:
+        d = dict(row)
+        d["origem"] = "parcelado"
+        linhas.append(d)
+    for row in unicas:
+        d = dict(row)
+        if d.get("valor_previsto") is None and d.get("valor_recebido") is None:
+            continue  # apólice sem nenhum dado de repasse — fora do relatório
+        d["parcela"] = "única"
+        d["origem"] = "unico"
+        linhas.append(d)
+
+    # o período recorta as parcelas COM data; as parcelas ainda SEM data
+    # (a receber, não agendadas) passam sempre — senão sumiriam do relatório
+    if data_ini:
+        linhas = [l for l in linhas if not l.get("data") or l["data"] >= data_ini]
+    if data_fim:
+        linhas = [l for l in linhas if not l.get("data") or l["data"] <= data_fim]
+    return linhas
+
+
+def repasse_vs_relatorio_plenus():
+    """Por apólice, compara a SOMA do repasse no sistema (todas as parcelas de
+    `apolice_repasse`, sem recorte de período) com os totais "no relatório da
+    corretora" (`apolice.previsto_relatorio_plenus` / `recebido_relatorio_plenus`).
+    Só entra apólice que tem ao menos um desses dois totais preenchido.
+    Devolve {apolice_id: {prev_sistema, prev_relatorio, receb_sistema, receb_relatorio}}."""
+    with conexao() as con:
+        rows = con.execute(
+            "SELECT a.id AS apolice_id, "
+            "       a.previsto_relatorio_plenus  AS prev_relatorio, "
+            "       a.recebido_relatorio_plenus  AS receb_relatorio, "
+            "       COALESCE((SELECT SUM(r.valor_previsto) FROM apolice_repasse r "
+            "                   WHERE r.apolice_id = a.id), 0) AS prev_sistema, "
+            "       COALESCE((SELECT SUM(r.valor_recebido) FROM apolice_repasse r "
+            "                   WHERE r.apolice_id = a.id), 0) AS receb_sistema "
+            "  FROM apolice a "
+            " WHERE a.previsto_relatorio_plenus IS NOT NULL "
+            "    OR a.recebido_relatorio_plenus IS NOT NULL"
+        ).fetchall()
+    return {r["apolice_id"]: dict(r) for r in rows}

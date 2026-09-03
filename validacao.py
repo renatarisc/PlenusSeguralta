@@ -213,6 +213,54 @@ def preparar_repasses(parcelas, previstos, recebidos, datas, conferidos=None):
     return linhas, erros
 
 
+def gerar_repasses_cocorretagem(comissoes, premio_liquido, comissao_percentual):
+    """Cocorretagem: a Plenus fica com 75% da comissão (a Seguralta com 25%).
+    Monta as parcelas de repasse a partir das parcelas de comissão já lançadas
+    — mesma quantidade, mesma data, mesmo rótulo — repartindo o total
+    T = prêmio líquido × comissão% × 0,75 na MESMA proporção das parcelas de
+    comissão (coluna "previsto"); a última parcela absorve o arredondamento.
+    Coluna "recebido": mesma proporção sobre o que a comissão marca como
+    recebido; parcela de comissão sem "recebido" → repasse sem "recebido"
+    (se TODAS têm recebido, a última também fecha exatamente em T).
+    Devolve [] se faltar prêmio/percentual ou não houver parcelas de comissão."""
+    prem = para_decimal(premio_liquido)
+    pct = para_decimal(comissao_percentual)
+    if not comissoes or prem is None or pct is None:
+        return []
+    total = round(prem * pct / 100 * 0.75, 2)
+    prevs = [float(c.get("valor_previsto") or 0.0) for c in comissoes]
+    recs = [c.get("valor_recebido") for c in comissoes]
+    base = sum(prevs)
+    n = len(comissoes)
+
+    def _reparte(valores, absorver):
+        idx_ult = max((i for i, v in enumerate(valores) if v is not None), default=-1)
+        out, acum = [], 0.0
+        for i, v in enumerate(valores):
+            if v is None:
+                out.append(None)
+                continue
+            if absorver and i == idx_ult:
+                parte = round(total - acum, 2)
+            elif base:
+                parte = round(total * (float(v) / base), 2)
+            else:
+                parte = round(total / n, 2)
+            out.append(parte)
+            acum += parte
+        return out
+
+    todas_receb = bool(recs) and all(r is not None for r in recs)
+    rep_prev = _reparte(prevs, absorver=True)
+    rep_rec = _reparte(recs, absorver=todas_receb)
+
+    return [
+        {"parcela": c.get("parcela"), "valor_previsto": vp, "valor_recebido": vr,
+         "data": c.get("data"), "conferido_banco": 0}
+        for c, vp, vr in zip(comissoes, rep_prev, rep_rec)
+    ]
+
+
 # ---------- validação do formulário de apólice ----------
 
 def validar_apolice(dados):

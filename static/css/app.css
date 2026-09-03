@@ -316,15 +316,33 @@ table.lista tr.apolice-vencida td:first-child { box-shadow: inset 3px 0 0 #a5201
 }
 .rel-cab--2 td { background: #f4f6f8; font-weight: 600; border-top-width: 1px; }
 .rel-cab--2 td:first-child { padding-left: 24px; }
+/* nível 3 (apólice): cabeçalho leve; só ganha fundo quando é o nível de topo (sem agrupamento) */
+.rel-cab--3 td {
+  background: var(--branco); font-weight: 600; font-size: 12.5px;
+  border-top-width: 1px; padding-top: 8px; padding-bottom: 6px; padding-left: 36px;
+}
+.rel-cab--3.rel-ap-topo td { background: #f4f6f8; }
+.rel-cab--3 td strong { font-weight: 700; }
+.rel-cab--3 td small { color: var(--texto-suave); font-weight: 400; }
+.rel-sub--3 td:first-child { padding-left: 36px; }
 .rel-campo {
   color: var(--texto-suave); font-weight: 600; font-size: 10px;
   text-transform: uppercase; letter-spacing: .04em; margin-right: 8px;
 }
 .rel-sub td { color: var(--texto-suave); font-size: 11.5px; background: #fafbfc; }
+.rel-sub td.col-valor strong { color: var(--texto); }   /* soma da apólice/grupo em preto */
 .rel-sub--1 td { font-weight: 700; color: var(--texto); }
 .rel-sub--2 td:first-child { padding-left: 24px; }
+.rel-sub--3 td { background: var(--branco); }   /* "Total da apólice" sem sombra */
 .rel-sub small, .rel-total small, .rel-resumo small { font-weight: 400; color: var(--texto-suave); }
 .rel-total td { border-top: 2px solid var(--grafite); font-weight: 800; font-size: 13px; }
+/* divergência: soma do repasse no sistema × total do relatório da corretora */
+.rel-tabela tr.rel-diverg td {
+  color: #b26a00; font-weight: 600; font-size: 11.5px;
+  background: #fff7ec; padding-left: 36px;
+}
+.rel-diverg-nota { color: #b26a00; font-weight: 700; font-size: 12.5px; margin: 10px 0 0; }
+
 /* modo resumido: linha por grupo, sem fundo cinza, zebra alternada */
 .rel-tabela .rel-resumo td { font-weight: 700; color: var(--texto); background: var(--branco); }
 .rel-tabela .rel-resumo.rel-zebra td { background: #f6f7f9; }
@@ -446,7 +464,7 @@ table.lista tr.apolice-vencida td:first-child { box-shadow: inset 3px 0 0 #a5201
 /* faixa dos campos "total do relatório da corretora" (diferencia da tabela acima) */
 .rel-box {
   margin-top: 10px; padding: 10px 12px; border-radius: var(--raio);
-  background: #eef4fb; border: 1px solid #d6e4f2;
+  background: var(--fundo); border: 1px solid var(--linha);
 }
 .rel-box .grade { margin-bottom: 0; }
 .rel-box .campo input { background: var(--branco); }

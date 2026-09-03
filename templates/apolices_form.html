@@ -173,7 +173,7 @@
           <input id="ger_data1" type="date">
         </div>
         <div class="campo c-2">
-          <button type="button" class="btn btn--primario" id="btn-gerar-parcelas">Gerar</button>
+          <button type="button" class="btn btn--primario" id="btn-gerar-parcelas">Gerar parcelas</button>
         </div>
       </div>
     </div>
@@ -214,7 +214,7 @@
       </table>
     </div>
     <div style="padding:10px 0 0">
-      <button type="button" class="btn btn--linha" id="btn-add-parcela">{{ icone('mais') }} Adicionar parcela</button>
+      <button type="button" class="btn {{ 'btn--linha' if a.parcelas else 'btn--primario' }}" id="btn-add-parcela">{{ icone('mais') }} {{ 'Adicionar parcela' if a.parcelas else 'Adicionar parcela única' }}</button>
       <span class="dica" id="resumo-parcelas" style="margin-left:10px"></span>
     </div>
   </div>
@@ -246,7 +246,7 @@
       <div class="grade" style="align-items:end;margin-top:8px">
         <div class="campo c-4">
           <label aria-hidden="true">&nbsp;</label>
-          <button type="button" class="btn btn--primario btn--mini" id="btn-calc-seg-receber">
+          <button type="button" class="btn btn--primario" id="btn-calc-seg-receber" style="width:100%">
             Calcular % do prêmio líquido
           </button>
         </div>
@@ -267,7 +267,7 @@
 
         <div class="campo c-4">
           <label aria-hidden="true">&nbsp;</label>
-          <button type="button" class="btn btn--primario btn--mini" id="btn-calc-plenus-receber">
+          <button type="button" class="btn btn--primario" id="btn-calc-plenus-receber" style="width:100%">
             Calcular 75% do recebido - SEGURALTA
           </button>
         </div>
@@ -327,7 +327,7 @@
             <input id="ger_com_valor" inputmode="decimal" data-num></div>
           <div class="campo c-3"><label for="ger_com_data1">1ª data</label>
             <input id="ger_com_data1" type="date"></div>
-          <div class="campo c-2"><button type="button" class="btn btn--primario" id="btn-gerar-comissoes">Gerar tabela</button></div>
+          <div class="campo c-2"><button type="button" class="btn btn--primario" id="btn-gerar-comissoes">Gerar parcelas</button></div>
         </div>
       </div>
       {% endif %}
@@ -373,8 +373,11 @@
       <div id="conf-comissao" class="conferencia" hidden></div>
 
       <h3 class="titulo-secao"><span id="tit-repasse-a">Repasses</span> <span id="tit-repasse-b">— a Plenus recebe da Seguralta</span></h3>
+      <div id="repasse-coco-acao" hidden style="padding:2px 0 10px">
+        <button type="button" class="btn btn--primario" id="btn-repasse-coco">Gerar do 75% da comissão</button>
+      </div>
       {% if pode_gerar_repasse %}
-      <div class="gerador">
+      <div class="gerador" id="gerador-repasse">
         <div class="grade">
           <div class="campo c-2"><label for="ger_rep_qtd">Qtd. de meses</label>
             <input id="ger_rep_qtd" type="number" min="1" max="120"></div>
@@ -382,7 +385,7 @@
             <input id="ger_rep_valor" inputmode="decimal" data-num></div>
           <div class="campo c-3"><label for="ger_rep_data1">1ª data</label>
             <input id="ger_rep_data1" type="date"></div>
-          <div class="campo c-2"><button type="button" class="btn btn--primario" id="btn-gerar-repasses">Gerar tabela</button></div>
+          <div class="campo c-2"><button type="button" class="btn btn--primario" id="btn-gerar-repasses">Gerar parcelas</button></div>
         </div>
       </div>
       {% endif %}
@@ -415,7 +418,7 @@
         <button type="button" class="btn btn--linha" id="btn-add-repasse">{{ icone('mais') }} Adicionar mês</button>
         <span class="dica" id="total-repasses" style="margin-left:10px"></span>
       </div>
-      <div class="rel-box">
+      <div class="rel-box" id="relbox-plenus">
         <div class="grade" style="align-items:end">
           <div class="campo c-6">
             <label for="previsto_relatorio_plenus">Repasse previsto no relatório</label>

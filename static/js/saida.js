@@ -125,7 +125,6 @@
     const b = e.target.closest("[data-remover-lancamento]");
     if (!b) return;
     b.closest("tr.lancamento").remove();
-    if (!linhas().length) novaLinha();
     atualizarResumo();
   });
   corpo.addEventListener("input", (e) => {
@@ -194,7 +193,6 @@
     });
   }
 
-  if (!linhas().length) novaLinha();
   aplicarFixo();
   // ao abrir: trava as linhas que já vieram pagas do servidor
   linhas().forEach((tr) => {

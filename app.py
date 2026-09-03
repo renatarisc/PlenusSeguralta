@@ -21,6 +21,7 @@ from validacao import (
     formatar_cpf, formatar_cep, formatar_telefone, validar_cliente,
     formatar_numero, formatar_moeda, formatar_data_br, dias_ate_data,
     validar_apolice, preparar_parcelas, preparar_comissoes, preparar_repasses,
+    gerar_repasses_cocorretagem,
     validar_saida, preparar_lancamentos_saida,
 )
 
@@ -500,6 +501,12 @@ def apolice_form(apolice_id=None):
             request.form.getlist("repasse_data"),
             request.form.getlist("repasse_conferido"),
         )
+        # cocorretagem: se o repasse veio vazio, o sistema o gera dos 75% da
+        # comissão (fica editável — ver comissao.js). Só no salvar e só se vazio.
+        if (dados.get("comissao_parcelada") and dados.get("comissao_cocorretagem")
+                and comissoes and not repasses):
+            repasses = gerar_repasses_cocorretagem(
+                comissoes, dados.get("premio_liquido"), dados.get("comissao_percentual"))
         if not dados.get("comissao_parcelada"):  # modo "único": ignora as tabelas
             comissoes, repasses = [], []
         erros = validar_apolice(dados) + erros_parcelas
@@ -758,6 +765,101 @@ def _agrupar_saidas(linhas, chaves):
     return {"campo": campo_rotulo, "chave": chaves[0], "grupos": grupos}
 
 
+# ---- entradas: parcela "paga" = recebido preenchido e data já passou (vale o recebido);
+#      não paga = só o previsto preenchido (vale o previsto) ----
+
+def _preparar_entradas(linhas):
+    hoje = date.today().isoformat()
+    for l in linhas:
+        receb = l.get("valor_recebido")
+        d = l.get("data") or ""
+        l["paga"] = receb is not None and d != "" and d < hoje
+        # paga → vale o recebido; não paga → vale o previsto
+        l["valor"] = (receb or 0) if l["paga"] else (l.get("valor_previsto") or 0)
+        l["status"] = "recebido" if l["paga"] else "a_receber"
+        l["mes_key"], l["mes_rotulo"] = _rotulo_mes_iso(l.get("data"))
+    return linhas
+
+
+def _totais_entrada(itens):
+    soma = sum(x["valor"] for x in itens)
+    paga = sum(x["valor"] for x in itens if x["paga"])
+    return {"qtd": len(itens), "soma": soma, "soma_paga": paga, "soma_aberto": soma - paga}
+
+
+# agrupamento do relatório de entradas: 0..2 níveis à escolha; cada função
+# devolve (chave_de_ordenação, rótulo_exibido). A apólice é SEMPRE o nível-folha.
+_GRUPOS_ENTRADA = {
+    "tipo": ("Tipo de seguro", lambda l: (
+        repo._sem_acento_minusculo(l.get("tipo_seguro_nome") or "") or "zzz",
+        l.get("tipo_seguro_nome") or "Sem tipo de seguro")),
+    "seguradora": ("Seguradora", lambda l: (
+        repo._sem_acento_minusculo(l.get("seguradora_nome") or "") or "zzz",
+        l.get("seguradora_nome") or "Sem seguradora")),
+    "mes": ("Mês da parcela", lambda l: (l["mes_key"], l["mes_rotulo"])),
+}
+_GRUPO_OPCOES_ENTRADA = [("", "—"), ("tipo", "Tipo de seguro"),
+                         ("seguradora", "Seguradora"), ("mes", "Mês da parcela")]
+
+
+def _divergencia_repasse(apolice_id, divs):
+    """Compara a soma do repasse no sistema com o total "no relatório da corretora"
+    (`divs` = repo.repasse_vs_relatorio_plenus()). Devolve lista de
+    {campo, sistema, relatorio} para os que diferem >= 0,01, ou None."""
+    d = (divs or {}).get(apolice_id)
+    if not d:
+        return None
+    itens = []
+    pares = (("Previsto", d.get("prev_relatorio"), d.get("prev_sistema") or 0),
+             ("Recebido", d.get("receb_relatorio"), d.get("receb_sistema") or 0))
+    for campo, rel, sis in pares:
+        if rel is not None and abs(rel - sis) >= 0.01:
+            itens.append({"campo": campo, "sistema": sis, "relatorio": rel})
+    return itens or None
+
+
+def _apolices_entrada(linhas, divs=None):
+    """Nível-folha: uma entrada por apólice, com suas parcelas e subtotais."""
+    baldes = {}
+    for l in linhas:
+        baldes.setdefault(l["apolice_id"], []).append(l)
+    apolices = []
+    for parc in baldes.values():
+        cab = parc[0]
+        apolices.append({
+            "apolice_id": cab.get("apolice_id"),
+            "cliente_nome": cab.get("cliente_nome") or "Sem cliente",
+            "numero_apolice": cab.get("numero_apolice"),
+            "premio_liquido": cab.get("premio_liquido"),
+            "comissao_percentual": cab.get("comissao_percentual"),
+            "cocorretagem": bool(cab.get("comissao_cocorretagem")),
+            "divergencia": _divergencia_repasse(cab.get("apolice_id"), divs),
+            "parcelas": parc, **_totais_entrada(parc),
+        })
+    apolices.sort(key=lambda a: repo._sem_acento_minusculo(a["cliente_nome"]))
+    return apolices
+
+
+def _agrupar_entradas(linhas, chaves, divs=None):
+    """`chaves` = lista de 0..2 nomes de `_GRUPOS_ENTRADA`. Árvore:
+    {campo, chave, grupos:[{rotulo, ...totais, sub}]}  →  no fim, {campo: None,
+    apolices:[...], ...totais}. A apólice é sempre a folha."""
+    if not chaves:
+        return {"campo": None, "apolices": _apolices_entrada(linhas, divs),
+                **_totais_entrada(linhas)}
+    campo_rotulo, fn = _GRUPOS_ENTRADA[chaves[0]]
+    baldes = {}
+    for l in linhas:
+        baldes.setdefault(fn(l), []).append(l)
+    grupos = []
+    for chave in sorted(baldes):
+        itens = baldes[chave]
+        grupos.append({"rotulo": chave[1], **_totais_entrada(itens),
+                       "sub": _agrupar_entradas(itens, chaves[1:], divs)})
+    return {"campo": campo_rotulo, "chave": chaves[0], "grupos": grupos,
+            **_totais_entrada(linhas)}
+
+
 @app.route("/financeiro/relatorios")
 def fluxo_relatorios_raiz():
     return redirect(url_for("fluxo_relatorios", slug="saidas"))
@@ -806,10 +908,41 @@ def _relatorio_contexto(slug):
     if ordem not in {k for k, _ in _ORDEM_OPCOES}:
         ordem = "vencimento"
     ordem_dir = "desc" if request.args.get("ordem_dir") == "desc" else "asc"
-    modo = "resumo" if request.args.get("modo") == "resumo" else "completo"
+    modo = request.args.get("modo", "completo")
+    if modo not in ("completo", "resumo", "grupos"):  # "grupos" só vale p/ entradas
+        modo = "completo"
+    situacao = request.args.get("situacao", "")   # entradas: "" | "paga" | "nao_paga"
+    if situacao not in ("paga", "nao_paga"):
+        situacao = ""
 
     linhas, arvore, resumo = [], None, None
-    if tipo == "saidas":
+    if tipo == "entradas":
+        # agrupamento próprio (tipo de seguro / seguradora / mês); sem agrupar por padrão
+        validos_e = set(_GRUPOS_ENTRADA)
+        g1 = request.args.get("g1", "")
+        g1 = g1 if g1 in validos_e else ""
+        g2 = request.args.get("g2", "")
+        g2 = g2 if (g2 in validos_e and g2 != g1) else ""
+        linhas = repo.listar_entradas_repasse(data_ini=data_ini or None,
+                                              data_fim=data_fim or None)
+        _preparar_entradas(linhas)
+        if situacao == "paga":
+            linhas = [l for l in linhas if l["paga"]]
+        elif situacao == "nao_paga":
+            linhas = [l for l in linhas if not l["paga"]]
+        linhas.sort(key=lambda l: (l.get("data") or "9999-99-99",
+                                   repo._sem_acento_minusculo(l.get("cliente_nome") or "")))
+        divs = repo.repasse_vs_relatorio_plenus()
+        arvore = _agrupar_entradas(linhas, [c for c in (g1, g2) if c], divs)
+        ids_apol = {l["apolice_id"] for l in linhas}
+        tot = _totais_entrada(linhas)
+        resumo = {
+            **tot, "qtd_apolices": len(ids_apol),
+            "qtd_paga": sum(1 for l in linhas if l["paga"]),
+            "qtd_aberto": sum(1 for l in linhas if not l["paga"]),
+            "qtd_diverg": sum(1 for a in ids_apol if _divergencia_repasse(a, divs)),
+        }
+    elif tipo == "saidas":
         linhas = repo.listar_saidas(
             status=status or None, categoria_id=categoria_id or None,
             forma_pagamento_id=forma_id or None, fixo=fixo or None, busca=busca or None,
@@ -831,8 +964,12 @@ def _relatorio_contexto(slug):
             "qtd_aberto": sum(1 for s in linhas if s["status"] != "pago"),
         }
 
-    tem_filtro = bool(status or categoria_id or forma_id or fixo or busca
-                      or data_ini or data_fim or g1 or base_data)
+    if tipo == "entradas":
+        tem_filtro = bool(data_ini or data_fim or situacao or g1 or g2
+                          or modo in ("resumo", "grupos"))
+    else:
+        tem_filtro = bool(status or categoria_id or forma_id or fixo or busca
+                          or data_ini or data_fim or g1 or base_data)
     titulo = "Fluxo de caixa — Relatório de " + ("saídas" if tipo == "saidas" else "entradas")
     cat_nome = next((c["nome"] for c in repo.categorias_saida() if c["id"] == categoria_id), None)
     forma_nome = next((f["nome"] for f in repo.listar_simples("forma_pagamento")
@@ -845,6 +982,7 @@ def _relatorio_contexto(slug):
         categoria_id=categoria_id, forma_id=forma_id, fixo=fixo, busca=busca,
         categoria_nome=cat_nome, forma_nome=forma_nome,
         g1=g1, g2=g2, ordem=ordem, ordem_dir=ordem_dir, modo=modo, tem_filtro=tem_filtro,
+        situacao=situacao, grupo_opcoes_entrada=_GRUPO_OPCOES_ENTRADA,
         linhas=linhas, arvore=arvore, resumo=resumo, presets=presets)
 
 

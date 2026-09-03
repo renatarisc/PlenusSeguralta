@@ -16,7 +16,7 @@ from reportlab.pdfgen import canvas as _canvas
 from reportlab.platypus import (BaseDocTemplate, Frame, PageTemplate, Paragraph,
                                 Spacer, Table, TableStyle)
 
-from validacao import formatar_data_br, formatar_moeda
+from validacao import formatar_data_br, formatar_moeda, formatar_numero
 
 # ---------- paleta ----------
 LARANJA = colors.HexColor("#e8641e")
@@ -149,6 +149,11 @@ class _NumCanvas(_canvas.Canvas):
 # ---------- corpo ----------
 def _filtros_ativos(ctx):
     p = []
+    if ctx["tipo"] == "entradas":
+        s = {"paga": "paga (recebida)", "nao_paga": "não paga (a receber)"}.get(ctx.get("situacao"))
+        if s:
+            p.append("situação: " + s)
+        return " · ".join(p)
     m = {"a_pagar": "a pagar", "vencido": "vencidas", "pago": "pagas"}
     if ctx.get("status"):
         p.append("situação: " + m.get(ctx["status"], ctx["status"]))
@@ -273,6 +278,138 @@ def _tabela(ctx):
     return t
 
 
+# ---------- relatório de ENTRADAS (repasses de comissão) ----------
+COLS_ENT = ["Parcela", "Data", "Previsto", "Recebido", "Conf.", "Situação"]
+COL_W_ENT = [96, 70, 92, 92, 60, 117]   # soma = 527
+
+
+def _sit_ent(p):
+    return "Paga" if p.get("paga") else "A receber"
+
+
+def _linha_ent(p):
+    parc = escape(str(p.get("parcela") or "—"))
+    receb = _m(p["valor_recebido"]) if p.get("valor_recebido") is not None else "—"
+    return [
+        Paragraph(parc, _desc),
+        _p(_d(p.get("data")), _cel_c),
+        _p(_m(p.get("valor_previsto")), _cel_r),
+        _p(receb, _cel_r),
+        _p("Sim" if p.get("conferido_banco") else "Não", _cel_c),
+        _p(_sit_ent(p), _cel_c),
+    ]
+
+
+def _sub_ent(rows, sty, nivel, texto, g, sufixo=""):
+    rs = len(rows)
+    txt = "%s  (%d parc · recebido %s · a receber %s)%s" % (
+        texto, g["qtd"], _m(g["soma_paga"]), _m(g["soma_aberto"]), sufixo)
+    rows.append([_p(txt, _sub_b if nivel == 1 else _sub), "", "",
+                 _p(_m(g["soma"]), _sub_r), "", ""])
+    sty += [
+        ("SPAN", (0, rs), (2, rs)),
+        ("LINEBELOW", (0, rs), (-1, rs), 0.4, CINZA_LINHA),
+        ("LEFTPADDING", (0, rs), (0, rs), 5 + (nivel - 1) * 14),
+    ]
+    if nivel != 3:   # "Total da apólice" (nível 3) fica sem sombra; subtotais de grupo, sim
+        sty.append(("BACKGROUND", (0, rs), (-1, rs), CINZA_SUB))
+
+
+def _cab_ent(rows, sty, nivel, texto, fundo, regua):
+    r = len(rows)
+    st = _grp1 if nivel == 1 else _grp2
+    rows.append([_p(texto, st), "", "", "", "", ""])
+    sty += [
+        ("SPAN", (0, r), (-1, r)),
+        ("BACKGROUND", (0, r), (-1, r), fundo),
+        ("LINEABOVE", (0, r), (-1, r), regua, GRAFITE if nivel == 1 else CINZA_LINHA),
+        ("TOPPADDING", (0, r), (-1, r), 5), ("BOTTOMPADDING", (0, r), (-1, r), 5),
+        ("LEFTPADDING", (0, r), (0, r), 5 + (nivel - 1) * 14),
+    ]
+
+
+def _walk_ent(node, nivel, rows, sty, modo="completo"):
+    """Árvore de 0..2 níveis à escolha; a apólice é sempre a folha (nível 3).
+    modo: completo · resumo (sem parcelas) · grupos (só os totais dos grupos —
+    o grupo mais interno vira 1 linha, sem apólices)."""
+    if node.get("campo"):
+        fundo = CINZA_CAB1 if nivel == 1 else CINZA_CAB2
+        regua = 1 if nivel == 1 else 0.4
+        for i, g in enumerate(node["grupos"]):
+            if modo == "grupos" and not g["sub"].get("campo"):
+                rs = len(rows)
+                txt = "%s  (%d parc · recebido %s · a receber %s)" % (
+                    g["rotulo"], g["qtd"], _m(g["soma_paga"]), _m(g["soma_aberto"]))
+                rows.append([_p(txt, _sub_b), "", "", _p(_m(g["soma"]), _sub_r), "", ""])
+                sty += [("SPAN", (0, rs), (2, rs)),
+                        ("LINEBELOW", (0, rs), (-1, rs), 0.4, CINZA_LINHA),
+                        ("LEFTPADDING", (0, rs), (0, rs), 5 + (nivel - 1) * 14)]
+                if i % 2:
+                    sty.append(("BACKGROUND", (0, rs), (-1, rs), colors.HexColor("#f6f7f9")))
+                continue
+            rot = node["campo"].upper() + "   " + (g["rotulo"].upper() if nivel == 1 else g["rotulo"])
+            _cab_ent(rows, sty, nivel, rot, fundo, regua)
+            _walk_ent(g["sub"], nivel + 1, rows, sty, modo)
+            _sub_ent(rows, sty, nivel, "Subtotal " + g["rotulo"], g)
+        return
+    if modo == "grupos":
+        return
+    # apólice só ganha sombra no cabeçalho quando é o nível de topo (sem agrupamento);
+    # aninhada sob um grupo, fica sem sombra — a sombra é do grupo
+    fundo_ap = CINZA_CAB2 if nivel == 1 else colors.white
+    for ap in node["apolices"]:
+        pct = ("%s%%" % formatar_numero(ap["comissao_percentual"])
+               if ap.get("comissao_percentual") is not None else "—")
+        cab = "%s   ·   apólice %s   ·   prêmio líquido %s   ·   comissão %s" % (
+            ap["cliente_nome"], ap.get("numero_apolice") or "—",
+            _m(ap.get("premio_liquido")), pct)
+        _cab_ent(rows, sty, 3, cab, fundo_ap, 0.4)
+        if ap.get("divergencia"):
+            det = " · ".join(
+                "%s: sistema %s · relatório %s" % (d["campo"], _m(d["sistema"]), _m(d["relatorio"]))
+                for d in ap["divergencia"])
+            r = len(rows)
+            rows.append([_p("⚠ Divergência com o relatório da corretora — " + det, _sub),
+                         "", "", "", "", ""])
+            sty += [("SPAN", (0, r), (-1, r)),
+                    ("TEXTCOLOR", (0, r), (-1, r), colors.HexColor("#b26a00")),
+                    ("LEFTPADDING", (0, r), (0, r), 33)]
+        if modo == "completo":
+            for p in ap["parcelas"]:
+                rows.append(_linha_ent(p))
+        _sub_ent(rows, sty, 3, "Total da apólice", ap,
+                 sufixo=" — COCORRETAGEM" if ap.get("cocorretagem") else "")
+
+
+def _tabela_entradas(ctx):
+    rows = [[_p(c, _th_r if i in (2, 3) else (_th_c if i else _th))
+             for i, c in enumerate(COLS_ENT)]]
+    sty = [
+        ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 4), ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+        ("TOPPADDING", (0, 0), (-1, -1), 3), ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ("LINEBELOW", (0, 0), (-1, 0), 1, GRAFITE),
+        ("BOTTOMPADDING", (0, 0), (-1, 0), 5), ("TOPPADDING", (0, 0), (-1, 0), 2),
+        ("LINEBELOW", (0, 1), (-1, -2), 0.25, CINZA_LINHA),
+    ]
+    _walk_ent(ctx["arvore"], 1, rows, sty, ctx.get("modo") or "completo")
+
+    rz = ctx["resumo"]
+    r = len(rows)
+    txt = "TOTAL GERAL  (%d apólice(s) · %d parc · recebido %s · a receber %s)" % (
+        rz["qtd_apolices"], rz["qtd"], _m(rz["soma_paga"]), _m(rz["soma_aberto"]))
+    rows.append([_p(txt, _tot), "", "", _p(_m(rz["soma"]), _tot_r), "", ""])
+    sty += [
+        ("SPAN", (0, r), (2, r)),
+        ("LINEABOVE", (0, r), (-1, r), 1.4, GRAFITE),
+        ("TOPPADDING", (0, r), (-1, r), 6), ("BOTTOMPADDING", (0, r), (-1, r), 6),
+    ]
+    t = Table(rows, colWidths=COL_W_ENT, repeatRows=1)
+    t.setStyle(TableStyle(sty))
+    return t
+
+
 def gerar(ctx):
     buf = io.BytesIO()
     doc = BaseDocTemplate(
@@ -284,11 +421,14 @@ def gerar(ctx):
         id="pt", frames=[frame], onPage=lambda cnv, d: _cabecalho(cnv, d, ctx))])
 
     # "Filtros: …" é desenhado no cabeçalho (à direita, sob a régua) — não vai no story
+    entradas = ctx["tipo"] == "entradas"
     story = []
     if not ctx["linhas"]:
-        story.append(_p("Nenhum lançamento no período/filtro escolhido.", _vazio))
+        vazio = ("Nenhuma parcela de repasse no período/filtro escolhido." if entradas
+                 else "Nenhum lançamento no período/filtro escolhido.")
+        story.append(_p(vazio, _vazio))
     else:
-        story.append(_tabela(ctx))
+        story.append(_tabela_entradas(ctx) if entradas else _tabela(ctx))
 
     rodape = "Plenus · emitido em %s às %s" % (ctx["emissao_data"], ctx["emissao_hora"])
     doc.build(story, canvasmaker=lambda *a, **k: _NumCanvas(*a, rodape=rodape, **k))
