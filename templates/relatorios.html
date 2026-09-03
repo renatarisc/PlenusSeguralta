@@ -51,7 +51,8 @@
       <path d="M22.5 15 L30 30 H15 Z" fill="#e8641e"/>
     </svg>
     <div class="pdf-cab__tit">
-      <strong>SEGURALTA</strong>
+      <strong>Plenus</strong>
+      <span class="pdf-cab__franquia">franquia SEGURALTA</span>
       <span>Fluxo de caixa · Relatório de {{ 'saídas' if tipo == 'saidas' else 'entradas' }}</span>
     </div>
   </div>
@@ -134,7 +135,7 @@
         {% endfor %}
       </select>
     </div>
-    <div class="campo c-2">
+    <div class="campo c-3">
       <label for="r-fixa">Fixa mensal</label>
       <select id="r-fixa" name="fixo">
         <option value="">Todas</option>
@@ -169,7 +170,7 @@
         {% endfor %}
       </select>
     </div>
-    <div class="campo c-2">
+    <div class="campo c-3">
       <label for="r-dir">Direção</label>
       <select id="r-dir" name="ordem_dir">
         <option value="asc" {{ 'selected' if ordem_dir == 'asc' }}>Crescente</option>

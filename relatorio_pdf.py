@@ -86,15 +86,17 @@ def _logo(cnv, x, ytop, alt):
 def _cabecalho(cnv, doc, ctx):
     w, h = A4
     topo = h - MARGEM
-    _logo(cnv, MARGEM, topo, 26)
-    tx = MARGEM + 26 + 10
+    _logo(cnv, MARGEM, topo, 28)
+    tx = MARGEM + 28 + 10
     cnv.setFillColor(GRAFITE)
     cnv.setFont("Helvetica-Bold", 13)
-    cnv.drawString(tx, topo - 11, "SEGURALTA")
-    cnv.setFont("Helvetica", 8)
+    cnv.drawString(tx, topo - 10, "Plenus")
+    cnv.setFont("Helvetica", 7)
     cnv.setFillColor(CINZA_TXT)
+    cnv.drawString(tx, topo - 19, "franquia SEGURALTA")
+    cnv.setFont("Helvetica", 8)
     sub = "Fluxo de caixa · Relatório de " + ("saídas" if ctx["tipo"] == "saidas" else "entradas")
-    cnv.drawString(tx, topo - 23, sub)
+    cnv.drawString(tx, topo - 30, sub)
 
     if ctx.get("data_ini") or ctx.get("data_fim"):
         periodo = "Período: %s a %s" % (_d(ctx.get("data_ini")) if ctx.get("data_ini") else "…",
@@ -108,13 +110,13 @@ def _cabecalho(cnv, doc, ctx):
 
     cnv.setStrokeColor(GRAFITE)
     cnv.setLineWidth(1.3)
-    cnv.line(MARGEM, topo - 34, w - MARGEM, topo - 34)
+    cnv.line(MARGEM, topo - 40, w - MARGEM, topo - 40)
 
     ft = _filtros_ativos(ctx)
     if ft:
         cnv.setFont("Helvetica-Oblique", 7)
         cnv.setFillColor(CINZA_TXT)
-        cnv.drawRightString(w - MARGEM, topo - 44, "Filtros: " + ft)
+        cnv.drawRightString(w - MARGEM, topo - 50, "Filtros: " + ft)
 
 
 class _NumCanvas(_canvas.Canvas):
@@ -250,8 +252,8 @@ def gerar(ctx):
     buf = io.BytesIO()
     doc = BaseDocTemplate(
         buf, pagesize=A4, leftMargin=MARGEM, rightMargin=MARGEM,
-        topMargin=MARGEM + 52, bottomMargin=MARGEM + 6,
-        title=ctx["titulo"], author="SEGURALTA")
+        topMargin=MARGEM + 58, bottomMargin=MARGEM + 6,
+        title=ctx["titulo"], author="Plenus · franquia SEGURALTA")
     frame = Frame(doc.leftMargin, doc.bottomMargin, doc.width, doc.height, id="corpo")
     doc.addPageTemplates([PageTemplate(
         id="pt", frames=[frame], onPage=lambda cnv, d: _cabecalho(cnv, d, ctx))])
@@ -263,6 +265,7 @@ def gerar(ctx):
     else:
         story.append(_tabela(ctx))
 
-    rodape = "SEGURALTA · emitido em %s às %s" % (ctx["emissao_data"], ctx["emissao_hora"])
+    rodape = "Plenus · franquia SEGURALTA · emitido em %s às %s" % (
+        ctx["emissao_data"], ctx["emissao_hora"])
     doc.build(story, canvasmaker=lambda *a, **k: _NumCanvas(*a, rodape=rodape, **k))
     return buf.getvalue()
