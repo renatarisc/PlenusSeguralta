@@ -7,7 +7,7 @@
 {% macro linha(s, oc=[]) %}
 <tr class="{{ 'rel-paga' if s.status == 'pago' }}">
   <td class="rel-desc">{% if 'descricao' not in oc %}{{ s.descricao }}{% if s.fixo_mensal %} <span class="tag-fixa">fixa</span>{% endif %}{% endif %}</td>
-  <td>{{ s.numero_parcela or '—' }}</td>
+  <td class="rel-col-c">{{ s.numero_parcela or '—' }}</td>
   <td class="rel-nowrap">{{ s.data_vencimento|data_br }}</td>
   <td class="rel-nowrap">{{ s.data_pagamento|data_br if s.data_pagamento else '—' }}</td>
   <td class="col-valor">{{ s.valor|moeda }}</td>
@@ -34,7 +34,7 @@
     {% endif %}
     <tr class="rel-sub rel-sub--{{ nivel }}">
       <td colspan="4">Subtotal
-        <small>{{ g.qtd }} lç · paga {{ g.soma_paga|moeda }} · em aberto {{ g.soma_aberto|moeda }}</small></td>
+        <small>({{ g.qtd }} lç · paga {{ g.soma_paga|moeda }} · em aberto {{ g.soma_aberto|moeda }})</small></td>
       <td class="col-valor">{{ g.soma|moeda }}</td>
       <td></td>
     </tr>
@@ -185,9 +185,13 @@
   {% else %}
   <div class="tabela-wrap">
     <table class="lista rel-tabela">
+      <colgroup>
+        <col style="width:32%"><col style="width:11%"><col style="width:15%">
+        <col style="width:15%"><col style="width:14%"><col style="width:13%">
+      </colgroup>
       <thead>
         <tr>
-          <th>Descrição</th><th>Parc.</th>
+          <th>Descrição</th><th class="rel-col-c">Parc.</th>
           <th class="rel-nowrap">Vencimento</th><th class="rel-nowrap">Pagamento</th>
           <th class="col-valor">Valor</th><th>Situação</th>
         </tr>

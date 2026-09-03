@@ -292,8 +292,10 @@ table.lista tr.apolice-vencida td:first-child { box-shadow: inset 3px 0 0 #a5201
 .rel-agrupar .campo { flex: 1 1 0; min-width: 0; }
 .rel-stats { margin-top: 14px; }
 .rel-acoes { display: flex; align-items: center; gap: 12px; margin: 12px 2px; flex-wrap: wrap; }
+.rel-tabela { table-layout: fixed; }
 .rel-tabela th, .rel-tabela td { padding: 6px 10px; font-size: 12.5px; vertical-align: middle; }
-.rel-tabela .rel-desc { font-weight: 600; }
+.rel-tabela .rel-desc { font-weight: 600; overflow-wrap: anywhere; }
+.rel-tabela .rel-col-c { text-align: center; }
 .rel-nowrap { white-space: nowrap; }
 .rel-tabela .col-valor { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .rel-tabela .selo-pago  { color: var(--ok); font-weight: 700; }
