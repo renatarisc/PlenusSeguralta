@@ -323,8 +323,12 @@ table.lista tr.apolice-vencida td:first-child { box-shadow: inset 3px 0 0 #a5201
 .rel-sub td { color: var(--texto-suave); font-size: 11.5px; background: #fafbfc; }
 .rel-sub--1 td { font-weight: 700; color: var(--texto); }
 .rel-sub--2 td:first-child { padding-left: 24px; }
-.rel-sub small, .rel-total small { font-weight: 400; color: var(--texto-suave); }
+.rel-sub small, .rel-total small, .rel-resumo small { font-weight: 400; color: var(--texto-suave); }
 .rel-total td { border-top: 2px solid var(--grafite); font-weight: 800; font-size: 13px; }
+/* modo resumido: linha por grupo, sem fundo cinza, zebra alternada */
+.rel-tabela .rel-resumo td { font-weight: 700; color: var(--texto); background: var(--branco); }
+.rel-tabela .rel-resumo.rel-zebra td { background: #f6f7f9; }
+.rel-tabela .rel-resumo small { font-size: 11.5px; }
 
 /* cabeçalho do PDF — só aparece na impressão */
 .pdf-cab { display: none; }

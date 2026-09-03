@@ -183,7 +183,7 @@ def _linha_item(s, oc):
 
 def _walk(arv, nivel, oc, rows, sty, resumo=False):
     oc = oc + ([arv["chave"]] if arv["chave"] in ("descricao", "situacao") else [])
-    for g in arv["grupos"]:
+    for i, g in enumerate(arv["grupos"]):
         folha = not g.get("sub")
         if resumo and folha:
             # resumido: uma linha por grupo (rótulo + contagem + soma), sem parcelas.
@@ -198,10 +198,11 @@ def _walk(arv, nivel, oc, rows, sty, resumo=False):
                          _p(_m(g["soma"]), _sub_r), ""])
             sty += [
                 ("SPAN", (0, rs), (3, rs)),
-                ("BACKGROUND", (0, rs), (-1, rs), CINZA_SUB),
                 ("LINEBELOW", (0, rs), (-1, rs), 0.4, CINZA_LINHA),
                 ("LEFTPADDING", (0, rs), (0, rs), 5 + (nivel - 1) * 14),
             ]
+            if i % 2:                       # zebra
+                sty.append(("BACKGROUND", (0, rs), (-1, rs), colors.HexColor("#f6f7f9")))
             continue
 
         r = len(rows)

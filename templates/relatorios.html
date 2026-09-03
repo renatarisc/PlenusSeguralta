@@ -25,8 +25,8 @@
   {% for g in arv.grupos %}
   <tbody class="rel-grp rel-grp--{{ nivel }}">
     {% if resumo and not g.sub %}
-    {# resumido: uma linha por grupo, sem as parcelas #}
-    <tr class="rel-sub rel-sub--{{ nivel }}">
+    {# resumido: uma linha por grupo, sem as parcelas (zebra p/ leitura) #}
+    <tr class="rel-resumo {{ 'rel-zebra' if loop.index is even }}">
       <td colspan="4"><span class="rel-campo">{{ arv.campo }}</span>{{ g.rotulo }}
         <small>({{ g.qtd }} lç · paga {{ g.soma_paga|moeda }} · em aberto {{ g.soma_aberto|moeda }})</small></td>
       <td class="col-valor">{{ g.soma|moeda }}</td>
