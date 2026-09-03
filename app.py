@@ -698,7 +698,7 @@ def entradas_lista():
 
 # ---- relatório de fluxo de caixa (dinâmico: filtros + agrupamento em 2 níveis) ----
 
-_GRUPO_OPCOES = [("", "— sem agrupar —"), ("categoria", "Categoria"),
+_GRUPO_OPCOES = [("", "—"), ("categoria", "Categoria"),
                  ("forma", "Forma de pagamento"), ("situacao", "Situação"),
                  ("mes", "Mês do vencimento"), ("fixo", "Fixa mensal")]
 _ORDEM_OPCOES = [("vencimento", "Vencimento"), ("pagamento", "Pagamento"),

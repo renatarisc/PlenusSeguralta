@@ -133,7 +133,7 @@
         <label for="r-g2">Depois por</label>
         <select id="r-g2" name="g2">
           {% for k, rot in grupo_opcoes %}
-          {% if k != g1 %}<option value="{{ k }}" {{ 'selected' if g2 == k }}>{{ rot }}</option>{% endif %}
+          {% if not k or k != g1 %}<option value="{{ k }}" {{ 'selected' if g2 == k }}>{{ rot }}</option>{% endif %}
           {% endfor %}
         </select>
       </div>
