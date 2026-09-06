@@ -15,8 +15,7 @@
       <tbody>
         {% for u in usuarios %}
         <tr>
-          <td><a href="{{ url_for('usuario_form', uid=u.id) }}"
-                 style="font-weight:600;color:var(--laranja-hover)">{{ u.nome }}</a></td>
+          <td><a class="cel-nome" href="{{ url_for('usuario_form', uid=u.id) }}">{{ u.nome }}</a></td>
           <td>{{ u.login }}</td>
           <td>{{ 'Ativo' if u.ativo else 'Inativo' }}</td>
           <td>{{ (u.ultimo_acesso ~ ' UTC') if u.ultimo_acesso else '—' }}</td>

@@ -10,11 +10,11 @@
 <div class="stats">
   <div class="stat">
     <div class="stat__valor">{{ resumo.a_pagar_mes|moeda }}</div>
-    <div class="stat__rotulo">A pagar neste mês</div>
+    <div class="stat__rotulo">A pagar neste mês – {{ MESES[mes_atual] }}</div>
   </div>
   <div class="stat">
     <div class="stat__valor" style="color:{{ 'var(--erro)' if resumo.vencido else 'inherit' }}">{{ resumo.vencido|moeda }}</div>
-    <div class="stat__rotulo">Vencido (não pago)</div>
+    <div class="stat__rotulo">Vencido (não pago) – total</div>
   </div>
   <div class="stat">
     <div class="stat__valor">{{ total|moeda }}</div>

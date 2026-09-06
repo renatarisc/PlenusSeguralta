@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block titulo %}Cotação — Gerar{% endblock %}
+{% block cabecalho %}Cotação — Gerar{% endblock %}
+
+{% block acoes %}
+<a class="btn btn--linha" href="{{ url_for('cotacao_campos') }}">{{ icone('lapis') }} Campos</a>
+{% endblock %}
+
+{% block conteudo %}
+{% if not campos %}
+<div class="cartao">
+  <p class="vazio">
+    Nenhum campo de cotação cadastrado.
+    <a href="{{ url_for('cotacao_campo_form') }}">Cadastre os campos</a> primeiro.
+  </p>
+</div>
+{% else %}
+<form class="form" id="form-cotacao" method="post" action="{{ url_for('cotacao_gerar') }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  <div class="cartao">
+    <label class="campo linha-campo" style="border:none;padding:0">
+      <span class="linha-campo__nome" style="color:var(--laranja-hover);font-weight:700">Cliente</span>
+      <input name="cliente" value="{{ cliente or '' }}">
+    </label>
+  </div>
+
+  <div id="cotacoes">
+    <div class="cartao cot-bloco">
+      <h2>Cotação <span class="cot-num">1</span>
+        <button type="button" class="btn btn--perigo btn--mini cot-remover" title="Remover esta cotação" hidden>{{ icone('x') }}</button>
+      </h2>
+      <label class="campo linha-campo">
+        <span class="linha-campo__nome">Seguradora</span>
+        <select name="cot_seguradora">
+          <option value="">—</option>
+          {% for s in seguradoras %}
+          <option value="{{ s.nome }}">{{ s.nome }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      {% for c in campos %}
+      <label class="campo linha-campo">
+        <span class="linha-campo__nome">{{ c.nome }}</span>
+        {% if c.tipo == 'valor' %}
+        <input name="campo_{{ c.id }}" inputmode="decimal" data-num>
+        {% elif c.tipo == 'numerico' %}
+        <input name="campo_{{ c.id }}" type="number" step="any">
+        {% else %}
+        <select name="campo_{{ c.id }}">
+          <option value="">—</option>
+          {% for opc in OPCOES_CAMPO_COTACAO.get(c.tipo, []) %}
+          <option value="{{ opc }}">{{ opc }}</option>
+          {% endfor %}
+        </select>
+        {% endif %}
+      </label>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="rodape-form" style="justify-content:space-between">
+    <button type="button" class="btn btn--linha" id="add-cotacao">{{ icone('mais') }} Adicionar cotação</button>
+    <span style="display:flex;gap:8px">
+      <a class="btn btn--linha" href="{{ url_for('cotacao_campos') }}">Cancelar</a>
+      <button class="btn btn--primario" type="submit">Finalizar (PDF)</button>
+    </span>
+  </div>
+</form>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/cotacao.js') }}"></script>
+{% endblock %}

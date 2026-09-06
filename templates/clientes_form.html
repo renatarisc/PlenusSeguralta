@@ -22,11 +22,28 @@
 
   <div class="cartao">
     <h2>Dados pessoais</h2>
+    {% set pj = (c.tipo_pessoa or 'F') == 'J' %}
     <div class="grade">
+      <div class="campo c-2">
+        <label for="tipo_pessoa">Tipo</label>
+        <select id="tipo_pessoa" name="tipo_pessoa">
+          <option value="F" {{ 'selected' if not pj }}>Pessoa física</option>
+          <option value="J" {{ 'selected' if pj }}>Pessoa jurídica</option>
+        </select>
+      </div>
       <div class="campo c-6">
-        <label for="nome">Nome *</label>
+        <label for="nome" id="lbl-nome">{{ 'Razão social *' if pj else 'Nome *' }}</label>
         <input id="nome" name="nome" required value="{{ c.nome or '' }}">
       </div>
+      <div class="campo c-4">
+        <label for="cpf" id="lbl-doc">{{ 'CNPJ *' if pj else 'CPF *' }}</label>
+        <input id="cpf" name="cpf" inputmode="numeric" data-doc
+               data-mask="{{ 'cnpj' if pj else 'cpf' }}"
+               required placeholder="{{ '00.000.000/0000-00' if pj else '000.000.000-00' }}"
+               value="{{ c.cpf|documento if c.cpf else '' }}">
+        <span class="dica" data-dica="doc"></span>
+      </div>
+
       <div class="campo c-3">
         <label for="data_nascimento">Data de nascimento</label>
         <input id="data_nascimento" name="data_nascimento" type="date" value="{{ c.data_nascimento or '' }}">
@@ -39,12 +56,6 @@
           <option value="{{ v }}" {{ 'selected' if c.sexo == v }}>{{ v }}</option>
           {% endfor %}
         </select>
-      </div>
-      <div class="campo c-4">
-        <label for="cpf">CPF</label>
-        <input id="cpf" name="cpf" inputmode="numeric" data-mask="cpf" data-valida="cpf"
-               placeholder="000.000.000-00" value="{{ c.cpf|cpf if c.cpf else '' }}">
-        <span class="dica" data-dica="cpf"></span>
       </div>
     </div>
   </div>

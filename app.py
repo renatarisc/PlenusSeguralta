@@ -18,7 +18,7 @@ import repo
 import leitura_pdf
 import seguranca
 from validacao import (
-    formatar_cpf, formatar_cep, formatar_telefone, validar_cliente,
+    formatar_cpf, formatar_cnpj, formatar_documento, formatar_cep, formatar_telefone, validar_cliente,
     formatar_numero, formatar_moeda, formatar_data_br, dias_ate_data,
     validar_apolice, preparar_parcelas, preparar_comissoes, preparar_repasses,
     gerar_repasses_cocorretagem,
@@ -82,6 +82,8 @@ _CADASTROS_SIMPLES = {
 
 # disponível em todo template (máscaras na exibição, itens do menu)
 app.jinja_env.filters["cpf"] = formatar_cpf
+app.jinja_env.filters["cnpj"] = formatar_cnpj
+app.jinja_env.filters["documento"] = formatar_documento
 app.jinja_env.filters["cep"] = formatar_cep
 app.jinja_env.filters["numero"] = formatar_numero
 app.jinja_env.filters["moeda"] = formatar_moeda
@@ -95,6 +97,10 @@ app.jinja_env.globals["MENU"] = [
     {"rota": "dashboard", "texto": "Painel", "icone": "painel"},
     {"rota": "clientes_lista", "texto": "Clientes", "icone": "clientes"},
     {"rota": "apolices", "texto": "Apólices", "icone": "apolices"},
+    {"grupo": "Cotação", "icone": "cotacao", "divisoria_antes": True, "filhos": [
+        {"rota": "cotacao_campos", "texto": "Cadastrar Campo", "icone": "lapis"},
+        {"rota": "cotacao_gerar", "texto": "Gerar", "icone": "relatorio"},
+    ]},
     {"grupo": "Fluxo de caixa", "icone": "fluxo", "divisoria_antes": True, "filhos": [
         {"rota": "saidas_lista", "texto": "Saídas", "icone": "saida"},
         {"rota": "entradas_lista", "texto": "Entradas", "icone": "entrada"},
@@ -102,9 +108,9 @@ app.jinja_env.globals["MENU"] = [
         {"rota": "fluxo_relatorios", "slug": "entradas", "texto": "Relatório de entradas", "icone": "relatorio"},
     ]},
     {"grupo": "Cadastros auxiliares", "icone": "pasta", "divisoria_antes": True, "filhos": [
-        {"rota": "cadastro_simples", "texto": "Formas de Pagamento", "icone": "pagamento", "slug": "forma-pagamento"},
-        {"rota": "cadastro_simples", "texto": "Tipos de Seguro", "icone": "tag", "slug": "tipo-seguro"},
         {"rota": "cadastro_simples", "texto": "Seguradoras", "icone": "predio", "slug": "seguradora"},
+        {"rota": "cadastro_simples", "texto": "Tipos de Seguro", "icone": "tag", "slug": "tipo-seguro"},
+        {"rota": "cadastro_simples", "texto": "Formas de Pagamento", "icone": "pagamento", "slug": "forma-pagamento"},
         {"rota": "cadastro_simples", "texto": "Categorias de Saída", "icone": "tag", "slug": "categoria-saida"},
     ]},
     {"rota": "usuarios_lista", "texto": "Usuários", "icone": "cadeado", "divisoria_antes": True},
@@ -288,9 +294,11 @@ def dashboard():
 def clientes_lista():
     busca = request.args.get("busca", "").strip()
     uf = request.args.get("uf", "").strip().upper() or None
+    cidade = request.args.get("cidade", "").strip() or None
     return render_template("clientes_lista.html", ativo="clientes_lista",
-                           clientes=repo.listar_clientes(busca or None, uf),
-                           busca=busca, uf=uf, ufs=repo.ufs_dos_clientes())
+                           clientes=repo.listar_clientes(busca or None, uf, cidade),
+                           busca=busca, uf=uf, cidade=cidade,
+                           ufs=repo.ufs_dos_clientes(), cidades=repo.cidades_dos_clientes(uf))
 
 
 @app.route("/clientes/novo", methods=["GET", "POST"])
@@ -298,22 +306,35 @@ def clientes_lista():
 def cliente_form(cliente_id=None):
     if request.method == "POST":
         dados = {k: request.form.get(k, "") for k in (
-            "nome", "data_nascimento", "sexo", "cpf",
+            "nome", "tipo_pessoa", "data_nascimento", "sexo", "cpf",
             "end_rua", "end_numero", "end_complemento", "end_bairro",
             "end_cep", "end_cidade", "end_estado", "tel_ddd", "tel_numero", "email",
         )}
+        ehpj = (dados.get("tipo_pessoa") or "").upper() == "J"
+        rotulo_doc = "CNPJ" if ehpj else "CPF"
+        if ehpj:  # pessoa jurídica não tem nascimento nem sexo
+            dados["data_nascimento"] = dados["sexo"] = ""
         erros = validar_cliente(dados)
+        if not erros:
+            dup = repo.cliente_por_documento(dados.get("cpf"), ignorar_id=cliente_id)
+            if dup:
+                erros.append(f"Já existe um cliente com esse {rotulo_doc}: {dup['nome']}.")
         if erros:
             for e in erros:
                 flash(e, "erro")
             return render_template("clientes_form.html", ativo="clientes_lista",
                                    cliente={**dados, "id": cliente_id})
-        if cliente_id:
-            repo.atualizar_cliente(cliente_id, dados)
-            flash("Cliente atualizado.", "ok")
-        else:
-            cliente_id = repo.criar_cliente(dados)
-            flash("Cliente cadastrado.", "ok")
+        try:
+            if cliente_id:
+                repo.atualizar_cliente(cliente_id, dados)
+                flash("Cliente atualizado.", "ok")
+            else:
+                cliente_id = repo.criar_cliente(dados)
+                flash("Cliente cadastrado.", "ok")
+        except sqlite3.IntegrityError:
+            flash(f"Já existe um cliente com esse {rotulo_doc}.", "erro")
+            return render_template("clientes_form.html", ativo="clientes_lista",
+                                   cliente={**dados, "id": cliente_id})
         return redirect(url_for("clientes_lista"))
 
     cliente = repo.obter_cliente(cliente_id) if cliente_id else None
@@ -345,9 +366,10 @@ def cadastro_simples(slug):
     if not cfg:
         flash("Cadastro não encontrado.", "erro")
         return redirect(url_for("dashboard"))
+    busca = request.args.get("busca", "").strip()
     return render_template("cadastro_simples_lista.html", ativo="cadastro_simples", slug=slug,
                            titulo=cfg["titulo"], singular=cfg["singular"], acao_novo=cfg["acao_novo"],
-                           itens=repo.listar_simples(cfg["tabela"]))
+                           busca=busca, itens=repo.listar_simples(cfg["tabela"], busca or None))
 
 
 @app.route("/cadastros/<slug>/novo", methods=["GET", "POST"])
@@ -370,12 +392,18 @@ def cadastro_simples_form(slug, item_id=None):
             return render_template("cadastro_simples_form.html", ativo="cadastro_simples", slug=slug,
                                    singular=cfg["singular"], acao_novo=cfg["acao_novo"],
                                    item={"id": item_id, "nome": nome})
-        if item_id:
-            repo.renomear_simples(cfg["tabela"], item_id, nome)
-            flash("Alteração salva.", "ok")
-        else:
-            repo.criar_simples(cfg["tabela"], nome)
-            flash("Cadastrado.", "ok")
+        try:
+            if item_id:
+                repo.renomear_simples(cfg["tabela"], item_id, nome)
+                flash("Alteração salva.", "ok")
+            else:
+                repo.criar_simples(cfg["tabela"], nome)
+                flash("Cadastrado.", "ok")
+        except sqlite3.IntegrityError:
+            flash(f"Já existe {cfg['singular']} com esse nome.", "erro")
+            return render_template("cadastro_simples_form.html", ativo="cadastro_simples", slug=slug,
+                                   singular=cfg["singular"], acao_novo=cfg["acao_novo"],
+                                   item={"id": item_id, "nome": nome})
         return redirect(url_for("cadastro_simples", slug=slug))
 
     item = repo.obter_simples(cfg["tabela"], item_id) if item_id else None
@@ -412,6 +440,7 @@ _CAMPOS_APOLICE = (
     "veiculo_placa", "veiculo_descricao",
     "aviso_vigencia_ok", "aviso_vigencia_ok_em",
     "apolice_enviada", "apolice_enviada_data", "cartao_enviado", "cartao_enviado_data",
+    "observacao",
 )
 
 
@@ -460,20 +489,28 @@ def apolices():
     mes = request.args.get("mes", type=int)
     if mes not in range(1, 13):
         mes = None
+    mes_fim = request.args.get("mes_fim", type=int)
+    if mes_fim not in range(1, 13):
+        mes_fim = None
     quiver_arg = request.args.get("quiver", "")
     quiver = 1 if quiver_arg == "1" else 0 if quiver_arg == "0" else None
     busca = request.args.get("busca", "").strip()
     parcela = request.args.get("parcela", "")
     if parcela not in ("vencida", "proxima", "sem"):
         parcela = ""
+    ordem = request.args.get("ord", "")
+    if ordem not in ("cliente", "cliente_desc"):
+        ordem = ""
     cliente = repo.obter_cliente(cliente_id) if cliente_id else None
     return render_template(
         "apolices_lista.html", ativo="apolices",
         apolices=repo.listar_apolices(cliente_id=cliente_id, tipo_seguro_id=tipo_id,
-                                      mes_inicio=mes, quiver=quiver, busca=busca or None,
-                                      parcela_status=parcela or None),
-        cliente_filtro=cliente, busca=busca, tipo_id=tipo_id, mes=mes, quiver=quiver_arg,
-        parcela=parcela, tipos=repo.listar_simples("tipo_seguro"), MESES=_MESES)
+                                      mes_inicio=mes, mes_fim=mes_fim, quiver=quiver,
+                                      busca=busca or None, parcela_status=parcela or None,
+                                      ordem=ordem or None),
+        cliente_filtro=cliente, busca=busca, tipo_id=tipo_id, mes=mes, mes_fim=mes_fim,
+        quiver=quiver_arg, parcela=parcela, ord=ordem,
+        tipos=repo.listar_simples("tipo_seguro"), MESES=_MESES)
 
 
 @app.route("/apolices/nova", methods=["GET", "POST"])
@@ -526,6 +563,9 @@ def apolice_form(apolice_id=None):
         else:
             apolice_id = repo.criar_apolice(dados, parcelas, comissoes, repasses)
             flash("Apólice cadastrada.", "ok")
+        # "Salvar" de uma linha de parcela: fica no próprio formulário (não vai pra lista)
+        if request.form.get("permanecer") == "1":
+            return redirect(url_for("apolice_form", apolice_id=apolice_id))
         return redirect(url_for("apolices"))
 
     apolice = repo.obter_apolice(apolice_id) if apolice_id else None
@@ -596,6 +636,124 @@ def _ler_pdf(alvo):
     except Exception as e:  # noqa: BLE001 - devolve o erro pro front em vez de 500 seco
         app.logger.exception("falha ao ler PDF")
         return jsonify(ok=False, campos={}, origem="erro", aviso=f"Erro ao ler o PDF: {e}"), 500
+
+
+# ---------- Cotação ----------
+
+# tipos de campo da cotação: (valor guardado, rótulo exibido).
+# Cada tipo define como o campo é preenchido quando alguém GERA a cotação:
+#   valor    -> valor em R$      | numerico -> número
+#   sim_nao  -> escolha Sim/Não  | nivel    -> escolha Simples/Intermediário/Completo
+#   livre_referenciada -> escolha Livre escolha/Referenciada
+_TIPOS_CAMPO_COTACAO = [
+    ("valor", "Valor (R$)"),
+    ("numerico", "Numérico"),
+    ("sim_nao", "Sim ou Não"),
+    ("nivel", "Simples / Intermediário / Completo"),
+    ("livre_referenciada", "Livre escolha / Referenciada"),
+]
+_TIPOS_CAMPO_COTACAO_LABEL = dict(_TIPOS_CAMPO_COTACAO)
+app.jinja_env.globals["TIPO_CAMPO_COTACAO_LABEL"] = _TIPOS_CAMPO_COTACAO_LABEL
+
+# opções dos tipos que viram <select> no formulário "Gerar cotação"
+_OPCOES_CAMPO_COTACAO = {
+    "sim_nao": ["Sim", "Não"],
+    "nivel": ["Simples", "Intermediário", "Completo"],
+    "livre_referenciada": ["Livre escolha", "Referenciada"],
+}
+app.jinja_env.globals["OPCOES_CAMPO_COTACAO"] = _OPCOES_CAMPO_COTACAO
+
+
+@app.route("/cotacao/campos")
+def cotacao_campos():
+    busca = request.args.get("busca", "").strip()
+    return render_template("cotacao_campos_lista.html", ativo="cotacao_campos",
+                           campos=repo.listar_campos_cotacao(busca or None), busca=busca)
+
+
+@app.route("/cotacao/campos/novo", methods=["GET", "POST"])
+@app.route("/cotacao/campos/<int:campo_id>", methods=["GET", "POST"])
+def cotacao_campo_form(campo_id=None):
+    campo = repo.obter_campo_cotacao(campo_id) if campo_id else None
+    if campo_id and not campo:
+        flash("Campo não encontrado.", "erro")
+        return redirect(url_for("cotacao_campos"))
+
+    if request.method == "POST":
+        nome = request.form.get("nome", "").strip()
+        tipo = request.form.get("tipo", "").strip()
+        erros = []
+        if not nome:
+            erros.append("Informe o nome do campo.")
+        if tipo not in _TIPOS_CAMPO_COTACAO_LABEL:
+            erros.append("Escolha o tipo do campo.")
+        if not erros and repo.campo_cotacao_nome_existe(nome, ignorar_id=campo_id):
+            erros.append("Já existe um campo de cotação com esse nome.")
+        if erros:
+            for e in erros:
+                flash(e, "erro")
+            return render_template("cotacao_campo_form.html", ativo="cotacao_campos",
+                                   campo={"id": campo_id, "nome": nome, "tipo": tipo},
+                                   tipos=_TIPOS_CAMPO_COTACAO)
+        if campo_id:
+            repo.atualizar_campo_cotacao(campo_id, nome, tipo)
+            flash("Campo atualizado.", "ok")
+        else:
+            repo.criar_campo_cotacao(nome, tipo)
+            flash("Campo cadastrado.", "ok")
+        return redirect(url_for("cotacao_campos"))
+
+    return render_template("cotacao_campo_form.html", ativo="cotacao_campos",
+                           campo=campo, tipos=_TIPOS_CAMPO_COTACAO)
+
+
+@app.route("/cotacao/campos/<int:campo_id>/excluir", methods=["POST"])
+def cotacao_campo_excluir(campo_id):
+    repo.excluir_campo_cotacao(campo_id)
+    flash("Campo excluído.", "ok")
+    return redirect(url_for("cotacao_campos"))
+
+
+@app.route("/cotacao/gerar", methods=["GET", "POST"])
+def cotacao_gerar():
+    campos = repo.listar_campos_cotacao()
+    seguradoras = repo.listar_simples("seguradora")
+
+    if request.method == "POST":
+        cliente = request.form.get("cliente", "").strip()
+        segs = request.form.getlist("cot_seguradora")
+        # listas paralelas: campo_<id>[i] = valor da i-ésima cotação
+        vals_por_campo = {c["id"]: request.form.getlist(f"campo_{c['id']}") for c in campos}
+
+        cotacoes = []
+        for i, seg in enumerate(segs):
+            valores = {cid: (lst[i].strip() if i < len(lst) else "")
+                       for cid, lst in vals_por_campo.items()}
+            if not seg.strip() and not any(valores.values()):
+                continue  # cotação totalmente vazia — ignora
+            cotacoes.append({"seguradora": seg.strip(), "valores": valores})
+
+        if not cotacoes:
+            flash("Adicione ao menos uma seguradora com valores.", "erro")
+            return render_template("cotacao_gerar.html", ativo="cotacao_gerar",
+                                   campos=campos, seguradoras=seguradoras, cliente=cliente)
+
+        import cotacao_pdf
+        pdf = cotacao_pdf.gerar(cliente, cotacoes, campos)
+        base = _sem_acento_para_arquivo(cliente) or "cotacao"
+        nome = f"cotacao-{base}-{date.today().isoformat()}.pdf"
+        return Response(pdf, mimetype="application/pdf",
+                        headers={"Content-Disposition": f'attachment; filename="{nome}"'})
+
+    return render_template("cotacao_gerar.html", ativo="cotacao_gerar",
+                           campos=campos, seguradoras=seguradoras, cliente="")
+
+
+def _sem_acento_para_arquivo(txt):
+    import unicodedata
+    t = unicodedata.normalize("NFKD", txt or "")
+    t = "".join(ch for ch in t if not unicodedata.combining(ch))
+    return "".join(ch if ch.isalnum() else "-" for ch in t).strip("-").lower()[:40]
 
 
 # ---------- Financeiro: Saídas (fluxo de caixa) ----------

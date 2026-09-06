@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block titulo %}Cotação — Cadastrar Campo{% endblock %}
+{% block cabecalho %}Cotação — Cadastrar Campo{% endblock %}
+
+{% block acoes %}
+<a class="btn btn--primario" href="{{ url_for('cotacao_campo_form') }}">{{ icone('mais') }} Novo campo</a>
+{% endblock %}
+
+{% block conteudo %}
+<form class="cartao filtros filtros--linha" method="get">
+  <div class="campo campo--busca">
+    <label for="f-busca">Buscar</label>
+    <div class="campo-busca">
+      {{ icone('busca') }}
+      <input id="f-busca" type="text" name="busca" value="{{ busca }}" placeholder="Nome do campo">
+    </div>
+  </div>
+  <button class="btn btn--primario" type="submit">{{ icone('busca') }} Buscar</button>
+  {% if busca %}
+  <a class="btn btn--linha" href="{{ url_for('cotacao_campos') }}">Limpar</a>
+  {% endif %}
+</form>
+
+<div class="cartao" style="padding:0">
+  {% if campos %}
+  <div class="tabela-wrap">
+    <table class="lista">
+      <thead><tr><th>Nome</th><th>Tipo</th><th></th></tr></thead>
+      <tbody>
+        {% for c in campos %}
+        <tr>
+          <td><a class="cel-nome" href="{{ url_for('cotacao_campo_form', campo_id=c.id) }}">{{ c.nome }}</a></td>
+          <td>{{ TIPO_CAMPO_COTACAO_LABEL.get(c.tipo, c.tipo or '—') }}</td>
+          <td class="acoes">
+            <a class="btn btn--linha btn--mini" href="{{ url_for('cotacao_campo_form', campo_id=c.id) }}">{{ icone('lapis') }}</a>
+            <form method="post" action="{{ url_for('cotacao_campo_excluir', campo_id=c.id) }}"
+                  onsubmit="return confirm('Excluir o campo “{{ c.nome }}”?')">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn--perigo btn--mini" type="submit">{{ icone('lixo') }}</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="vazio">{{ 'Nada encontrado para essa busca.' if busca else 'Nenhum campo de cotação cadastrado ainda.' }}</p>
+  {% endif %}
+</div>
+{% endblock %}

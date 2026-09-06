@@ -14,6 +14,14 @@
         .replace(/^(\d{3})\.(\d{3})(\d)/, "$1.$2.$3")
         .replace(/\.(\d{3})(\d)/, ".$1-$2");
     },
+    cnpj: (v) => {
+      v = soDig(v).slice(0, 14);
+      return v
+        .replace(/^(\d{2})(\d)/, "$1.$2")
+        .replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3")
+        .replace(/\.(\d{3})(\d)/, ".$1/$2")
+        .replace(/(\d{4})(\d)/, "$1-$2");
+    },
     cep: (v) => soDig(v).slice(0, 8).replace(/^(\d{5})(\d)/, "$1-$2"),
     ddd: (v) => soDig(v).slice(0, 2),
     telefone: (v) => {
@@ -24,9 +32,11 @@
   };
 
   document.querySelectorAll("[data-mask]").forEach((el) => {
-    const fn = MASCARAS[el.dataset.mask];
-    if (!fn) return;
-    const aplica = () => { el.value = fn(el.value); };
+    // lê data-mask a cada input: o campo CPF/CNPJ troca de máscara em runtime
+    const aplica = () => {
+      const fn = MASCARAS[el.dataset.mask];
+      if (fn) el.value = fn(el.value);
+    };
     aplica();
     el.addEventListener("input", aplica);
   });
@@ -44,10 +54,25 @@
     }
     return true;
   }
+  function cnpjValido(cnpj) {
+    const d = soDig(cnpj);
+    if (d.length !== 14 || /^(\d)\1{13}$/.test(d)) return false;
+    for (const tam of [12, 13]) {
+      const pesos = [];
+      for (let p = tam - 7; p > 1; p--) pesos.push(p);
+      for (let p = 9; p > 1; p--) pesos.push(p);
+      let soma = 0;
+      for (let i = 0; i < tam; i++) soma += +d[i] * pesos[i];
+      let dig = soma % 11;
+      dig = dig < 2 ? 0 : 11 - dig;
+      if (dig !== +d[tam]) return false;
+    }
+    return true;
+  }
   const emailValido = (v) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test((v || "").trim());
 
-  function marcar(el, ok, msgErro) {
-    const dica = document.querySelector(`[data-dica="${el.dataset.valida}"]`);
+  function marcar(el, ok, msgErro, chave) {
+    const dica = document.querySelector(`[data-dica="${chave || el.dataset.valida}"]`);
     const vazio = !el.value.trim();
     el.setAttribute("aria-invalid", vazio || ok ? "false" : "true");
     if (dica) {
@@ -58,6 +83,42 @@
 
   document.querySelectorAll('[data-valida="cpf"]').forEach((el) =>
     el.addEventListener("blur", () => marcar(el, cpfValido(el.value), "CPF inválido")));
+
+  // campo único CPF/CNPJ: máscara, rótulo e validação seguem o select "Tipo"
+  const selTipoPessoa = document.getElementById("tipo_pessoa");
+  const campoDoc = document.querySelector("[data-doc]");
+  if (selTipoPessoa && campoDoc) {
+    const lblDoc = document.getElementById("lbl-doc");
+    const lblNome = document.getElementById("lbl-nome");
+    const ehPJ = () => selTipoPessoa.value === "J";
+    const validaDoc = () => marcar(
+      campoDoc,
+      ehPJ() ? cnpjValido(campoDoc.value) : cpfValido(campoDoc.value),
+      ehPJ() ? "CNPJ inválido" : "CPF inválido",
+      "doc",
+    );
+    const sync = () => {
+      campoDoc.dataset.mask = ehPJ() ? "cnpj" : "cpf";
+      campoDoc.placeholder = ehPJ() ? "00.000.000/0000-00" : "000.000.000-00";
+      if (lblDoc) lblDoc.textContent = ehPJ() ? "CNPJ *" : "CPF *";
+      if (lblNome) lblNome.textContent = ehPJ() ? "Razão social *" : "Nome *";
+      const fn = MASCARAS[campoDoc.dataset.mask];
+      if (fn) campoDoc.value = fn(campoDoc.value);
+      // nascimento e sexo não fazem sentido p/ pessoa jurídica: esconde e limpa
+      ["data_nascimento", "sexo"].forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const campo = el.closest(".campo");
+        if (campo) campo.hidden = ehPJ();
+        if (ehPJ()) el.value = "";
+      });
+      validaDoc();
+    };
+    selTipoPessoa.addEventListener("change", sync);
+    campoDoc.addEventListener("blur", validaDoc);
+    sync();
+  }
+
   document.querySelectorAll('[data-valida="cep"]').forEach((el) =>
     el.addEventListener("blur", () => marcar(el, soDig(el.value).length === 8, "CEP deve ter 8 dígitos")));
   document.querySelectorAll('[data-valida="email"]').forEach((el) =>

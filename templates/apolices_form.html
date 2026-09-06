@@ -35,6 +35,9 @@
 <form class="form" method="post" novalidate
       action="{{ url_for('apolice_form', apolice_id=a.id) if a.id else url_for('apolice_form') }}">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  {# marcado por apolice.js quando o "Salvar" de uma linha de parcela dispara o submit:
+     manda voltar pro próprio formulário em vez da lista de apólices #}
+  <input type="hidden" name="permanecer" id="apolice-permanecer" value="">
 
   <div class="cartao">
     <h2>Dados da apólice</h2>
@@ -51,10 +54,10 @@
         </select>
       </div>
       <div class="campo c-6">
-        <label for="seguradora_id">Seguradora
+        <label for="seguradora_id">Seguradora *
           <a class="link-abrir" href="{{ url_for('cadastro_simples_form', slug='seguradora') }}" target="_blank" rel="noopener">＋ nova</a>
         </label>
-        <select id="seguradora_id" name="seguradora_id">
+        <select id="seguradora_id" name="seguradora_id" required>
           <option value="">—</option>
           {% for s in seguradoras %}
           <option value="{{ s.id }}" {{ 'selected' if a.seguradora_id|string == s.id|string }}>{{ s.nome }}</option>
@@ -78,14 +81,59 @@
         <input id="numero_apolice" name="numero_apolice" value="{{ a.numero_apolice or '' }}">
       </div>
       <div class="campo c-3">
-        <label for="vigencia_inicio">Vigência — início</label>
-        <input id="vigencia_inicio" name="vigencia_inicio" type="date" value="{{ a.vigencia_inicio or '' }}">
+        <label for="vigencia_inicio">Vigência — início *</label>
+        <input id="vigencia_inicio" name="vigencia_inicio" type="date" required value="{{ a.vigencia_inicio or '' }}">
       </div>
       <div class="campo c-3">
-        <label for="vigencia_fim">Vigência — fim</label>
-        <input id="vigencia_fim" name="vigencia_fim" type="date" value="{{ a.vigencia_fim or '' }}">
+        <label for="vigencia_fim">Vigência — fim *</label>
+        <input id="vigencia_fim" name="vigencia_fim" type="date" required value="{{ a.vigencia_fim or '' }}">
       </div>
 
+      <div class="grade__linha" aria-hidden="true"></div>
+
+      <div class="campo c-3">
+        <label for="aviso_vigencia_ok">Cliente avisado (renovação)</label>
+        <select id="aviso_vigencia_ok" name="aviso_vigencia_ok" data-par-data="aviso_vigencia_ok_em">
+          <option value="0" {{ 'selected' if not a.aviso_vigencia_ok }}>Não</option>
+          <option value="1" {{ 'selected' if a.aviso_vigencia_ok }}>Sim</option>
+        </select>
+      </div>
+      <div class="campo c-3">
+        <label for="aviso_vigencia_ok_em">Data do aviso</label>
+        <input id="aviso_vigencia_ok_em" name="aviso_vigencia_ok_em" type="date"
+               value="{{ a.aviso_vigencia_ok_em or '' }}">
+      </div>
+
+      <div class="grade__linha" aria-hidden="true"></div>
+
+      <div class="campo c-12">
+        <label for="observacao">Observação</label>
+        <textarea id="observacao" name="observacao" rows="3">{{ a.observacao or '' }}</textarea>
+      </div>
+    </div>
+    <p class="dica" style="margin-top:4px">
+      Enquanto for "Não", o Sistema manda e-mail todo dia para o Administrador lembrando de avisar o cliente da renovação.
+    </p>
+  </div>
+
+  <div class="cartao" id="card-veiculo" hidden>
+    <h2>Veículo</h2>
+    <div class="grade">
+      <div class="campo c-3">
+        <label for="veiculo_placa">Placa</label>
+        <input id="veiculo_placa" name="veiculo_placa" maxlength="8" autocapitalize="characters"
+               style="text-transform:uppercase" value="{{ a.veiculo_placa or '' }}">
+      </div>
+      <div class="campo c-9">
+        <label for="veiculo_descricao">Veículo (marca / modelo / ano)</label>
+        <input id="veiculo_descricao" name="veiculo_descricao" value="{{ a.veiculo_descricao or '' }}">
+      </div>
+    </div>
+  </div>
+
+  <div class="cartao">
+    <h2>Pagamento</h2>
+    <div class="grade" style="margin-bottom:14px">
       <div class="campo c-3">
         <label for="premio_liquido">Prêmio líquido (R$)</label>
         <input id="premio_liquido" name="premio_liquido" inputmode="decimal" data-num
@@ -112,44 +160,8 @@
           {% endfor %}
         </select>
       </div>
-
-      <div class="grade__linha" aria-hidden="true"></div>
-
-      <div class="campo c-3">
-        <label for="aviso_vigencia_ok">Cliente avisado (renovação)</label>
-        <select id="aviso_vigencia_ok" name="aviso_vigencia_ok" data-par-data="aviso_vigencia_ok_em">
-          <option value="0" {{ 'selected' if not a.aviso_vigencia_ok }}>Não</option>
-          <option value="1" {{ 'selected' if a.aviso_vigencia_ok }}>Sim</option>
-        </select>
-      </div>
-      <div class="campo c-3">
-        <label for="aviso_vigencia_ok_em">Data do aviso</label>
-        <input id="aviso_vigencia_ok_em" name="aviso_vigencia_ok_em" type="date"
-               value="{{ a.aviso_vigencia_ok_em or '' }}">
-      </div>
     </div>
-    <p class="dica" style="margin-top:4px">
-      Enquanto for "Não", o Plenus manda e-mail todo dia lembrando de avisar o cliente da renovação.
-    </p>
-  </div>
 
-  <div class="cartao" id="card-veiculo" hidden>
-    <h2>Veículo</h2>
-    <div class="grade">
-      <div class="campo c-3">
-        <label for="veiculo_placa">Placa</label>
-        <input id="veiculo_placa" name="veiculo_placa" maxlength="8" autocapitalize="characters"
-               style="text-transform:uppercase" value="{{ a.veiculo_placa or '' }}">
-      </div>
-      <div class="campo c-9">
-        <label for="veiculo_descricao">Veículo (marca / modelo / ano)</label>
-        <input id="veiculo_descricao" name="veiculo_descricao" value="{{ a.veiculo_descricao or '' }}">
-      </div>
-    </div>
-  </div>
-
-  <div class="cartao">
-    <h2>Parcelas</h2>
     {% if pode_gerar %}
     <div class="gerador">
       <div class="grade">
@@ -227,23 +239,23 @@
         <input id="comissao_percentual" name="comissao_percentual" inputmode="decimal" data-num
                value="{{ a.comissao_percentual or '' }}">
       </div>
-      <div class="campo c-12" style="gap:8px">
-        <label class="check">
-          <input type="checkbox" id="comissao_parcelada" name="comissao_parcelada" value="1"
-                 {{ 'checked' if a.comissao_parcelada }}>
-          Comissão em parcelas
-        </label>
+      <div class="campo c-9" style="gap:8px;justify-content:flex-end">
         <label class="check">
           <input type="checkbox" id="comissao_cocorretagem" name="comissao_cocorretagem" value="1"
                  {{ 'checked' if a.comissao_cocorretagem }}>
           Cocorretagem — Seguralta 25% e Plenus 75% da comissão
+        </label>
+        <label class="check">
+          <input type="checkbox" id="comissao_parcelada" name="comissao_parcelada" value="1"
+                 {{ 'checked' if a.comissao_parcelada }}>
+          Comissão em parcelas
         </label>
       </div>
     </div>
 
     {# ---------- repasse único: os 4 valores achatados ---------- #}
     <div id="comissao-unico" {{ 'hidden' if a.comissao_parcelada }}>
-      <div class="grade" style="align-items:end;margin-top:8px">
+      <div class="grade" style="align-items:end;margin-top:20px">
         <div class="campo c-4">
           <label aria-hidden="true">&nbsp;</label>
           <button type="button" class="btn btn--primario" id="btn-calc-seg-receber" style="width:100%">
@@ -251,13 +263,13 @@
           </button>
         </div>
         <div class="campo c-2">
-          <label for="comissao_valor_seguralta_receber">SEGURALTA a receber</label>
+          <label for="comissao_valor_seguralta_receber">Seguralta a receber</label>
           <input id="comissao_valor_seguralta_receber" name="comissao_valor_seguralta_receber"
                  inputmode="decimal" data-num style="max-width:120px"
                  value="{{ a.comissao_valor_seguralta_receber or '' }}">
         </div>
         <div class="campo c-2">
-          <label for="comissao_valor_seguralta_recebido">SEGURALTA recebido</label>
+          <label for="comissao_valor_seguralta_recebido">Seguralta recebido</label>
           <input id="comissao_valor_seguralta_recebido" name="comissao_valor_seguralta_recebido"
                  inputmode="decimal" data-num style="max-width:120px"
                  value="{{ a.comissao_valor_seguralta_recebido or '' }}">
@@ -268,7 +280,7 @@
         <div class="campo c-4">
           <label aria-hidden="true">&nbsp;</label>
           <button type="button" class="btn btn--primario" id="btn-calc-plenus-receber" style="width:100%">
-            Calcular 75% do recebido - SEGURALTA
+            Calcular 75% do recebido - Seguralta
           </button>
         </div>
         <div class="campo c-2">
@@ -381,7 +393,7 @@
         <div class="grade">
           <div class="campo c-2"><label for="ger_rep_qtd">Qtd. de meses</label>
             <input id="ger_rep_qtd" type="number" min="1" max="120"></div>
-          <div class="campo c-2"><label for="ger_rep_valor">Previsto (R$)</label>
+          <div class="campo c-2"><label for="ger_rep_valor">Pendente (R$)</label>
             <input id="ger_rep_valor" inputmode="decimal" data-num></div>
           <div class="campo c-3"><label for="ger_rep_data1">1ª data</label>
             <input id="ger_rep_data1" type="date"></div>
@@ -391,8 +403,8 @@
       {% endif %}
       <div class="tabela-wrap">
         <table class="lista tab-fluxo" id="tab-repasses">
-          <thead><tr><th style="width:10%">Parcela</th><th style="width:19%">Previsto (R$)</th>
-              <th style="width:19%">Recebido (R$)</th><th style="width:22%">Data</th>
+          <thead><tr><th style="width:10%">Parcela</th><th style="width:19%">Pendente (R$)</th>
+              <th style="width:19%">Pago (R$)</th><th style="width:22%">Data</th>
               <th style="width:14%">Conferido<br><small>no banco</small></th><th style="width:16%"></th></tr></thead>
           <tbody id="corpo-repasses">
             {% for r in a.repasses or [] %}

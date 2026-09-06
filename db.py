@@ -31,10 +31,11 @@ CREATE TABLE IF NOT EXISTS usuario (
 
 CREATE TABLE IF NOT EXISTS cliente (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    nome TEXT NOT NULL,
+    nome TEXT NOT NULL,            -- pessoa física: nome; pessoa jurídica: razão social
+    tipo_pessoa TEXT NOT NULL DEFAULT 'F',  -- 'F' = física (CPF) | 'J' = jurídica (CNPJ)
     data_nascimento TEXT,          -- ISO AAAA-MM-DD (do <input type=date>)
     sexo TEXT,                     -- 'F' | 'M' | 'Outro'
-    cpf TEXT,                      -- só os 11 dígitos, sem máscara
+    cpf TEXT,                      -- só dígitos, sem máscara: 11 (CPF) ou 14 (CNPJ)
     end_rua TEXT,
     end_numero TEXT,
     end_complemento TEXT,
@@ -48,25 +49,47 @@ CREATE TABLE IF NOT EXISTS cliente (
     criado_em TEXT NOT NULL DEFAULT (datetime('now')),
     atualizado_em TEXT NOT NULL DEFAULT (datetime('now'))
 );
+-- não deixa cadastrar o mesmo CPF duas vezes (só vale quando o CPF foi informado;
+-- clientes sem CPF continuam livres). CPF é gravado só com dígitos.
+CREATE UNIQUE INDEX IF NOT EXISTS ix_cliente_cpf_unico
+    ON cliente (cpf) WHERE cpf IS NOT NULL AND cpf <> '';
 
 CREATE TABLE IF NOT EXISTS tipo_seguro (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     nome TEXT NOT NULL
 );
+-- não deixa cadastrar o mesmo tipo de seguro duas vezes (ignora maiúsc./minúsc.)
+CREATE UNIQUE INDEX IF NOT EXISTS ix_tipo_seguro_nome_unico
+    ON tipo_seguro (nome COLLATE NOCASE);
 
 CREATE TABLE IF NOT EXISTS forma_pagamento (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     nome TEXT NOT NULL
 );
+-- não deixa cadastrar a mesma forma de pagamento duas vezes (ignora maiúsc./minúsc.)
+CREATE UNIQUE INDEX IF NOT EXISTS ix_forma_pagamento_nome_unico
+    ON forma_pagamento (nome COLLATE NOCASE);
 
 CREATE TABLE IF NOT EXISTS seguradora (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     nome TEXT NOT NULL
 );
+-- não deixa cadastrar a mesma seguradora duas vezes (ignora maiúsc./minúsc.)
+CREATE UNIQUE INDEX IF NOT EXISTS ix_seguradora_nome_unico
+    ON seguradora (nome COLLATE NOCASE);
 
 CREATE TABLE IF NOT EXISTS categoria_saida (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     nome TEXT NOT NULL
+);
+
+-- campos configuráveis da cotação (montam o formulário de cotação)
+CREATE TABLE IF NOT EXISTS cotacao_campo (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nome TEXT NOT NULL,
+    tipo TEXT NOT NULL,            -- valor | numerico | sim_nao | nivel (Simples/Interm./Completo) | livre_referenciada
+    ordem INTEGER NOT NULL DEFAULT 0,  -- ordem no formulário "Gerar cotação"
+    criado_em TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS apolice (
@@ -105,6 +128,7 @@ CREATE TABLE IF NOT EXISTS apolice (
     apolice_enviada_data TEXT,
     cartao_enviado INTEGER NOT NULL DEFAULT 0,
     cartao_enviado_data TEXT,
+    observacao TEXT,                             -- texto livre (anotações da apólice)
     criado_em TEXT NOT NULL DEFAULT (datetime('now')),
     atualizado_em TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -208,7 +232,8 @@ _COLUNAS_ESPERADAS = {
         "criado_em": "TEXT NOT NULL DEFAULT (datetime('now'))", "ultimo_acesso": "TEXT",
     },
     "cliente": {
-        "nome": "TEXT", "data_nascimento": "TEXT", "sexo": "TEXT", "cpf": "TEXT",
+        "nome": "TEXT", "tipo_pessoa": "TEXT NOT NULL DEFAULT 'F'",
+        "data_nascimento": "TEXT", "sexo": "TEXT", "cpf": "TEXT",
         "end_rua": "TEXT", "end_numero": "TEXT", "end_complemento": "TEXT", "end_bairro": "TEXT",
         "end_cep": "TEXT", "end_cidade": "TEXT", "end_estado": "TEXT",
         "tel_ddd": "TEXT", "tel_numero": "TEXT", "email": "TEXT",
@@ -219,6 +244,10 @@ _COLUNAS_ESPERADAS = {
     "forma_pagamento": {"nome": "TEXT"},
     "seguradora": {"nome": "TEXT"},
     "categoria_saida": {"nome": "TEXT"},
+    "cotacao_campo": {
+        "nome": "TEXT", "tipo": "TEXT", "ordem": "INTEGER NOT NULL DEFAULT 0",
+        "criado_em": "TEXT NOT NULL DEFAULT (datetime('now'))",
+    },
     "apolice": {
         "cliente_id": "INTEGER", "seguradora_id": "INTEGER",
         "tipo_seguro_id": "INTEGER", "numero_apolice": "TEXT",
@@ -238,6 +267,7 @@ _COLUNAS_ESPERADAS = {
         "aviso_vigencia_ok": "INTEGER NOT NULL DEFAULT 0", "aviso_vigencia_ok_em": "TEXT",
         "apolice_enviada": "INTEGER NOT NULL DEFAULT 0", "apolice_enviada_data": "TEXT",
         "cartao_enviado": "INTEGER NOT NULL DEFAULT 0", "cartao_enviado_data": "TEXT",
+        "observacao": "TEXT",
         "criado_em": "TEXT NOT NULL DEFAULT (datetime('now'))",
         "atualizado_em": "TEXT NOT NULL DEFAULT (datetime('now'))",
     },

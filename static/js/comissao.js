@@ -246,7 +246,7 @@
       if (!rows.length) return "";
       const prev = rows.reduce((s, r) => s + r.v1, 0);
       const receb = rows.reduce((s, r) => s + r.v2, 0);
-      let t = rows.length + " linha(s) · previsto R$ " + fmt(prev) + " · recebido R$ " + fmt(receb);
+      let t = rows.length + " linha(s) · pendente R$ " + fmt(prev) + " · pago R$ " + fmt(receb);
       if (extra && extra.conferidas) t += " · " + extra.conferidas + " conferida(s) no banco";
       return t;
     },

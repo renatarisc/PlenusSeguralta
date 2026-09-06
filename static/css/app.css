@@ -24,6 +24,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html, body { margin: 0; height: 100%; }
 body {
   background: var(--fundo); color: var(--texto);
@@ -174,16 +175,31 @@ a { color: inherit; text-decoration: none; }
 
 /* ---------- formulários ---------- */
 .form { display: flex; flex-direction: column; gap: 14px; }
+/* dentro do .form o espaçamento entre cards é só o gap acima — sem somar a margem do .cartao */
+.form > .cartao { margin-bottom: 0; }
+/* status do "Ler apólice": vazio não ocupa espaço acima do 1º card (o JS preenche quando há PDF) */
+#ler-pdf-status:empty { display: none; }
 .grade { display: grid; gap: 12px 14px; grid-template-columns: repeat(12, 1fr); }
 .grade__linha { grid-column: 1 / -1; height: 1px; background: var(--linha); margin: 2px 0; }
 .campo { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.campo[hidden] { display: none; }
+/* linha estilo tabela: nome do campo à esquerda, controle preenchido à direita */
+.linha-campo { flex-direction: row; align-items: center; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--linha); }
+.linha-campo:last-child { border-bottom: none; }
+.linha-campo > .linha-campo__nome { flex: 0 0 240px; font-size: 12.5px; font-weight: 600; color: var(--texto); }
+.linha-campo > input, .linha-campo > select { flex: 1 1 auto; min-width: 0; }
+@media (max-width: 720px) {
+  .linha-campo { flex-direction: column; align-items: stretch; gap: 4px; }
+  .linha-campo > .linha-campo__nome { flex: none; }
+}
 .campo label { font-size: 11.5px; font-weight: 700; color: var(--texto-suave); }
-.campo input, .campo select {
+.campo input, .campo select, .campo textarea {
   font: inherit; font-size: 13.5px; padding: 8px 10px;
   border: 1px solid var(--linha); border-radius: var(--raio); background: var(--branco); color: var(--texto);
   width: 100%;
 }
-.campo input:focus-visible, .campo select:focus-visible {
+.campo textarea { resize: vertical; min-height: 64px; line-height: 1.45; }
+.campo input:focus-visible, .campo select:focus-visible, .campo textarea:focus-visible {
   outline: none; border-color: var(--laranja); box-shadow: 0 0 0 3px var(--laranja-fraco);
 }
 .campo input[aria-invalid="true"] { border-color: var(--erro); }
@@ -219,10 +235,36 @@ a { color: inherit; text-decoration: none; }
 .tabela-wrap { overflow-x: auto; }
 table.lista { width: 100%; border-collapse: collapse; }
 table.lista th, table.lista td {
-  text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--linha); font-size: 13px; vertical-align: middle;
+  text-align: left; padding: 7px 12px; border-bottom: 1px solid var(--linha); font-size: 13px; vertical-align: middle;
 }
-table.lista th { font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: var(--texto-suave); font-weight: 700; }
+table.lista th { font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: var(--laranja); font-weight: 700; }
+/* zebra bem suave; o :hover abaixo continua vencendo por vir depois (mesma especificidade) */
+table.lista tbody tr:nth-child(even) { background: #fafbfc; }
 table.lista tbody tr:hover { background: var(--fundo); }
+/* coluna-identidade (nome / número): preto e negrito, destaca do resto da linha */
+table.lista a.cel-nome { color: var(--texto); font-weight: 700; }
+table.lista a.cel-nome:hover { color: var(--laranja); }
+/* link secundário dentro da tabela (ex.: nome do cliente na lista de apólices) */
+table.lista a.cel-link:hover { color: var(--laranja); }
+/* selo discreto "PJ" antes do nome (cliente pessoa jurídica) */
+.tag-pj {
+  display: inline-block; margin-right: 6px; padding: 0 5px; border-radius: 4px;
+  font-size: 10px; font-weight: 700; letter-spacing: .04em; vertical-align: 1px;
+  background: var(--fundo); color: var(--texto-suave); border: 1px solid var(--linha);
+}
+/* "próxima parcela" quitada: check verde no lugar do traço */
+table.lista .selo-quitado { display: inline-flex; color: var(--ok); }
+table.lista .selo-quitado svg { width: 18px; height: 18px; }
+/* coluna "Próxima parcela": conteúdo e título centralizados */
+table.lista th.col-prox, table.lista td.col-prox { text-align: center; }
+/* ícone de ordenar por cliente no cabeçalho */
+table.lista th .th-ord { display: inline-flex; vertical-align: middle; margin-left: 3px; color: var(--texto-suave); }
+table.lista th .th-ord svg { width: 13px; height: 13px; }
+table.lista th .th-ord:hover, table.lista th .th-ord.ativo { color: var(--laranja-hover); }
+/* lista de apólices: datas da vigência nunca quebram no meio do intervalo;
+   nome do cliente com fonte menor pra sobrar largura */
+.vig-datas { white-space: nowrap; }
+table.lista td.col-cliente { font-size: 12px; }
 /* mantém a célula como table-cell (senão a borda inferior sai desalinhada) */
 table.lista td.acoes { text-align: right; white-space: nowrap; }
 table.lista td.acoes > a,
@@ -248,7 +290,8 @@ table.lista tr.apolice-vencida td:first-child { box-shadow: inset 3px 0 0 #a5201
 
 /* ---------- lista de Saídas (fluxo de caixa): 4 colunas, meta em sub-linha ---------- */
 .lista--saidas td { vertical-align: top; }
-.lista--saidas .cel-titulo { font-weight: 600; color: var(--laranja-hover); }
+.lista--saidas .cel-titulo { font-weight: 700; color: var(--texto); }
+.lista--saidas .cel-titulo:hover { color: var(--laranja); }
 .lista--saidas tr.linha-paga .cel-titulo { text-decoration: line-through; color: var(--texto-suave); }
 .lista--saidas tr.linha-paga td { color: var(--texto-suave); }
 .lista--saidas .tag-fixa {
@@ -564,6 +607,12 @@ dialog.dlg::backdrop { background: rgba(20, 20, 25, .45); }
 .campo-busca svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: var(--texto-suave); pointer-events: none; }
 .campo-busca input { padding-left: 34px; }
 .filtros__acoes { display: flex; gap: 8px; margin-top: 14px; }
+/* variante de 1 linha: campo estreito + botões ao lado (card mais baixo) */
+.filtros--linha { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
+.filtros--linha .campo { flex: 0 1 260px; }
+.filtros--linha .campo--busca { flex-basis: 340px; }
+.filtros--linha .campo--medio { flex-basis: 190px; }
+.filtros--linha .campo--curto { flex-basis: 120px; }
 
 /* ---------- overlay do menu mobile ---------- */
 .overlay { display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, .4); z-index: 40; }

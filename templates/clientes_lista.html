@@ -6,34 +6,40 @@
 {% endblock %}
 
 {% block conteudo %}
-<form class="cartao filtros" method="get">
-  <div class="grade">
-    <div class="campo {{ 'c-8' if ufs else 'c-12' }}">
-      <label for="f-busca">Buscar</label>
-      <div class="campo-busca">
-        {{ icone('busca') }}
-        <input id="f-busca" type="text" name="busca" value="{{ busca }}"
-               placeholder="Nome ou CPF do cliente">
-      </div>
+<form class="cartao filtros filtros--linha" method="get">
+  <div class="campo campo--busca">
+    <label for="f-busca">Buscar</label>
+    <div class="campo-busca">
+      {{ icone('busca') }}
+      <input id="f-busca" type="text" name="busca" value="{{ busca }}" placeholder="Nome, CPF ou CNPJ">
     </div>
-    {% if ufs %}
-    <div class="campo c-4">
-      <label for="f-uf">Estado</label>
-      <select id="f-uf" name="uf">
-        <option value="">Todos</option>
-        {% for u in ufs %}
-        <option value="{{ u }}" {{ 'selected' if uf == u }}>{{ u }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    {% endif %}
   </div>
-  <div class="filtros__acoes">
-    <button class="btn btn--primario" type="submit">{{ icone('busca') }} Buscar</button>
-    {% if busca or uf %}
-    <a class="btn btn--linha" href="{{ url_for('clientes_lista') }}">Limpar</a>
-    {% endif %}
+  {% if ufs %}
+  <div class="campo campo--curto">
+    <label for="f-uf">Estado</label>
+    <select id="f-uf" name="uf">
+      <option value="">Todos</option>
+      {% for u in ufs %}
+      <option value="{{ u }}" {{ 'selected' if uf == u }}>{{ u }}</option>
+      {% endfor %}
+    </select>
   </div>
+  {% endif %}
+  {% if cidades %}
+  <div class="campo campo--medio">
+    <label for="f-cidade">Cidade</label>
+    <select id="f-cidade" name="cidade">
+      <option value="">Todas</option>
+      {% for c in cidades %}
+      <option value="{{ c }}" {{ 'selected' if cidade == c }}>{{ c }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  {% endif %}
+  <button class="btn btn--primario" type="submit">{{ icone('busca') }} Buscar</button>
+  {% if busca or uf or cidade %}
+  <a class="btn btn--linha" href="{{ url_for('clientes_lista') }}">Limpar</a>
+  {% endif %}
 </form>
 
 <div class="cartao" style="padding:0">
@@ -41,16 +47,15 @@
   <div class="tabela-wrap">
     <table class="lista">
       <thead>
-        <tr><th>Nome</th><th>CPF</th><th>Cidade/UF</th><th>Telefone</th><th>E-mail</th><th></th></tr>
+        <tr><th>Nome</th><th>CPF / CNPJ</th><th>Cidade/UF</th><th>Telefone</th><th></th></tr>
       </thead>
       <tbody>
         {% for c in clientes %}
         <tr>
-          <td><a href="{{ url_for('cliente_form', cliente_id=c.id) }}" style="font-weight:600;color:var(--laranja-hover)">{{ c.nome }}</a></td>
-          <td>{{ c.cpf|cpf if c.cpf else '—' }}</td>
+          <td>{% if c.tipo_pessoa == 'J' %}<span class="tag-pj" title="Pessoa jurídica">PJ</span>{% endif %}<a class="cel-nome" href="{{ url_for('cliente_form', cliente_id=c.id) }}">{{ c.nome }}</a></td>
+          <td>{{ c.cpf|documento if c.cpf else '—' }}</td>
           <td>{{ (c.end_cidade ~ (' / ' ~ c.end_estado if c.end_estado else '')) if c.end_cidade else '—' }}</td>
           <td>{{ telefone(c.tel_ddd, c.tel_numero) or '—' }}</td>
-          <td>{{ c.email or '—' }}</td>
           <td class="acoes">
             <a class="btn btn--linha btn--mini" href="{{ url_for('cliente_form', cliente_id=c.id) }}">{{ icone('lapis') }}</a>
             <form method="post" action="{{ url_for('cliente_excluir', cliente_id=c.id) }}"
@@ -65,7 +70,7 @@
     </table>
   </div>
   {% else %}
-  <p class="vazio">{{ 'Nenhum cliente encontrado para o filtro.' if (busca or uf) else 'Nenhum cliente cadastrado ainda.' }}</p>
+  <p class="vazio">{{ 'Nenhum cliente encontrado para o filtro.' if (busca or uf or cidade) else 'Nenhum cliente cadastrado ainda.' }}</p>
   {% endif %}
 </div>
 {% endblock %}

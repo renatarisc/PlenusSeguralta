@@ -35,6 +35,37 @@ def formatar_cpf(cpf):
     return f"{d[0:3]}.{d[3:6]}.{d[6:9]}-{d[9:11]}" if len(d) == 11 else (cpf or "")
 
 
+# ---------- CNPJ ----------
+
+def cnpj_valido(cnpj):
+    d = so_digitos(cnpj)
+    if len(d) != 14 or d == d[0] * 14:
+        return False
+    for tam in (12, 13):
+        pesos = list(range(tam - 7, 1, -1)) + list(range(9, 1, -1))
+        soma = sum(int(d[i]) * pesos[i] for i in range(tam))
+        dig = soma % 11
+        dig = 0 if dig < 2 else 11 - dig
+        if dig != int(d[tam]):
+            return False
+    return True
+
+
+def formatar_cnpj(cnpj):
+    d = so_digitos(cnpj)
+    return f"{d[0:2]}.{d[2:5]}.{d[5:8]}/{d[8:12]}-{d[12:14]}" if len(d) == 14 else (cnpj or "")
+
+
+def formatar_documento(doc):
+    """CPF (11 díg.) ou CNPJ (14 díg.), pelo tamanho; senão devolve como veio."""
+    d = so_digitos(doc)
+    if len(d) == 14:
+        return formatar_cnpj(d)
+    if len(d) == 11:
+        return formatar_cpf(d)
+    return doc or ""
+
+
 # ---------- CEP ----------
 
 def cep_valido(cep):
@@ -269,11 +300,17 @@ def validar_apolice(dados):
         erros.append("Selecione o cliente.")
     if not (dados.get("tipo_seguro_id") or "").strip():
         erros.append("Selecione o tipo de seguro.")
+    if not (dados.get("seguradora_id") or "").strip():
+        erros.append("Selecione a seguradora.")
     if not (dados.get("numero_apolice") or "").strip():
         erros.append("Informe o número da apólice.")
 
     ini = (dados.get("vigencia_inicio") or "").strip()
     fim = (dados.get("vigencia_fim") or "").strip()
+    if not ini:
+        erros.append("Informe o início da vigência.")
+    if not fim:
+        erros.append("Informe o fim da vigência.")
     if ini and fim and fim < ini:
         erros.append("O fim da vigência é anterior ao início.")
 
@@ -345,9 +382,20 @@ def validar_cliente(dados):
     erros = []
     if not (dados.get("nome") or "").strip():
         erros.append("Nome é obrigatório.")
-    cpf = dados.get("cpf")
-    if cpf and not cpf_valido(cpf):
-        erros.append("CPF inválido.")
+    tipo = (dados.get("tipo_pessoa") or "F").strip().upper()
+    if tipo not in ("F", "J"):
+        tipo = "F"
+    doc = (dados.get("cpf") or "").strip()
+    if tipo == "J":
+        if not doc:
+            erros.append("CNPJ é obrigatório.")
+        elif not cnpj_valido(doc):
+            erros.append("CNPJ inválido.")
+    else:
+        if not doc:
+            erros.append("CPF é obrigatório.")
+        elif not cpf_valido(doc):
+            erros.append("CPF inválido.")
     cep = dados.get("end_cep")
     if cep and not cep_valido(cep):
         erros.append("CEP deve ter 8 dígitos.")

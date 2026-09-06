@@ -115,7 +115,11 @@
       const tr = bEdit.closest("tr.parcela");
       if (tr.classList.contains("linha-liberada")) {   // 2º clique = já é "Salvar"
         const f = bEdit.form || bEdit.closest("form");
-        if (f) { f.requestSubmit ? f.requestSubmit() : f.submit(); }
+        if (f) {
+          const fica = f.querySelector('input[name="permanecer"]');
+          if (fica) fica.value = "1";   // volta pro próprio formulário, não pra lista
+          f.requestSubmit ? f.requestSubmit() : f.submit();
+        }
         return;
       }
       destravar(tr);
@@ -182,19 +186,25 @@
     atualizarResumo();
   };
 
-  // ---- card "Veículo" só aparece para seguro de automóvel ----
+  // ---- card do bem segurado (Veículo / Moto): só aparece p/ automóvel ou moto ----
   const selTipo = document.getElementById("tipo_seguro_id");
   const cardVeiculo = document.getElementById("card-veiculo");
   if (selTipo && cardVeiculo) {
-    const ehAuto = () => {
-      const txt = (selTipo.options[selTipo.selectedIndex] || {}).text || "";
-      return /autom[óo]vel|ve[íi]culo|autom[óo]tiv|carro|moto\b|frota/i.test(txt);
-    };
+    const txtTipo = () => (selTipo.options[selTipo.selectedIndex] || {}).text || "";
+    const ehAuto = () => /autom[óo]vel|ve[íi]culo|autom[óo]tiv|carro|moto\b|frota/i.test(txtTipo());
+    const ehMoto = () => /\bmoto/i.test(txtTipo());
     const jaTemDados = ["veiculo_placa", "veiculo_descricao"].some((n) => {
       const el = document.getElementById(n);
       return el && el.value.trim();
     });
-    const sync = () => { cardVeiculo.hidden = !(ehAuto() || jaTemDados); };
+    const h2 = cardVeiculo.querySelector("h2");
+    const lblDescricao = cardVeiculo.querySelector('label[for="veiculo_descricao"]');
+    const sync = () => {
+      cardVeiculo.hidden = !(ehAuto() || jaTemDados);
+      const rotulo = ehMoto() ? "Moto" : "Veículo";
+      if (h2) h2.textContent = rotulo;
+      if (lblDescricao) lblDescricao.textContent = rotulo + " (marca / modelo / ano)";
+    };
     selTipo.addEventListener("change", sync);
     sync();
   }

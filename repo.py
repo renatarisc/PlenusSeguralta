@@ -99,7 +99,7 @@ def _sem_acento_minusculo(texto):
 # ---------- cliente ----------
 
 _COLS_CLIENTE = (
-    "nome", "data_nascimento", "sexo", "cpf",
+    "nome", "tipo_pessoa", "data_nascimento", "sexo", "cpf",
     "end_rua", "end_numero", "end_complemento", "end_bairro", "end_cep", "end_cidade", "end_estado",
     "tel_ddd", "tel_numero", "email",
 )
@@ -109,21 +109,26 @@ def _valores_cliente(dados):
     valores = []
     for col in _COLS_CLIENTE:
         v = (dados.get(col) or "").strip()
+        if col == "tipo_pessoa":
+            valores.append("J" if v.upper() == "J" else "F")  # NOT NULL: sempre F ou J
+            continue
         if col in ("cpf", "end_cep", "tel_ddd", "tel_numero"):
             v = so_digitos(v)
         valores.append(v or None)
     return valores
 
 
-def listar_clientes(busca=None, uf=None):
+def listar_clientes(busca=None, uf=None, cidade=None):
     with conexao() as con:
         linhas = [dict(l) for l in con.execute(
-            "SELECT id, nome, cpf, end_cidade, end_estado, tel_ddd, tel_numero, email "
+            "SELECT id, nome, tipo_pessoa, cpf, end_cidade, end_estado, tel_ddd, tel_numero, email "
             "FROM cliente ORDER BY nome COLLATE NOCASE"
         ).fetchall()]
 
     if uf:
         linhas = [c for c in linhas if (c["end_estado"] or "") == uf]
+    if cidade:
+        linhas = [c for c in linhas if (c["end_cidade"] or "") == cidade]
 
     termo = (busca or "").strip()
     if not termo:
@@ -147,9 +152,37 @@ def ufs_dos_clientes():
         ).fetchall()]
 
 
+def cidades_dos_clientes(uf=None):
+    sql = ("SELECT DISTINCT end_cidade FROM cliente "
+           "WHERE end_cidade IS NOT NULL AND end_cidade <> ''")
+    params = []
+    if uf:
+        sql += " AND end_estado = ?"
+        params.append(uf)
+    sql += " ORDER BY end_cidade COLLATE NOCASE"
+    with conexao() as con:
+        return [r[0] for r in con.execute(sql, params).fetchall()]
+
+
 def obter_cliente(cliente_id):
     with conexao() as con:
         l = con.execute("SELECT * FROM cliente WHERE id = ?", (cliente_id,)).fetchone()
+        return dict(l) if l else None
+
+
+def cliente_por_documento(doc, ignorar_id=None):
+    """Cliente que já tem esse CPF/CNPJ -> {id, nome}, ou None. Compara só por dígitos.
+    Documento vazio nunca casa."""
+    digitos = so_digitos(doc)
+    if not digitos:
+        return None
+    sql = "SELECT id, nome FROM cliente WHERE cpf = ?"
+    params = [digitos]
+    if ignorar_id:
+        sql += " AND id <> ?"
+        params.append(ignorar_id)
+    with conexao() as con:
+        l = con.execute(sql, params).fetchone()
         return dict(l) if l else None
 
 
@@ -186,12 +219,17 @@ def excluir_cliente(cliente_id):
 _TABELAS_SIMPLES = {"tipo_seguro", "forma_pagamento", "seguradora", "categoria_saida"}
 
 
-def listar_simples(tabela):
+def listar_simples(tabela, busca=None):
     assert tabela in _TABELAS_SIMPLES
     with conexao() as con:
-        return [dict(l) for l in con.execute(
+        linhas = [dict(l) for l in con.execute(
             f"SELECT id, nome FROM {tabela} ORDER BY nome COLLATE NOCASE"
         ).fetchall()]
+    termo = (busca or "").strip()
+    if termo:
+        alvo = _sem_acento_minusculo(termo)
+        linhas = [l for l in linhas if alvo in _sem_acento_minusculo(l["nome"])]
+    return linhas
 
 
 def obter_simples(tabela, item_id):
@@ -246,6 +284,63 @@ def excluir_simples(tabela, item_id):
     fazer_backup()
 
 
+# ---------- cotação: campos configuráveis (nome + tipo) ----------
+
+def listar_campos_cotacao(busca=None):
+    with conexao() as con:
+        linhas = [dict(l) for l in con.execute(
+            "SELECT id, nome, tipo, ordem FROM cotacao_campo "
+            "ORDER BY ordem, nome COLLATE NOCASE"
+        ).fetchall()]
+    termo = (busca or "").strip()
+    if termo:
+        alvo = _sem_acento_minusculo(termo)
+        linhas = [l for l in linhas if alvo in _sem_acento_minusculo(l["nome"])]
+    return linhas
+
+
+def obter_campo_cotacao(campo_id):
+    with conexao() as con:
+        l = con.execute("SELECT id, nome, tipo, ordem FROM cotacao_campo WHERE id = ?", (campo_id,)).fetchone()
+        return dict(l) if l else None
+
+
+def campo_cotacao_nome_existe(nome, ignorar_id=None):
+    nome = (nome or "").strip()
+    if not nome:
+        return False
+    sql = "SELECT 1 FROM cotacao_campo WHERE nome = ? COLLATE NOCASE"
+    params = [nome]
+    if ignorar_id:
+        sql += " AND id <> ?"
+        params.append(ignorar_id)
+    with conexao() as con:
+        return con.execute(sql, params).fetchone() is not None
+
+
+def criar_campo_cotacao(nome, tipo):
+    with conexao() as con:
+        prox = con.execute("SELECT COALESCE(MAX(ordem), 0) + 1 FROM cotacao_campo").fetchone()[0]
+        cur = con.execute("INSERT INTO cotacao_campo (nome, tipo, ordem) VALUES (?, ?, ?)",
+                          ((nome or "").strip(), (tipo or "").strip(), prox))
+        novo_id = cur.lastrowid
+    fazer_backup()
+    return novo_id
+
+
+def atualizar_campo_cotacao(campo_id, nome, tipo):
+    with conexao() as con:
+        con.execute("UPDATE cotacao_campo SET nome = ?, tipo = ? WHERE id = ?",
+                    ((nome or "").strip(), (tipo or "").strip(), campo_id))
+    fazer_backup()
+
+
+def excluir_campo_cotacao(campo_id):
+    with conexao() as con:
+        con.execute("DELETE FROM cotacao_campo WHERE id = ?", (campo_id,))
+    fazer_backup()
+
+
 # ---------- apólice (+ parcelas) ----------
 
 _COLS_APOLICE = (
@@ -263,6 +358,7 @@ _COLS_APOLICE = (
     "veiculo_placa", "veiculo_descricao",
     "aviso_vigencia_ok", "aviso_vigencia_ok_em",
     "apolice_enviada", "apolice_enviada_data", "cartao_enviado", "cartao_enviado_data",
+    "observacao",
 )
 
 
@@ -305,6 +401,7 @@ def _valores_apolice(dados):
         (dados.get("apolice_enviada_data") or "").strip() or None,
         _sim_nao(dados.get("cartao_enviado")),
         (dados.get("cartao_enviado_data") or "").strip() or None,
+        (dados.get("observacao") or "").strip() or None,
     ]
 
 
@@ -348,17 +445,19 @@ def _inserir_repasses(con, apolice_id, linhas):
 
 
 def listar_apolices(cliente_id=None, tipo_seguro_id=None, mes_inicio=None, quiver=None,
-                    busca=None, parcela_status=None):
+                    busca=None, parcela_status=None, mes_fim=None, ordem=None):
     sql = """SELECT a.id, a.numero_apolice, a.vigencia_inicio, a.vigencia_fim,
-                    a.premio_liquido, a.lancado_quiver, a.aviso_vigencia_ok,
-                    c.nome AS cliente_nome, t.nome AS tipo_seguro_nome,
+                    a.premio_liquido, a.lancado_quiver, a.aviso_vigencia_ok, a.cliente_id,
+                    c.nome AS cliente_nome, c.tipo_pessoa AS cliente_tipo_pessoa,
+                    t.nome AS tipo_seguro_nome,
                     s.nome AS seguradora_nome,
                     (SELECT p.data FROM apolice_parcela p
                        WHERE p.apolice_id = a.id AND COALESCE(p.paga, 0) = 0 AND p.data IS NOT NULL
                        ORDER BY p.data LIMIT 1) AS proxima_parcela_data,
                     (SELECT p.valor FROM apolice_parcela p
                        WHERE p.apolice_id = a.id AND COALESCE(p.paga, 0) = 0 AND p.data IS NOT NULL
-                       ORDER BY p.data LIMIT 1) AS proxima_parcela_valor
+                       ORDER BY p.data LIMIT 1) AS proxima_parcela_valor,
+                    (SELECT COUNT(*) FROM apolice_parcela p WHERE p.apolice_id = a.id) AS total_parcelas
                FROM apolice a
                LEFT JOIN cliente c     ON c.id = a.cliente_id
                LEFT JOIN tipo_seguro t ON t.id = a.tipo_seguro_id
@@ -373,12 +472,20 @@ def listar_apolices(cliente_id=None, tipo_seguro_id=None, mes_inicio=None, quive
     if mes_inicio:
         filtros.append("substr(a.vigencia_inicio, 6, 2) = ?")
         params.append(f"{int(mes_inicio):02d}")
+    if mes_fim:
+        filtros.append("substr(a.vigencia_fim, 6, 2) = ?")
+        params.append(f"{int(mes_fim):02d}")
     if quiver in (0, 1, True, False):
         filtros.append("COALESCE(a.lancado_quiver, 0) = ?")
         params.append(1 if quiver in (1, True) else 0)
     if filtros:
         sql += " WHERE " + " AND ".join(filtros)
-    sql += " ORDER BY a.criado_em DESC, a.id DESC"
+    if ordem == "cliente":
+        sql += " ORDER BY c.nome COLLATE NOCASE, a.criado_em DESC, a.id DESC"
+    elif ordem == "cliente_desc":
+        sql += " ORDER BY c.nome COLLATE NOCASE DESC, a.criado_em DESC, a.id DESC"
+    else:
+        sql += " ORDER BY a.criado_em DESC, a.id DESC"
     with conexao() as con:
         linhas = [dict(l) for l in con.execute(sql, params).fetchall()]
 
