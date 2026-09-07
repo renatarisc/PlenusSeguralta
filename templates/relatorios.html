@@ -301,31 +301,16 @@
   </div>
   <div class="filtros__acoes">
     <button class="btn btn--primario" type="submit">{{ icone('relatorio') }} Gerar relatório</button>
-    {% if tem_filtro %}<a class="btn btn--linha" href="{{ url_for('fluxo_relatorios', slug=tipo) }}">Limpar</a>{% endif %}
+    <a class="btn btn--linha" href="{{ url_for('fluxo_relatorios_pdf', slug=tipo, **request.args) }}">{{ icone('relatorio') }} Baixar PDF</a>
+    {% if tem_filtro %}<a class="btn btn--linha" href="{{ limpar_url }}">Limpar</a>{% endif %}
   </div>
 </form>
 
 {% if tipo == 'entradas' %}
 
-<div class="stats rel-stats">
-  <div class="stat"><div class="stat__valor">{{ resumo.qtd_apolices }}</div><div class="stat__rotulo">Apólices</div></div>
-  <div class="stat"><div class="stat__valor">{{ resumo.soma|moeda }}</div><div class="stat__rotulo">Total</div></div>
-  <div class="stat"><div class="stat__valor">{{ resumo.soma_paga|moeda }}</div>
-    <div class="stat__rotulo">Recebido ({{ resumo.qtd_paga }})</div></div>
-  <div class="stat"><div class="stat__valor" style="color:{{ 'var(--erro)' if resumo.soma_aberto else 'inherit' }}">{{ resumo.soma_aberto|moeda }}</div>
-    <div class="stat__rotulo">A receber ({{ resumo.qtd_aberto }})</div></div>
-</div>
-
 {% if resumo.qtd_diverg %}
 <p class="rel-diverg-nota">⚠ {{ resumo.qtd_diverg }} apólice(s) com divergência entre a soma do repasse no sistema e o total informado no relatório da corretora — detalhe em cada apólice abaixo.</p>
 {% endif %}
-
-<div class="rel-acoes">
-  <a class="btn btn--primario btn--mini" href="{{ url_for('fluxo_relatorios_pdf', slug=tipo, **request.args) }}">
-    {{ icone('relatorio') }} Baixar PDF
-  </a>
-  <button type="button" class="btn btn--linha btn--mini" onclick="window.print()">Imprimir pelo navegador</button>
-</div>
 
 <div class="cartao" style="padding:0">
   {% if not linhas %}
@@ -358,22 +343,6 @@
   {% endif %}
 </div>
 {% else %}
-
-<div class="stats rel-stats">
-  <div class="stat"><div class="stat__valor">{{ resumo.qtd }}</div><div class="stat__rotulo">Lançamentos</div></div>
-  <div class="stat"><div class="stat__valor">{{ resumo.soma|moeda }}</div><div class="stat__rotulo">Total</div></div>
-  <div class="stat"><div class="stat__valor">{{ resumo.soma_paga|moeda }}</div>
-    <div class="stat__rotulo">Pago ({{ resumo.qtd_paga }})</div></div>
-  <div class="stat"><div class="stat__valor" style="color:{{ 'var(--erro)' if resumo.soma_aberto else 'inherit' }}">{{ resumo.soma_aberto|moeda }}</div>
-    <div class="stat__rotulo">Em aberto ({{ resumo.qtd_aberto }})</div></div>
-</div>
-
-<div class="rel-acoes">
-  <a class="btn btn--primario btn--mini" href="{{ url_for('fluxo_relatorios_pdf', slug=tipo, **request.args) }}">
-    {{ icone('relatorio') }} Baixar PDF
-  </a>
-  <button type="button" class="btn btn--linha btn--mini" onclick="window.print()">Imprimir pelo navegador</button>
-</div>
 
 <div class="cartao" style="padding:0">
   {% if not linhas %}

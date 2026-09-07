@@ -621,6 +621,43 @@ dialog.dlg::backdrop { background: rgba(20, 20, 25, .45); }
 }
 .tab-fluxo tr.linha-conferida td:first-child { box-shadow: inset 3px 0 0 var(--ok); }
 
+/* ---------- grade editável do menu Entradas ---------- */
+.ent-bloco { margin-bottom: 20px; }
+.ent-bloco__cab { padding: 2px 2px 8px; }
+.ent-bloco__cab strong { font-size: 13.5px; }
+.ent-bloco__cab small { color: var(--texto-suave); font-size: 12px; }
+.ent-ap-link { color: inherit; font: inherit; text-decoration: none; }
+.ent-ap-link:hover { color: var(--laranja-hover); }
+.ent-bloco__acoes { display: flex; gap: 8px; align-items: center; padding: 8px 0 0; }
+
+.ent-grupo-cab { font-weight: 700; color: var(--laranja-hover); font-size: 13px;
+  margin: 22px 0 10px; padding-bottom: 4px; border-bottom: 1px solid var(--linha); }
+.ent-grupo-cab--2 { font-size: 12px; color: var(--texto-suave); font-weight: 600;
+  margin: 12px 0 8px 10px; border-bottom: none; }
+
+.ent-grid { max-width: none; width: 100%; table-layout: fixed; min-width: 940px; }
+.ent-grid td, .ent-grid thead th { padding-left: 2px; padding-right: 2px; }   /* gruda as colunas */
+.ent-grid td { padding-top: 4px; padding-bottom: 4px; }
+/* caixinha menor (vence .tab-fluxo tbody td input na especificidade) */
+.ent-grid tbody td input, .ent-grid tbody td select {
+  width: 100%; min-width: 0; padding: 4px 6px; font-size: 12.5px;
+}
+.ent-grid tbody td input[type="date"] { font-size: 12px; }
+.ent-grid thead th { text-align: center; font-size: 10.5px; line-height: 1.25; }
+.ent-grid th small { display: block; text-transform: none; letter-spacing: 0;
+  font-weight: 400; color: var(--texto-suave); }
+/* título e valor da coluna alinhados à direita, com a mesma folga da borda */
+.ent-grid thead th.col-valor { text-align: right; padding-right: 8px; }
+.ent-grid td.col-valor { padding-right: 0; }
+.ent-grid tbody td.col-valor input { text-align: right; padding-right: 8px; font-variant-numeric: tabular-nums; }
+.ent-grid .ent-parcela { text-align: center; }
+.ent-grid .ent-parc-fixa, .ent-grid .ent-na {
+  display: block; text-align: center; color: var(--texto-suave); font-size: 12px; }
+.ent-grid .ent-sep { border-left: 2px solid var(--linha); }
+.ent-grid td.ent-situacao { text-align: center; font-size: 11.5px; }
+.ent-grid td.ent-situacao .selo-pago { color: var(--ok); font-weight: 700; }
+.ent-grid td.ent-situacao .selo-apagar { color: var(--texto-suave); }
+
 /* ---------- barra de busca ---------- */
 .busca { display: flex; gap: 8px; align-items: center; margin-bottom: 14px; max-width: 420px; }
 .busca__campo { position: relative; flex: 1; }

@@ -707,6 +707,45 @@ def excluir_apolice(apolice_id):
     fazer_backup()
 
 
+def salvar_comissoes_repasses(apolice_id, comissoes, repasses):
+    """Regrava SÓ as tabelas-filhas de comissão de UMA apólice (mesma lógica
+    wipe+reinsert de `atualizar_apolice`), sem tocar em nenhuma coluna da
+    `apolice` nem em outras apólices. Usado pela grade editável de Entradas."""
+    with conexao() as con:
+        con.execute("DELETE FROM apolice_comissao WHERE apolice_id = ?", (apolice_id,))
+        _inserir_comissoes(con, apolice_id, comissoes)
+        con.execute("DELETE FROM apolice_repasse WHERE apolice_id = ?", (apolice_id,))
+        _inserir_repasses(con, apolice_id, repasses)
+        con.execute("UPDATE apolice SET atualizado_em = datetime('now') WHERE id = ?",
+                    (apolice_id,))
+    fazer_backup()
+
+
+def salvar_comissao_unica(apolice_id, valores):
+    """Grava os valores achatados de comissão (repasse único / cocorretagem) de
+    uma apólice. `valores` = dict com as 6 chaves abaixo (float/str ou None)."""
+    with conexao() as con:
+        con.execute(
+            "UPDATE apolice SET "
+            "  comissao_valor_seguralta_receber = ?, "
+            "  comissao_valor_seguralta_recebido = ?, "
+            "  comissao_valor_plenus_receber = ?, "
+            "  comissao_valor_plenus_recebido = ?, "
+            "  data_plenus_recebido = ?, "
+            "  plenus_conferido_banco = ?, "
+            "  atualizado_em = datetime('now') "
+            "WHERE id = ?",
+            (valores.get("comissao_valor_seguralta_receber"),
+             valores.get("comissao_valor_seguralta_recebido"),
+             valores.get("comissao_valor_plenus_receber"),
+             valores.get("comissao_valor_plenus_recebido"),
+             (valores.get("data_plenus_recebido") or None),
+             1 if valores.get("plenus_conferido_banco") in (1, "1", True, "sim", "on") else 0,
+             apolice_id),
+        )
+    fazer_backup()
+
+
 # ---------- avisos de vencimento (WhatsApp) ----------
 
 def notificacao_ja_enviada(apolice_id, marco, vigencia_fim):
@@ -1225,3 +1264,95 @@ def repasse_vs_relatorio_plenus():
             "    OR a.recebido_relatorio_plenus IS NOT NULL"
         ).fetchall()
     return {r["apolice_id"]: dict(r) for r in rows}
+
+
+def comissoes_repasses_por_apolice(data_ini=None, data_fim=None):
+    """Uma entrada por APÓLICE com dado de comissão, trazendo as DUAS tabelas
+    (lado Seguralta = `apolice_comissao`; lado Plenus = `apolice_repasse`) para a
+    grade editável do menu Entradas. Junta os mesmos dois casos do relatório:
+
+    * parcelada (`comissao_parcelada = 1`): as linhas reais das duas tabelas;
+    * único / cocorretagem: uma linha "única" sintetizada dos campos achatados
+      da própria apólice (lado Seguralta sem data — não existe coluna pra isso).
+
+    `data_ini`/`data_fim` (ISO) filtram QUAIS apólices entram (tem ao menos uma
+    parcela com `data` no intervalo, ou tem parcela sem data). NÃO recortam as
+    linhas de dentro do bloco — o "salvar" regrava a tabela inteira da apólice."""
+    cols_apolice = (
+        "       c.nome AS cliente_nome, t.nome AS tipo_seguro_nome, "
+        "       sg.nome AS seguradora_nome, "
+        "       a.numero_apolice, a.premio_liquido, a.comissao_percentual, "
+        "       COALESCE(a.comissao_parcelada, 0)    AS comissao_parcelada, "
+        "       COALESCE(a.comissao_cocorretagem, 0) AS comissao_cocorretagem ")
+    with conexao() as con:
+        apolices = con.execute(
+            "SELECT a.id AS apolice_id, " + cols_apolice + ", "
+            "       a.comissao_valor_seguralta_receber, a.comissao_valor_seguralta_recebido, "
+            "       a.comissao_valor_plenus_receber,   a.comissao_valor_plenus_recebido, "
+            "       a.data_plenus_recebido, "
+            "       COALESCE(a.plenus_conferido_banco, 0) AS plenus_conferido_banco "
+            "  FROM apolice a "
+            "  LEFT JOIN cliente c     ON c.id = a.cliente_id "
+            "  LEFT JOIN tipo_seguro t ON t.id = a.tipo_seguro_id "
+            "  LEFT JOIN seguradora sg ON sg.id = a.seguradora_id "
+            " ORDER BY a.id"
+        ).fetchall()
+        comissoes = con.execute(
+            "SELECT apolice_id, parcela, valor_previsto, valor_recebido, data "
+            "  FROM apolice_comissao ORDER BY apolice_id, ordem, id"
+        ).fetchall()
+        repasses = con.execute(
+            "SELECT apolice_id, parcela, valor_previsto, valor_recebido, data, "
+            "       COALESCE(conferido_banco, 0) AS conferido_banco "
+            "  FROM apolice_repasse ORDER BY apolice_id, ordem, id"
+        ).fetchall()
+
+    por_apolice_com, por_apolice_rep = {}, {}
+    for r in comissoes:
+        por_apolice_com.setdefault(r["apolice_id"], []).append(dict(r))
+    for r in repasses:
+        por_apolice_rep.setdefault(r["apolice_id"], []).append(dict(r))
+
+    def _no_periodo(linhas):
+        """True se alguma linha tem data no intervalo, ou tem linha sem data."""
+        if not data_ini and not data_fim:
+            return True
+        algum_com_data = False
+        for l in linhas:
+            d = l.get("data")
+            if not d:
+                return True
+            algum_com_data = True
+            if (not data_ini or d >= data_ini) and (not data_fim or d <= data_fim):
+                return True
+        return not algum_com_data
+
+    saida = []
+    for row in apolices:
+        ap = dict(row)
+        aid = ap["apolice_id"]
+        if ap["comissao_parcelada"]:
+            com = por_apolice_com.get(aid, [])
+            rep = por_apolice_rep.get(aid, [])
+            if not com and not rep:
+                continue
+        else:
+            valores = (ap["comissao_valor_seguralta_receber"], ap["comissao_valor_seguralta_recebido"],
+                       ap["comissao_valor_plenus_receber"], ap["comissao_valor_plenus_recebido"])
+            if all(v is None for v in valores):
+                continue
+            com = [{"parcela": "única",
+                    "valor_previsto": ap["comissao_valor_seguralta_receber"],
+                    "valor_recebido": ap["comissao_valor_seguralta_recebido"],
+                    "data": None}]
+            rep = [{"parcela": "única",
+                    "valor_previsto": ap["comissao_valor_plenus_receber"],
+                    "valor_recebido": ap["comissao_valor_plenus_recebido"],
+                    "data": ap["data_plenus_recebido"],
+                    "conferido_banco": ap["plenus_conferido_banco"]}]
+        if not _no_periodo(com + rep):
+            continue
+        ap["comissoes"] = com
+        ap["repasses"] = rep
+        saida.append(ap)
+    return saida

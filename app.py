@@ -22,7 +22,7 @@ from validacao import (
     formatar_cpf, formatar_cnpj, formatar_documento, formatar_cep, formatar_telefone, validar_cliente,
     formatar_numero, formatar_moeda, formatar_data_br, dias_ate_data,
     validar_apolice, preparar_parcelas, preparar_comissoes, preparar_repasses,
-    gerar_repasses_cocorretagem,
+    gerar_repasses_cocorretagem, para_decimal,
     validar_saida, preparar_lancamentos_saida,
 )
 
@@ -925,11 +925,51 @@ def saida_pagamento(saida_id):
     return _voltar_seguro()
 
 
+def _cards_a_receber():
+    """(a_receber_mes, a_receber_total) — repasse Plenus ainda NÃO recebido
+    (`apolice_repasse.valor_recebido` vazio → soma `valor_previsto`). "mês" =
+    parcela com data no mês corrente; "total" = qualquer data. Globais (não
+    seguem os filtros da tela), como os cards fixos de Saídas."""
+    mes_iso = date.today().strftime("%Y-%m")
+    mes = total = 0.0
+    for l in repo.listar_entradas_repasse():
+        if l.get("valor_recebido") is not None:
+            continue
+        v = l.get("valor_previsto") or 0
+        total += v
+        if (l.get("data") or "")[:7] == mes_iso:
+            mes += v
+    return mes, total
+
+
 @app.route("/financeiro/entradas")
 def entradas_lista():
-    return render_template("em_breve.html", ativo="entradas_lista",
-                           titulo="Fluxo de caixa — Entradas",
-                           mensagem="O controle de entradas (contas a receber) ainda será construído.")
+    # tela no estilo Saídas: 3 cards + barra curta (Buscar / período / Situação);
+    # o corpo é SEMPRE a grade editável das comissões por apólice (o relatório
+    # agrupado read-only + PDF ficam no menu "Relatório de entradas").
+    busca = request.args.get("busca", "").strip()
+    data_ini = request.args.get("data_ini", "").strip()
+    data_fim = request.args.get("data_fim", "").strip()
+    situacao = request.args.get("situacao", "")
+    if situacao not in ("paga", "nao_paga"):
+        situacao = ""
+
+    apolices = repo.comissoes_repasses_por_apolice(data_ini or None, data_fim or None)
+    if busca:
+        alvo = repo._sem_acento_minusculo(busca)
+        apolices = [a for a in apolices
+                    if alvo in repo._sem_acento_minusculo(a.get("cliente_nome") or "")
+                    or alvo in repo._sem_acento_minusculo(a.get("numero_apolice") or "")]
+    arvore_blocos, qtd_apolices = _blocos_entrada(apolices, [], situacao)
+    a_receber_mes, a_receber_total = _cards_a_receber()
+
+    return render_template(
+        "entradas_lista.html", ativo="entradas_lista",
+        arvore_blocos=arvore_blocos, qtd_apolices=qtd_apolices,
+        a_receber_mes=a_receber_mes, a_receber_total=a_receber_total,
+        busca=busca, data_ini=data_ini, data_fim=data_fim, situacao=situacao,
+        tem_filtro=bool(busca or data_ini or data_fim or situacao),
+        mes_atual=date.today().month, MESES=_MESES, presets=_presets_periodo())
 
 
 # ---- panorama de comissões: uma linha por apólice, esperado x recebido ----
@@ -1187,14 +1227,126 @@ def _agrupar_entradas(linhas, chaves, divs=None):
             **_totais_entrada(linhas)}
 
 
+# ---- grade EDITÁVEL do menu Entradas: um bloco por apólice, casando as duas
+#      tabelas de comissão (lado Seguralta × lado Plenus) linha a linha ----
+
+def _merge_linhas_bloco(com, rep):
+    """Casa `apolice_comissao[i]` com `apolice_repasse[i]` POR POSIÇÃO. Faltando
+    um dos lados → campos vazios. Devolve as linhas de exibição do bloco."""
+    n = max(len(com), len(rep)) or 1
+    linhas = []
+    for i in range(n):
+        c = com[i] if i < len(com) else {}
+        r = rep[i] if i < len(rep) else {}
+        pg = r.get("valor_recebido")
+        linhas.append({
+            "seg_parcela": c.get("parcela"), "ple_parcela": r.get("parcela"),
+            "parcela": c.get("parcela") or r.get("parcela") or "",
+            "seg_previsto": c.get("valor_previsto"), "seg_recebido": c.get("valor_recebido"),
+            "seg_data": c.get("data"),
+            "ple_previsto": r.get("valor_previsto"), "ple_recebido": pg,
+            "ple_data": r.get("data"), "conferido_banco": bool(r.get("conferido_banco")),
+            "paga": pg is not None,
+        })
+    return linhas
+
+
+def _agrupar_blocos(blocos, chaves):
+    """Árvore de 0..2 níveis usando as chaves de `_GRUPOS_ENTRADA`; a folha traz
+    `blocos` (apólices) já ordenados por cliente."""
+    if not chaves:
+        ordenados = sorted(blocos, key=lambda b: repo._sem_acento_minusculo(b["cliente_nome"]))
+        return {"campo": None, "blocos": ordenados}
+    campo_rotulo, fn = _GRUPOS_ENTRADA[chaves[0]]
+    baldes = {}
+    for b in blocos:
+        baldes.setdefault(fn(b), []).append(b)
+    grupos = [{"rotulo": chave[1], "sub": _agrupar_blocos(baldes[chave], chaves[1:])}
+              for chave in sorted(baldes)]
+    return {"campo": campo_rotulo, "grupos": grupos}
+
+
+def _blocos_entrada(apolices, chaves, situacao):
+    """`apolices` = repo.comissoes_repasses_por_apolice(...). Casa as duas
+    tabelas, aplica o filtro de situação ('quais apólices aparecem') e agrupa.
+    Devolve `(arvore, qtd_de_blocos)`."""
+    blocos = []
+    for ap in apolices:
+        linhas = _merge_linhas_bloco(ap["comissoes"], ap["repasses"])
+        if situacao == "paga" and not any(l["paga"] for l in linhas):
+            continue
+        if situacao == "nao_paga" and not any(not l["paga"] for l in linhas):
+            continue
+        primeira_data = next((l["seg_data"] or l["ple_data"] for l in linhas
+                              if l["seg_data"] or l["ple_data"]), None)
+        mes_key, mes_rotulo = _rotulo_mes_iso(primeira_data)
+        prem, pct = ap.get("premio_liquido"), ap.get("comissao_percentual")
+        comissao_valor = round(prem * pct / 100, 2) if prem is not None and pct is not None else None
+        blocos.append({
+            "apolice_id": ap["apolice_id"],
+            "cliente_nome": ap.get("cliente_nome") or "Sem cliente",
+            "numero_apolice": ap.get("numero_apolice"),
+            "seguradora_nome": ap.get("seguradora_nome"),
+            "tipo_seguro_nome": ap.get("tipo_seguro_nome"),
+            "premio_liquido": prem,
+            "comissao_percentual": pct,
+            "comissao_valor": comissao_valor,
+            "comissao_parcelada": bool(ap.get("comissao_parcelada")),
+            "cocorretagem": bool(ap.get("comissao_cocorretagem")),
+            "linhas": linhas, "mes_key": mes_key, "mes_rotulo": mes_rotulo,
+        })
+    return _agrupar_blocos(blocos, chaves), len(blocos)
+
+
+@app.route("/financeiro/entradas/<int:apolice_id>/comissoes", methods=["POST"])
+def entradas_salvar_apolice(apolice_id):
+    """Salva SÓ a comissão de uma apólice, a partir do bloco editável de Entradas."""
+    if request.form.get("comissao_parcelada") == "1":
+        comissoes, erros_c = preparar_comissoes(
+            request.form.getlist("comissao_parcela"),
+            request.form.getlist("comissao_previsto"),
+            request.form.getlist("comissao_recebido"),
+            request.form.getlist("comissao_data"))
+        repasses, erros_r = preparar_repasses(
+            request.form.getlist("repasse_parcela"),
+            request.form.getlist("repasse_previsto"),
+            request.form.getlist("repasse_recebido"),
+            request.form.getlist("repasse_data"),
+            request.form.getlist("repasse_conferido"))
+        erros = erros_c + erros_r
+        if erros:
+            for e in erros:
+                flash(e, "erro")
+        else:
+            repo.salvar_comissoes_repasses(apolice_id, comissoes, repasses)
+            flash("Comissão da apólice atualizada.", "ok")
+    else:
+        valores = {
+            "comissao_valor_seguralta_receber":
+                para_decimal(request.form.get("comissao_valor_seguralta_receber")),
+            "comissao_valor_seguralta_recebido":
+                para_decimal(request.form.get("comissao_valor_seguralta_recebido")),
+            "comissao_valor_plenus_receber":
+                para_decimal(request.form.get("comissao_valor_plenus_receber")),
+            "comissao_valor_plenus_recebido":
+                para_decimal(request.form.get("comissao_valor_plenus_recebido")),
+            "data_plenus_recebido": (request.form.get("data_plenus_recebido") or "").strip(),
+            "plenus_conferido_banco": request.form.get("plenus_conferido_banco"),
+        }
+        repo.salvar_comissao_unica(apolice_id, valores)
+        flash("Comissão da apólice atualizada.", "ok")
+    return _voltar_seguro()
+
+
 @app.route("/financeiro/relatorios")
 def fluxo_relatorios_raiz():
     return redirect(url_for("fluxo_relatorios", slug="saidas"))
 
 
-def _relatorio_contexto(slug):
+def _relatorio_contexto(slug, limpar_url=None):
     """Lê a querystring, aplica filtros/agrupamento e devolve TODO o contexto do
-    relatório (usado pela tela HTML e pelo PDF). `None` se o slug for inválido."""
+    relatório (usado pela tela HTML e pelo PDF). `None` se o slug for inválido.
+    `limpar_url`: destino do botão "Limpar" (permite a mesma tela sob outra rota)."""
     tipo = slug if slug in ("saidas", "entradas") else None
     if tipo is None:
         return None
@@ -1310,6 +1462,7 @@ def _relatorio_contexto(slug):
         categoria_nome=cat_nome, forma_nome=forma_nome,
         g1=g1, g2=g2, ordem=ordem, ordem_dir=ordem_dir, modo=modo, tem_filtro=tem_filtro,
         situacao=situacao, grupo_opcoes_entrada=_GRUPO_OPCOES_ENTRADA,
+        limpar_url=limpar_url or url_for("fluxo_relatorios", slug=tipo),
         linhas=linhas, arvore=arvore, resumo=resumo, presets=presets)
 
 

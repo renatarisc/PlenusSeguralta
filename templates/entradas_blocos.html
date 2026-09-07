@@ -1,0 +1,158 @@
+{# Grade editável do menu Entradas: um <form> por apólice, casando as duas
+   tabelas de comissão (lado Seguralta × lado Plenus). Incluído por relatorios.html
+   quando `editavel and modo == 'completo'`. Contexto: `arvore_blocos`. #}
+{% from "base.html" import icone with context %}
+
+{% macro linha_ed(ln) %}
+<tr class="fluxo-linha{{ ' linha-travada' if ln.paga }}">
+  <td class="ent-col-parc">
+    <input class="ent-parcela" data-parcela value="{{ ln.parcela }}" aria-label="Parcela" autocomplete="off">
+    <input type="hidden" name="comissao_parcela" data-com-parcela value="{{ ln.seg_parcela or '' }}">
+    <input type="hidden" name="repasse_parcela" data-rep-parcela value="{{ ln.ple_parcela or '' }}">
+  </td>
+  <td class="col-valor"><input name="comissao_previsto" inputmode="decimal" data-num value="{{ ln.seg_previsto|numero }}" aria-label="Previsto Seguralta"></td>
+  <td class="col-valor"><input name="comissao_recebido" inputmode="decimal" data-num value="{{ ln.seg_recebido|numero }}" aria-label="Recebido Seguralta"></td>
+  <td><input name="comissao_data" type="date" value="{{ ln.seg_data or '' }}" aria-label="Data Seguralta"></td>
+  <td class="ent-sep col-valor"><input name="repasse_previsto" inputmode="decimal" data-num value="{{ ln.ple_previsto|numero }}" aria-label="Pendente Plenus"></td>
+  <td class="col-valor"><input name="repasse_recebido" inputmode="decimal" data-num data-ple-receb value="{{ ln.ple_recebido|numero }}" aria-label="Pago Plenus"></td>
+  <td><input name="repasse_data" type="date" value="{{ ln.ple_data or '' }}" aria-label="Data Plenus"></td>
+  <td class="col-conf">
+    <select name="repasse_conferido" data-conf title="Depósito conferido no extrato bancário da Plenus">
+      <option value="0">Não</option>
+      <option value="1" {{ 'selected' if ln.conferido_banco }}>Sim</option>
+    </select>
+  </td>
+  <td class="ent-situacao" data-situacao>
+    {% if ln.paga %}<span class="selo-pago">Paga</span>{% else %}<span class="selo-apagar">A receber</span>{% endif %}
+  </td>
+  <td class="acoes">
+    <button type="button" class="btn btn--linha btn--mini" data-editar title="Liberar edição">{{ icone('lapis') }}</button>
+    <button type="button" class="btn btn--perigo btn--mini" data-remover title="Remover">{{ icone('x') }}</button>
+  </td>
+</tr>
+{% endmacro %}
+
+{% macro linha_unica(ln) %}
+<tr class="fluxo-linha{{ ' linha-travada' if ln.paga }}">
+  <td class="ent-col-parc"><span class="ent-parc-fixa">única</span></td>
+  <td class="col-valor"><input name="comissao_valor_seguralta_receber" inputmode="decimal" data-num value="{{ ln.seg_previsto|numero }}" aria-label="Previsto Seguralta"></td>
+  <td class="col-valor"><input name="comissao_valor_seguralta_recebido" inputmode="decimal" data-num value="{{ ln.seg_recebido|numero }}" aria-label="Recebido Seguralta"></td>
+  <td class="ent-na" title="Repasse único não tem data no lado Seguralta">—</td>
+  <td class="ent-sep col-valor"><input name="comissao_valor_plenus_receber" inputmode="decimal" data-num value="{{ ln.ple_previsto|numero }}" aria-label="Pendente Plenus"></td>
+  <td class="col-valor"><input name="comissao_valor_plenus_recebido" inputmode="decimal" data-num data-ple-receb value="{{ ln.ple_recebido|numero }}" aria-label="Pago Plenus"></td>
+  <td><input name="data_plenus_recebido" type="date" value="{{ ln.ple_data or '' }}" aria-label="Data Plenus"></td>
+  <td class="col-conf">
+    <select name="plenus_conferido_banco" data-conf title="Depósito conferido no extrato bancário da Plenus">
+      <option value="0">Não</option>
+      <option value="1" {{ 'selected' if ln.conferido_banco }}>Sim</option>
+    </select>
+  </td>
+  <td class="ent-situacao" data-situacao>
+    {% if ln.paga %}<span class="selo-pago">Paga</span>{% else %}<span class="selo-apagar">A receber</span>{% endif %}
+  </td>
+  <td class="acoes">
+    <button type="button" class="btn btn--linha btn--mini" data-editar title="Liberar edição">{{ icone('lapis') }}</button>
+  </td>
+</tr>
+{% endmacro %}
+
+{% macro bloco(b) %}
+<section class="ent-bloco" data-bloco>
+  <header class="ent-bloco__cab">
+    <strong>{{ b.cliente_nome }}</strong>
+    <small>· apólice
+      <a href="{{ url_for('apolice_form', apolice_id=b.apolice_id) }}" class="ent-ap-link"
+         target="_blank" rel="noopener" title="Abrir a apólice em outra aba">{{ b.numero_apolice or 'abrir' }}</a>
+      {%- if b.seguradora_nome %} · {{ b.seguradora_nome }}{% endif %}
+      · prêmio líquido {{ b.premio_liquido|moeda }}
+      · comissão {% if b.comissao_percentual is not none %}{{ b.comissao_percentual|numero }}%{% else %}—{% endif %}
+      {%- if b.comissao_valor is not none %} ({{ b.comissao_valor|moeda }}){% endif %}
+      {%- if not b.comissao_parcelada %} · repasse único{% endif %}
+      {%- if b.cocorretagem %} · COCORRETAGEM{% endif %}</small>
+  </header>
+  <form method="post" action="{{ url_for('entradas_salvar_apolice', apolice_id=b.apolice_id) }}" class="ent-bloco__form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="voltar" value="{{ url_for('entradas_lista', **request.args) }}">
+    <input type="hidden" name="comissao_parcelada" value="{{ '1' if b.comissao_parcelada else '0' }}">
+    <div class="tabela-wrap">
+      <table class="lista tab-fluxo ent-grid">
+        <colgroup>
+          <col style="width:6%"><col style="width:11%"><col style="width:11%"><col style="width:12%">
+          <col style="width:11%"><col style="width:11%"><col style="width:12%">
+          <col style="width:8%"><col style="width:10%"><col style="width:8%">
+        </colgroup>
+        <thead>
+          <tr>
+            <th>Parcela</th>
+            <th class="col-valor">Previsto<br><small>Seguralta</small></th>
+            <th class="col-valor">Recebido<br><small>Seguralta</small></th>
+            <th class="rel-col-c">Data</th>
+            <th class="col-valor ent-sep">Pendente<br><small>Plenus</small></th>
+            <th class="col-valor">Pago<br><small>Plenus</small></th>
+            <th class="rel-col-c">Data</th>
+            <th class="rel-col-c">Conf.<br><small>no banco</small></th>
+            <th class="rel-col-c">Situação</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody data-corpo>
+          {% if b.comissao_parcelada %}
+            {% for ln in b.linhas %}{{ linha_ed(ln) }}{% endfor %}
+          {% else %}
+            {{ linha_unica(b.linhas[0]) }}
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+    <div class="ent-bloco__acoes">
+      {% if b.comissao_parcelada %}
+      <button type="button" class="btn btn--linha btn--mini" data-add-linha>{{ icone('mais') }} Adicionar mês</button>
+      {% endif %}
+      <button type="submit" class="btn btn--primario btn--mini">Salvar esta apólice</button>
+    </div>
+  </form>
+</section>
+{% endmacro %}
+
+{% macro walk(node, nivel) %}
+  {% if node.campo %}
+    {% for g in node.grupos %}
+    <div class="ent-grupo-cab ent-grupo-cab--{{ nivel }}">{{ node.campo }}: {{ g.rotulo }}</div>
+    {{ walk(g.sub, nivel + 1) }}
+    {% endfor %}
+  {% else %}
+    {% for b in node.blocos %}{{ bloco(b) }}{% endfor %}
+  {% endif %}
+{% endmacro %}
+
+{% if not arvore_blocos.blocos and not arvore_blocos.grupos %}
+<div class="cartao"><p class="vazio">Nenhuma apólice com comissão no período/filtro escolhido.</p></div>
+{% else %}
+{{ walk(arvore_blocos, 1) }}
+{% endif %}
+
+<template id="tpl-ent-linha">
+  <tr class="fluxo-linha">
+    <td class="ent-col-parc">
+      <input class="ent-parcela" data-parcela aria-label="Parcela" autocomplete="off">
+      <input type="hidden" name="comissao_parcela" data-com-parcela>
+      <input type="hidden" name="repasse_parcela" data-rep-parcela>
+    </td>
+    <td class="col-valor"><input name="comissao_previsto" inputmode="decimal" data-num aria-label="Previsto Seguralta"></td>
+    <td class="col-valor"><input name="comissao_recebido" inputmode="decimal" data-num aria-label="Recebido Seguralta"></td>
+    <td><input name="comissao_data" type="date" aria-label="Data Seguralta"></td>
+    <td class="ent-sep col-valor"><input name="repasse_previsto" inputmode="decimal" data-num aria-label="Pendente Plenus"></td>
+    <td class="col-valor"><input name="repasse_recebido" inputmode="decimal" data-num data-ple-receb aria-label="Pago Plenus"></td>
+    <td><input name="repasse_data" type="date" aria-label="Data Plenus"></td>
+    <td class="col-conf">
+      <select name="repasse_conferido" data-conf title="Depósito conferido no extrato bancário da Plenus">
+        <option value="0">Não</option><option value="1">Sim</option>
+      </select>
+    </td>
+    <td class="ent-situacao" data-situacao><span class="selo-apagar">A receber</span></td>
+    <td class="acoes">
+      <button type="button" class="btn btn--linha btn--mini" data-editar title="Liberar edição">{{ icone('lapis') }}</button>
+      <button type="button" class="btn btn--perigo btn--mini" data-remover title="Remover">{{ icone('x') }}</button>
+    </td>
+  </tr>
+</template>
