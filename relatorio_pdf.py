@@ -279,8 +279,8 @@ def _tabela(ctx):
 
 
 # ---------- relatório de ENTRADAS (repasses de comissão) ----------
-COLS_ENT = ["Parcela", "Data", "Previsto", "Recebido", "Conf.", "Situação"]
-COL_W_ENT = [96, 70, 92, 92, 60, 117]   # soma = 527
+COLS_ENT = ["Parcela", "Data", "Previsto Plenus", "Recebido Plenus", "Conf.", "Situação"]
+COL_W_ENT = [92, 62, 98, 98, 58, 119]   # soma = 527
 
 
 def _sit_ent(p):

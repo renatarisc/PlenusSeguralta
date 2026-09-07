@@ -40,20 +40,29 @@
         </select>
       </label>
       {% for c in campos %}
+      {% set uni = campo_cot_unidade(c.nome) %}
       <label class="campo linha-campo">
-        <span class="linha-campo__nome">{{ c.nome }}</span>
-        {% if c.tipo == 'valor' %}
+        <span class="linha-campo__nome">{{ campo_cot_rotulo(c.nome) }}</span>
+        {% if c.tipo == 'texto' %}
+        <input name="campo_{{ c.id }}" type="text">
+        {% elif c.tipo == 'valor' %}
         <input name="campo_{{ c.id }}" inputmode="decimal" data-num>
         {% elif c.tipo == 'numerico' %}
         <input name="campo_{{ c.id }}" type="number" step="any">
+        {% elif c.tipo == 'data' %}
+        <input name="campo_{{ c.id }}" type="date">
+        {% elif c.tipo == 'percentual' %}
+        <input name="campo_{{ c.id }}" type="number" step="any" min="0">
         {% else %}
         <select name="campo_{{ c.id }}">
           <option value="">—</option>
-          {% for opc in OPCOES_CAMPO_COTACAO.get(c.tipo, []) %}
+          {% for opc in campo_cot_opcoes(c) %}
           <option value="{{ opc }}">{{ opc }}</option>
           {% endfor %}
         </select>
         {% endif %}
+        {% if c.tipo == 'percentual' %}<span class="linha-campo__uni">%</span>{% endif %}
+        {% if uni %}<span class="linha-campo__uni">{{ uni }}</span>{% endif %}
       </label>
       {% endfor %}
     </div>

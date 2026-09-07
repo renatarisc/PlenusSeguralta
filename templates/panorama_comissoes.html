@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block titulo %}Panorama de comissões{% endblock %}
+{% block cabecalho %}Panorama de comissões{% endblock %}
+
+{% macro pct(v) %}{{ (v|numero).rstrip('0').rstrip(',') ~ '%' if v is not none else '—' }}{% endmacro %}
+
+{# bate ao centavo -> "confere"; diferença de centavos (< R$ 1) -> só o valor, discreto;
+   diferença real (>= R$ 1) -> "falta"/"sobra" em destaque #}
+{% macro conf(calc, receb) %}
+{%- set d = ((calc or 0) - (receb or 0)) | round(2) -%}
+{%- if d|abs < 0.005 -%}<span class="conf-ok" title="confere">✓</span>
+{%- elif d|abs < 1 -%}<span class="conf-min">{{ d|abs|numero }}</span>
+{%- elif d > 0 -%}<span class="conf-dif">falta {{ d|moeda }}</span>
+{%- else -%}<span class="conf-dif">sobra {{ (d * -1)|moeda }}</span>{%- endif -%}
+{% endmacro %}
+
+{% macro linha_ap(r) %}
+<tr>
+  <td>
+    <a class="cel-nome" href="{{ url_for('apolice_form', apolice_id=r.apolice_id) }}">{{ r.numero_apolice or '—' }}</a>
+    <span class="meta">{{ r.cliente_nome or 'Sem cliente' }}{% if r.cocorretagem %} · cocorretagem{% endif %}</span>
+  </td>
+  <td class="col-valor">{{ r.premio_liquido|moeda }}</td>
+  <td class="col-valor">{{ pct(r.comissao_percentual) }}</td>
+  <td class="col-valor">{{ r.com_seguralta|moeda }}</td>
+  <td class="col-valor">{{ r.receb_seguralta|moeda if r.receb_seguralta else '—' }}</td>
+  <td class="col-valor">{{ r.com_plenus|moeda }}</td>
+  <td class="col-valor">{{ r.receb_plenus|moeda if r.receb_plenus else '—' }}</td>
+  <td class="rel-col-c">{{ conf(r.com_plenus, r.receb_plenus) }}</td>
+  <td class="rel-col-c">{{ r.ple_a_receber|moeda if r.ple_a_receber else '—' }}</td>
+</tr>
+{% endmacro %}
+
+{% macro linha_totais(rot, s, classe) %}
+<tr class="{{ classe }}">
+  <td>{{ rot }}</td>
+  <td class="col-valor">{{ s.premio_liquido|moeda }}</td>
+  <td></td>
+  <td class="col-valor">{{ s.com_seguralta|moeda }}</td>
+  <td class="col-valor">{{ s.receb_seguralta|moeda }}</td>
+  <td class="col-valor">{{ s.com_plenus|moeda }}</td>
+  <td class="col-valor">{{ s.receb_plenus|moeda }}</td>
+  <td class="rel-col-c">{{ conf(s.com_plenus, s.receb_plenus) }}</td>
+  <td class="rel-col-c">{{ s.ple_a_receber|moeda }}</td>
+</tr>
+{% endmacro %}
+
+{% block conteudo %}
+<form class="cartao filtros rel-filtros" method="get">
+  <div class="grade">
+    <div class="rel-linha1 c-12">
+      <div class="rel-periodo">
+        <div class="rel-periodo__campos">
+          <div class="campo">
+            <label for="r-ini">De</label>
+            <input id="r-ini" type="date" name="data_ini" value="{{ data_ini }}">
+          </div>
+          <div class="campo">
+            <label for="r-fim">Até</label>
+            <input id="r-fim" type="date" name="data_fim" value="{{ data_fim }}">
+          </div>
+          <div class="campo rel-periodo__atalhos">
+            <label aria-hidden="true">&nbsp;</label>
+            <div class="rel-presets">
+              <button type="button" class="btn btn--linha" data-ini="{{ presets.mes[0] }}" data-fim="{{ presets.mes[1] }}">Este mês</button>
+              <button type="button" class="btn btn--linha" data-ini="{{ presets.mes_passado[0] }}" data-fim="{{ presets.mes_passado[1] }}">Mês passado</button>
+              <button type="button" class="btn btn--linha" data-ini="{{ presets.ano[0] }}" data-fim="{{ presets.ano[1] }}">Este ano</button>
+            </div>
+          </div>
+        </div>
+        <p class="dica" style="margin:4px 0 0">Período pelo início da vigência da apólice.</p>
+      </div>
+
+      <div class="campo" style="flex:0 0 auto;min-width:180px">
+        <label for="r-grupo">Agrupar por</label>
+        <select id="r-grupo" name="g">
+          {% for k, rot in grupo_opcoes %}
+          <option value="{{ k }}" {{ 'selected' if grupo == k }}>{{ rot }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="campo">
+        <label for="r-busca">Buscar</label>
+        <input id="r-busca" type="search" name="busca" value="{{ busca }}"
+               placeholder="Cliente ou nº da apólice" onfocus="this.select()">
+      </div>
+    </div>
+  </div>
+  <div class="filtros__acoes">
+    <button class="btn btn--primario" type="submit">{{ icone('busca') }} Buscar</button>
+    {% if busca or data_ini or data_fim %}
+    <a class="btn btn--linha" href="{{ url_for('entradas_panorama') }}">Limpar</a>
+    {% endif %}
+  </div>
+</form>
+
+<div class="cartao" style="padding:0">
+  {% if not grupos %}
+  <p class="vazio">Nenhuma apólice no filtro escolhido.</p>
+  {% else %}
+  <div class="tabela-wrap">
+    <table class="lista rel-tabela panorama">
+      <thead>
+        <tr>
+          <th>Apólice</th>
+          <th class="col-valor">Prêmio líquido</th>
+          <th class="col-valor">Comissão %</th>
+          <th class="col-valor">Comissão R$<br><small>(calculada pelo sistema)</small></th>
+          <th class="col-valor">SEGURALTA recebido</th>
+          <th class="col-valor">Repasse<br><small>(calculado pelo sistema)</small></th>
+          <th class="col-valor">Plenus recebido</th>
+          <th class="rel-col-c">Conferência</th>
+          <th class="rel-col-c">Plenus a receber</th>
+        </tr>
+      </thead>
+      {% for g in grupos %}
+      <tbody>
+        <tr class="rel-cab rel-cab--1">
+          <td colspan="9"><span class="rel-campo">{{ grupo_label }}</span> {{ g.rotulo }} <small>({{ g.qtd }} apólice{{ 's' if g.qtd != 1 }})</small></td>
+        </tr>
+        {% for r in g.linhas %}{{ linha_ap(r) }}{% endfor %}
+        {{ linha_totais('Subtotal — ' ~ g.rotulo, g.subtotal, 'rel-sub rel-sub--1') }}
+      </tbody>
+      {% endfor %}
+      <tbody>
+        {{ linha_totais('Total geral (' ~ qtd ~ ' apólice' ~ ('s' if qtd != 1) ~ ')', tot, 'rel-total') }}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</div>
+
+<p class="dica" style="margin-top:8px">
+  <strong>Comissão</strong> = prêmio líquido × %. Sem cocorretagem, a SEGURALTA recebe 100% e
+  repassa para a Plenus 75%. Com cocorretagem, cada uma recebe a sua parte direto: a SEGURALTA, 25%
+  e a Plenus, 75%.
+  <strong>Plenus a receber</strong> = parcelas de repasse ainda pendentes (sem data de pagamento) —
+  se a Conferência aponta "falta" mas há "a receber", é repasse que ainda não venceu.
+</p>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.querySelectorAll(".rel-presets [data-ini]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      document.getElementById("r-ini").value = b.dataset.ini;
+      document.getElementById("r-fim").value = b.dataset.fim;
+    });
+  });
+</script>
+{% endblock %}

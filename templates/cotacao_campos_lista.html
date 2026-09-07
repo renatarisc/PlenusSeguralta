@@ -25,12 +25,30 @@
   {% if campos %}
   <div class="tabela-wrap">
     <table class="lista">
-      <thead><tr><th>Nome</th><th>Tipo</th><th></th></tr></thead>
+      <thead><tr><th>Nome</th><th>Tipo</th><th style="width:150px">Ordem no formulário</th><th></th></tr></thead>
       <tbody>
         {% for c in campos %}
         <tr>
-          <td><a class="cel-nome" href="{{ url_for('cotacao_campo_form', campo_id=c.id) }}">{{ c.nome }}</a></td>
-          <td>{{ TIPO_CAMPO_COTACAO_LABEL.get(c.tipo, c.tipo or '—') }}</td>
+          <td>
+            <a class="cel-nome" href="{{ url_for('cotacao_campo_form', campo_id=c.id) }}">{{ c.nome }}</a>
+            {% if c.papel %}<span class="tag-papel">{{ PAPEL_CAMPO_COTACAO_LABEL.get(c.papel, c.papel) }}</span>{% endif %}
+          </td>
+          <td>
+            {%- if c.tipo == 'selecao' -%}
+              {{ campo_cot_opcoes(c) | join('; ') or 'Seleção (sem opções)' }}
+            {%- else -%}
+              {{ TIPO_CAMPO_COTACAO_LABEL.get(c.tipo, c.tipo or '—') }}
+            {%- endif -%}
+          </td>
+          <td>
+            <form method="post" action="{{ url_for('cotacao_campo_ordem', campo_id=c.id) }}" style="margin:0">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="busca" value="{{ busca }}">
+              <input class="input-ordem" type="number" step="1" name="ordem" value="{{ c.ordem }}"
+                     aria-label="Ordem no formulário de “{{ c.nome }}”"
+                     onchange="this.form.submit()">
+            </form>
+          </td>
           <td class="acoes">
             <a class="btn btn--linha btn--mini" href="{{ url_for('cotacao_campo_form', campo_id=c.id) }}">{{ icone('lapis') }}</a>
             <form method="post" action="{{ url_for('cotacao_campo_excluir', campo_id=c.id) }}"

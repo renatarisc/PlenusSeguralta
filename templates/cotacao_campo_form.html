@@ -13,11 +13,11 @@
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <div class="cartao">
     <div class="grade">
-      <div class="campo c-6">
+      <div class="campo c-4">
         <label for="nome">Nome *</label>
         <input id="nome" name="nome" required autofocus value="{{ c.nome or '' }}">
       </div>
-      <div class="campo c-4">
+      <div class="campo c-3">
         <label for="tipo">Tipo *</label>
         <select id="tipo" name="tipo" required>
           <option value="">—</option>
@@ -26,11 +26,57 @@
           {% endfor %}
         </select>
       </div>
+      <div class="campo c-2">
+        <label for="ordem_form">Ordem no formulário</label>
+        <input id="ordem_form" name="ordem_form" type="number" step="1" value="{{ c.ordem if c.ordem is not none else '' }}">
+      </div>
+      <div class="campo c-3">
+        <label for="papel">Papel na cotação</label>
+        <select id="papel" name="papel">
+          {% for valor, rotulo in papeis %}
+          <option value="{{ valor }}" {{ 'selected' if (c.papel or '') == valor }}>{{ rotulo }}</option>
+          {% endfor %}
+        </select>
+      </div>
     </div>
+
+    <div class="campo c-12" id="bloco-opcoes" style="margin-top:12px"
+         {{ 'hidden' if c.tipo != 'selecao' }}>
+      <label>Opções da lista</label>
+      <div id="lista-opcoes">
+        {% for op in (c.opcoes or '').splitlines() if op.strip() %}
+        <div class="opcao-linha">
+          <input name="opcao" value="{{ op.strip() }}" placeholder="texto da opção">
+          <button type="button" class="btn btn--perigo btn--mini" data-remover-opcao
+                  title="Remover">{{ icone('x') }}</button>
+        </div>
+        {% endfor %}
+      </div>
+      <button type="button" class="btn btn--linha" id="add-opcao">{{ icone('mais') }} Adicionar opção</button>
+      <p class="dica" style="margin-top:4px">Cada opção vira um item da lista suspensa em “Gerar cotação”.</p>
+    </div>
+
+    <p class="dica" style="margin-top:16px">
+      <strong>Ordem no formulário:</strong> posição do campo em “Gerar cotação” (menor aparece primeiro); em branco entra no fim.<br>
+      <strong>Papel na cotação:</strong> use para o cálculo do parcelamento no PDF — marque um campo como
+      “Base do parcelamento” e outro como “Nº de parcelas”. Só um campo por papel;
+      ao marcar, o campo que tinha aquele papel é liberado.
+    </p>
   </div>
+
+  <template id="tpl-opcao">
+    <div class="opcao-linha">
+      <input name="opcao" placeholder="texto da opção">
+      <button type="button" class="btn btn--perigo btn--mini" data-remover-opcao title="Remover">{{ icone('x') }}</button>
+    </div>
+  </template>
   <div class="rodape-form">
     <a class="btn btn--linha" href="{{ url_for('cotacao_campos') }}">Cancelar</a>
     <button class="btn btn--primario" type="submit">Salvar</button>
   </div>
 </form>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/cotacao_campo.js') }}"></script>
 {% endblock %}

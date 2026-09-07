@@ -5,6 +5,7 @@
 """
 
 import os
+import re
 import sqlite3
 from datetime import date, datetime, timedelta
 
@@ -106,6 +107,7 @@ app.jinja_env.globals["MENU"] = [
         {"rota": "entradas_lista", "texto": "Entradas", "icone": "entrada"},
         {"rota": "fluxo_relatorios", "slug": "saidas", "texto": "Relatório de saídas", "icone": "relatorio"},
         {"rota": "fluxo_relatorios", "slug": "entradas", "texto": "Relatório de entradas", "icone": "relatorio"},
+        {"rota": "entradas_panorama", "texto": "Panorama de comissões", "icone": "relatorio"},
     ]},
     {"grupo": "Cadastros auxiliares", "icone": "pasta", "divisoria_antes": True, "filhos": [
         {"rota": "cadastro_simples", "texto": "Seguradoras", "icone": "predio", "slug": "seguradora"},
@@ -642,26 +644,60 @@ def _ler_pdf(alvo):
 
 # tipos de campo da cotação: (valor guardado, rótulo exibido).
 # Cada tipo define como o campo é preenchido quando alguém GERA a cotação:
-#   valor    -> valor em R$      | numerico -> número
-#   sim_nao  -> escolha Sim/Não  | nivel    -> escolha Simples/Intermediário/Completo
-#   livre_referenciada -> escolha Livre escolha/Referenciada
+#   texto -> texto livre | valor -> R$ | numerico -> número | data -> data | percentual -> %
+#   sim_nao -> escolha Sim/Não | selecao -> escolha numa lista de opções cadastrada no campo
 _TIPOS_CAMPO_COTACAO = [
+    ("texto", "Texto"),
     ("valor", "Valor (R$)"),
     ("numerico", "Numérico"),
+    ("data", "Data"),
+    ("percentual", "Percentual (%)"),
     ("sim_nao", "Sim ou Não"),
-    ("nivel", "Simples / Intermediário / Completo"),
-    ("livre_referenciada", "Livre escolha / Referenciada"),
+    ("selecao", "Seleção (lista de opções)"),
 ]
 _TIPOS_CAMPO_COTACAO_LABEL = dict(_TIPOS_CAMPO_COTACAO)
 app.jinja_env.globals["TIPO_CAMPO_COTACAO_LABEL"] = _TIPOS_CAMPO_COTACAO_LABEL
 
-# opções dos tipos que viram <select> no formulário "Gerar cotação"
-_OPCOES_CAMPO_COTACAO = {
-    "sim_nao": ["Sim", "Não"],
-    "nivel": ["Simples", "Intermediário", "Completo"],
-    "livre_referenciada": ["Livre escolha", "Referenciada"],
-}
-app.jinja_env.globals["OPCOES_CAMPO_COTACAO"] = _OPCOES_CAMPO_COTACAO
+# tipos que viram <select> no formulário "Gerar cotação" (as opções vêm de `campo_cot_opcoes`)
+_TIPOS_CAMPO_COTACAO_SELECT = ("sim_nao", "selecao")
+app.jinja_env.globals["TIPOS_CAMPO_COTACAO_SELECT"] = _TIPOS_CAMPO_COTACAO_SELECT
+
+
+def campo_cotacao_opcoes(campo):
+    """Opções do <select> desse campo em 'Gerar cotação'."""
+    if (campo or {}).get("tipo") == "sim_nao":
+        return ["Sim", "Não"]
+    return [l.strip() for l in ((campo or {}).get("opcoes") or "").splitlines() if l.strip()]
+
+
+app.jinja_env.globals["campo_cot_opcoes"] = campo_cotacao_opcoes
+
+# sufixo entre parênteses no fim do nome do campo -> unidade do valor.
+# ex.: "Carro Reserva (dias)" -> rótulo "Carro Reserva", unidade "dias".
+_RE_CAMPO_UNIDADE = re.compile(r"\s*\(([^()]+)\)\s*$")
+
+
+def campo_cotacao_rotulo(nome):
+    return _RE_CAMPO_UNIDADE.sub("", (nome or "").strip())
+
+
+def campo_cotacao_unidade(nome):
+    m = _RE_CAMPO_UNIDADE.search(nome or "")
+    return m.group(1).strip() if m else ""
+
+
+app.jinja_env.globals["campo_cot_rotulo"] = campo_cotacao_rotulo
+app.jinja_env.globals["campo_cot_unidade"] = campo_cotacao_unidade
+
+# papel do campo no cálculo do PDF de cotação (só um dono por papel).
+#   base_parcelamento -> valor que é dividido    | num_parcelas -> em quantas vezes
+_PAPEIS_CAMPO_COTACAO = [
+    ("", "— nenhum —"),
+    ("base_parcelamento", "Base do parcelamento (valor a dividir)"),
+    ("num_parcelas", "Nº de parcelas"),
+]
+_PAPEIS_CAMPO_COTACAO_VALIDOS = {v for v, _ in _PAPEIS_CAMPO_COTACAO}
+app.jinja_env.globals["PAPEL_CAMPO_COTACAO_LABEL"] = dict(_PAPEIS_CAMPO_COTACAO)
 
 
 @app.route("/cotacao/campos")
@@ -682,29 +718,47 @@ def cotacao_campo_form(campo_id=None):
     if request.method == "POST":
         nome = request.form.get("nome", "").strip()
         tipo = request.form.get("tipo", "").strip()
+        ordem_txt = request.form.get("ordem_form", "").strip()
+        papel = request.form.get("papel", "").strip()
+        if papel not in _PAPEIS_CAMPO_COTACAO_VALIDOS:
+            papel = ""
+        opcoes_lista = [o.strip() for o in request.form.getlist("opcao") if o.strip()]
+        opcoes = "\n".join(opcoes_lista) if tipo == "selecao" else ""
         erros = []
         if not nome:
             erros.append("Informe o nome do campo.")
         if tipo not in _TIPOS_CAMPO_COTACAO_LABEL:
             erros.append("Escolha o tipo do campo.")
+        if tipo == "selecao" and not opcoes_lista:
+            erros.append("Cadastre ao menos uma opção para o tipo Seleção.")
+        ordem = None
+        if ordem_txt:
+            try:
+                ordem = int(ordem_txt)
+            except ValueError:
+                erros.append("A ordem no formulário deve ser um número inteiro.")
+        if ordem is not None and repo.campo_cotacao_ordem_existe(ordem, ignorar_id=campo_id):
+            erros.append(f"A ordem {ordem} já está em uso por outro campo — cada campo precisa de uma ordem única.")
         if not erros and repo.campo_cotacao_nome_existe(nome, ignorar_id=campo_id):
             erros.append("Já existe um campo de cotação com esse nome.")
         if erros:
             for e in erros:
                 flash(e, "erro")
             return render_template("cotacao_campo_form.html", ativo="cotacao_campos",
-                                   campo={"id": campo_id, "nome": nome, "tipo": tipo},
-                                   tipos=_TIPOS_CAMPO_COTACAO)
+                                   campo={"id": campo_id, "nome": nome, "tipo": tipo,
+                                          "ordem": ordem if ordem is not None else ordem_txt,
+                                          "papel": papel, "opcoes": "\n".join(opcoes_lista)},
+                                   tipos=_TIPOS_CAMPO_COTACAO, papeis=_PAPEIS_CAMPO_COTACAO)
         if campo_id:
-            repo.atualizar_campo_cotacao(campo_id, nome, tipo)
+            repo.atualizar_campo_cotacao(campo_id, nome, tipo, ordem, papel, opcoes)
             flash("Campo atualizado.", "ok")
         else:
-            repo.criar_campo_cotacao(nome, tipo)
+            repo.criar_campo_cotacao(nome, tipo, ordem, papel, opcoes)
             flash("Campo cadastrado.", "ok")
         return redirect(url_for("cotacao_campos"))
 
     return render_template("cotacao_campo_form.html", ativo="cotacao_campos",
-                           campo=campo, tipos=_TIPOS_CAMPO_COTACAO)
+                           campo=campo, tipos=_TIPOS_CAMPO_COTACAO, papeis=_PAPEIS_CAMPO_COTACAO)
 
 
 @app.route("/cotacao/campos/<int:campo_id>/excluir", methods=["POST"])
@@ -712,6 +766,22 @@ def cotacao_campo_excluir(campo_id):
     repo.excluir_campo_cotacao(campo_id)
     flash("Campo excluído.", "ok")
     return redirect(url_for("cotacao_campos"))
+
+
+@app.route("/cotacao/campos/<int:campo_id>/ordem", methods=["POST"])
+def cotacao_campo_ordem(campo_id):
+    busca = request.form.get("busca", "").strip()
+    try:
+        nova = int(request.form.get("ordem", ""))
+    except (TypeError, ValueError):
+        flash("A ordem deve ser um número inteiro.", "erro")
+        return redirect(url_for("cotacao_campos", busca=busca or None))
+    if repo.campo_cotacao_ordem_existe(nova, ignorar_id=campo_id):
+        flash(f"A ordem {nova} já está em uso por outro campo — cada campo precisa de uma ordem única.", "erro")
+    else:
+        repo.atualizar_campo_cotacao_ordem(campo_id, nova)
+        flash("Ordem atualizada.", "ok")
+    return redirect(url_for("cotacao_campos", busca=busca or None))
 
 
 @app.route("/cotacao/gerar", methods=["GET", "POST"])
@@ -860,6 +930,105 @@ def entradas_lista():
     return render_template("em_breve.html", ativo="entradas_lista",
                            titulo="Fluxo de caixa — Entradas",
                            mensagem="O controle de entradas (contas a receber) ainda será construído.")
+
+
+# ---- panorama de comissões: uma linha por apólice, esperado x recebido ----
+# Regra do negócio: comissão cheia C = prêmio líquido × %. A Plenus sempre fica
+# com 75% de C. Sem cocorretagem a SEGURALTA recebe C (e repassa 75% à Plenus);
+# com cocorretagem a SEGURALTA recebe só 25% de C e a Plenus recebe os 75% direto.
+_PANORAMA_TOL = 0.01
+
+
+def _calc_panorama(r):
+    premio = r.get("premio_liquido") or 0
+    pct = r.get("comissao_percentual") or 0
+    coco = bool(r.get("cocorretagem"))
+    cheia = round(premio * pct / 100, 2)
+    r["comissao_cheia"] = cheia
+    r["com_seguralta"] = round(cheia * 0.25, 2) if coco else cheia
+    r["com_plenus"] = round(cheia * 0.75, 2)
+    r["receb_seguralta"] = r.get("receb_seguralta") or 0
+    r["receb_plenus"] = r.get("receb_plenus") or 0
+    r["seguralta_a_receber"] = round(r["com_seguralta"] - r["receb_seguralta"], 2)
+    r["plenus_a_receber"] = round(r["com_plenus"] - r["receb_plenus"], 2)
+    # divergência: recebido no sistema x recebido "no relatório da corretora"
+    div = []
+    rs, rp = r.get("rel_receb_seguralta"), r.get("rel_receb_plenus")
+    if rs is not None and abs(rs - r["receb_seguralta"]) >= _PANORAMA_TOL:
+        div.append("SEGURALTA recebido: sistema %s · corretora %s"
+                   % (formatar_moeda(r["receb_seguralta"]), formatar_moeda(rs)))
+    if rp is not None and abs(rp - r["receb_plenus"]) >= _PANORAMA_TOL:
+        div.append("Plenus recebido: sistema %s · corretora %s"
+                   % (formatar_moeda(r["receb_plenus"]), formatar_moeda(rp)))
+    r["divergencia"] = div
+
+
+_PANORAMA_SOMA = ("premio_liquido", "com_seguralta", "receb_seguralta",
+                  "com_plenus", "receb_plenus", "ple_a_receber")
+
+_PANORAMA_GRUPOS = [("seguradora", "Seguradora"), ("mes", "Mês da vigência"),
+                    ("cliente", "Cliente")]
+_PANORAMA_GRUPOS_VALIDOS = {k for k, _ in _PANORAMA_GRUPOS}
+
+
+def _somar_panorama(linhas):
+    return {k: round(sum(r.get(k) or 0 for r in linhas), 2) for k in _PANORAMA_SOMA}
+
+
+def _chave_grupo_panorama(r, g):
+    """(chave_ordenação, rótulo) do grupo da linha, conforme g."""
+    if g == "mes":
+        return _rotulo_mes_iso(r.get("vigencia_inicio"))
+    if g == "cliente":
+        nome = r.get("cliente_nome") or "(sem cliente)"
+    else:
+        nome = r.get("seguradora_nome") or "(sem seguradora)"
+    return (repo._sem_acento_minusculo(nome), nome)
+
+
+def _presets_periodo():
+    """Atalhos De/Até (mês, mês passado, ano) — mesmo padrão do relatório de fluxo de caixa."""
+    hoje = date.today()
+    prox_mes_1 = (date(hoje.year + 1, 1, 1) if hoje.month == 12
+                  else date(hoje.year, hoje.month + 1, 1))
+    fim_mes = (prox_mes_1 - timedelta(days=1)).isoformat()
+    fim_mes_passado = hoje.replace(day=1) - timedelta(days=1)
+    return {
+        "mes": (hoje.replace(day=1).isoformat(), fim_mes),
+        "mes_passado": (fim_mes_passado.replace(day=1).isoformat(), fim_mes_passado.isoformat()),
+        "ano": (hoje.replace(month=1, day=1).isoformat(), hoje.replace(month=12, day=31).isoformat()),
+    }
+
+
+@app.route("/financeiro/entradas/panorama")
+def entradas_panorama():
+    busca = request.args.get("busca", "").strip()
+    data_ini = request.args.get("data_ini", "").strip()
+    data_fim = request.args.get("data_fim", "").strip()
+    g = request.args.get("g", "seguradora")
+    if g not in _PANORAMA_GRUPOS_VALIDOS:
+        g = "seguradora"
+    linhas = repo.panorama_comissoes(busca or None, data_ini or None, data_fim or None)
+    for r in linhas:
+        _calc_panorama(r)
+    linhas.sort(key=lambda r: (_chave_grupo_panorama(r, g)[0],
+                               repo._sem_acento_minusculo(r.get("cliente_nome") or ""),
+                               r["apolice_id"]))
+    grupos = []
+    for r in linhas:
+        chave, rotulo = _chave_grupo_panorama(r, g)
+        if not grupos or grupos[-1]["chave"] != chave:
+            grupos.append({"chave": chave, "rotulo": rotulo, "linhas": []})
+        grupos[-1]["linhas"].append(r)
+    for gr in grupos:
+        gr["subtotal"] = _somar_panorama(gr["linhas"])
+        gr["qtd"] = len(gr["linhas"])
+    return render_template("panorama_comissoes.html", ativo="entradas_panorama",
+                           grupos=grupos, tot=_somar_panorama(linhas), qtd=len(linhas),
+                           busca=busca, data_ini=data_ini, data_fim=data_fim,
+                           grupo=g, grupo_opcoes=_PANORAMA_GRUPOS,
+                           grupo_label=dict(_PANORAMA_GRUPOS)[g],
+                           presets=_presets_periodo())
 
 
 # ---- relatório de fluxo de caixa (dinâmico: filtros + agrupamento em 2 níveis) ----

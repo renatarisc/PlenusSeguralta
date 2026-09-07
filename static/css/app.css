@@ -188,6 +188,7 @@ a { color: inherit; text-decoration: none; }
 .linha-campo:last-child { border-bottom: none; }
 .linha-campo > .linha-campo__nome { flex: 0 0 240px; font-size: 12.5px; font-weight: 600; color: var(--texto); }
 .linha-campo > input, .linha-campo > select { flex: 1 1 auto; min-width: 0; }
+.linha-campo > .linha-campo__uni { flex: 0 0 auto; font-size: 12px; color: var(--texto-suave); white-space: nowrap; }
 @media (max-width: 720px) {
   .linha-campo { flex-direction: column; align-items: stretch; gap: 4px; }
   .linha-campo > .linha-campo__nome { flex: none; }
@@ -272,6 +273,14 @@ table.lista td.acoes > form { display: inline-flex; vertical-align: middle; }
 table.lista td.acoes > a + a,
 table.lista td.acoes > a + form,
 table.lista td.acoes > form + form { margin-left: 6px; }
+table.lista input.input-ordem { width: 68px; padding: 5px 6px; text-align: center; }
+.tag-papel {
+  display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px;
+  font-size: 10.5px; font-weight: 700; background: #fde7d6; color: #9a4a12; vertical-align: middle;
+}
+#lista-opcoes { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.opcao-linha { display: flex; gap: 8px; align-items: center; }
+.opcao-linha > input { flex: 1 1 auto; min-width: 0; }
 .vazio { padding: 28px; text-align: center; color: var(--texto-suave); }
 
 /* apólice perto do fim da vigência (<= 20 dias) ou já vencida */
@@ -385,6 +394,23 @@ table.lista tr.apolice-vencida td:first-child { box-shadow: inset 3px 0 0 #a5201
   background: #fff7ec; padding-left: 36px;
 }
 .rel-diverg-nota { color: #b26a00; font-weight: 700; font-size: 12.5px; margin: 10px 0 0; }
+
+/* panorama de comissões: tabela larga, rola na horizontal */
+.rel-tabela.panorama { table-layout: auto; min-width: 1140px; }
+.panorama .conf-ok { color: var(--ok); font-weight: 700; white-space: nowrap; }
+.panorama .conf-dif { color: var(--erro); font-weight: 400; white-space: nowrap; }
+.panorama .conf-min { color: var(--texto-suave); font-size: 11.5px; font-weight: 400; }
+.rel-tabela.panorama th small { font-weight: 600; color: var(--texto-suave); }
+.panorama .meta { display: block; margin-top: 3px; font-size: 11px; color: var(--texto-suave); }
+.panorama td.saldo-pos { color: #b26a00; font-weight: 700; }
+.panorama td.saldo-neg { color: var(--erro); font-weight: 700; }
+.panorama .diverg { color: var(--erro); font-size: 11.5px; font-weight: 600; }
+/* menos negrito: nº da apólice e rótulos de subtotal/total normais; só os VALORES em negrito */
+.rel-tabela.panorama a.cel-nome { font-weight: 400; }
+.rel-tabela.panorama tr.rel-sub--1 td,
+.rel-tabela.panorama tr.rel-total td { font-weight: 400; }
+.rel-tabela.panorama tr.rel-sub--1 td.col-valor,
+.rel-tabela.panorama tr.rel-total td.col-valor { font-weight: 700; }
 
 /* modo resumido: linha por grupo, sem fundo cinza, zebra alternada */
 .rel-tabela .rel-resumo td { font-weight: 700; color: var(--texto); background: var(--branco); }

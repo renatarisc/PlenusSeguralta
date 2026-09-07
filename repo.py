@@ -286,10 +286,14 @@ def excluir_simples(tabela, item_id):
 
 # ---------- cotação: campos configuráveis (nome + tipo) ----------
 
+# papéis que um campo pode assumir no cálculo do PDF de cotação (só um dono por papel)
+PAPEIS_CAMPO_COTACAO = ("base_parcelamento", "num_parcelas")
+
+
 def listar_campos_cotacao(busca=None):
     with conexao() as con:
         linhas = [dict(l) for l in con.execute(
-            "SELECT id, nome, tipo, ordem FROM cotacao_campo "
+            "SELECT id, nome, tipo, ordem, papel, opcoes FROM cotacao_campo "
             "ORDER BY ordem, nome COLLATE NOCASE"
         ).fetchall()]
     termo = (busca or "").strip()
@@ -301,8 +305,20 @@ def listar_campos_cotacao(busca=None):
 
 def obter_campo_cotacao(campo_id):
     with conexao() as con:
-        l = con.execute("SELECT id, nome, tipo, ordem FROM cotacao_campo WHERE id = ?", (campo_id,)).fetchone()
+        l = con.execute("SELECT id, nome, tipo, ordem, papel, opcoes FROM cotacao_campo WHERE id = ?",
+                        (campo_id,)).fetchone()
         return dict(l) if l else None
+
+
+def _aplicar_papel(con, campo_id, papel):
+    """Garante um único dono por papel: tira o papel de quem tinha e põe neste campo
+    (ou limpa, se papel vazio)."""
+    papel = (papel or "").strip()
+    if papel not in PAPEIS_CAMPO_COTACAO:
+        con.execute("UPDATE cotacao_campo SET papel = '' WHERE id = ?", (campo_id,))
+        return
+    con.execute("UPDATE cotacao_campo SET papel = '' WHERE papel = ? AND id <> ?", (papel, campo_id))
+    con.execute("UPDATE cotacao_campo SET papel = ? WHERE id = ?", (papel, campo_id))
 
 
 def campo_cotacao_nome_existe(nome, ignorar_id=None):
@@ -318,20 +334,53 @@ def campo_cotacao_nome_existe(nome, ignorar_id=None):
         return con.execute(sql, params).fetchone() is not None
 
 
-def criar_campo_cotacao(nome, tipo):
+def campo_cotacao_ordem_existe(ordem, ignorar_id=None):
+    try:
+        ordem = int(ordem)
+    except (TypeError, ValueError):
+        return False
+    sql = "SELECT 1 FROM cotacao_campo WHERE ordem = ?"
+    params = [ordem]
+    if ignorar_id:
+        sql += " AND id <> ?"
+        params.append(ignorar_id)
     with conexao() as con:
-        prox = con.execute("SELECT COALESCE(MAX(ordem), 0) + 1 FROM cotacao_campo").fetchone()[0]
-        cur = con.execute("INSERT INTO cotacao_campo (nome, tipo, ordem) VALUES (?, ?, ?)",
-                          ((nome or "").strip(), (tipo or "").strip(), prox))
+        return con.execute(sql, params).fetchone() is not None
+
+
+def criar_campo_cotacao(nome, tipo, ordem=None, papel="", opcoes=""):
+    with conexao() as con:
+        if ordem is None:
+            ordem = con.execute("SELECT COALESCE(MAX(ordem), 0) + 1 FROM cotacao_campo").fetchone()[0]
+        cur = con.execute(
+            "INSERT INTO cotacao_campo (nome, tipo, ordem, opcoes) VALUES (?, ?, ?, ?)",
+            ((nome or "").strip(), (tipo or "").strip(), int(ordem), (opcoes or "").strip()))
         novo_id = cur.lastrowid
+        _aplicar_papel(con, novo_id, papel)
     fazer_backup()
     return novo_id
 
 
-def atualizar_campo_cotacao(campo_id, nome, tipo):
+def atualizar_campo_cotacao(campo_id, nome, tipo, ordem=None, papel=None, opcoes=None):
+    sets = ["nome = ?", "tipo = ?"]
+    vals = [(nome or "").strip(), (tipo or "").strip()]
+    if ordem is not None:
+        sets.append("ordem = ?")
+        vals.append(int(ordem))
+    if opcoes is not None:
+        sets.append("opcoes = ?")
+        vals.append((opcoes or "").strip())
+    vals.append(campo_id)
     with conexao() as con:
-        con.execute("UPDATE cotacao_campo SET nome = ?, tipo = ? WHERE id = ?",
-                    ((nome or "").strip(), (tipo or "").strip(), campo_id))
+        con.execute(f"UPDATE cotacao_campo SET {', '.join(sets)} WHERE id = ?", vals)
+        if papel is not None:
+            _aplicar_papel(con, campo_id, papel)
+    fazer_backup()
+
+
+def atualizar_campo_cotacao_ordem(campo_id, ordem):
+    with conexao() as con:
+        con.execute("UPDATE cotacao_campo SET ordem = ? WHERE id = ?", (int(ordem), campo_id))
     fazer_backup()
 
 
@@ -1110,6 +1159,50 @@ def listar_entradas_repasse(data_ini=None, data_fim=None):
     if data_fim:
         linhas = [l for l in linhas if not l.get("data") or l["data"] <= data_fim]
     return linhas
+
+
+def panorama_comissoes(busca=None, data_ini=None, data_fim=None):
+    """Uma linha por APÓLICE com os números de comissão (prêmio, %, recebido
+    SEGURALTA/Plenus e os totais "no relatório da corretora"). O cálculo do
+    esperado e das divergências é feito na camada da rota. Recorte opcional por
+    `vigencia_inicio` (ISO) e busca por cliente/número."""
+    with conexao() as con:
+        rows = [dict(r) for r in con.execute(
+            "SELECT a.id AS apolice_id, a.numero_apolice, a.vigencia_inicio, "
+            "       c.nome AS cliente_nome, "
+            "       COALESCE(s.nome, '(sem seguradora)') AS seguradora_nome, "
+            "       a.premio_liquido, a.comissao_percentual, "
+            "       COALESCE(a.comissao_cocorretagem, 0) AS cocorretagem, "
+            "       COALESCE(a.comissao_valor_seguralta_recebido, "
+            "                (SELECT SUM(cm.valor_recebido) FROM apolice_comissao cm "
+            "                   WHERE cm.apolice_id = a.id)) AS receb_seguralta, "
+            "       COALESCE(a.comissao_valor_plenus_recebido, "
+            "                (SELECT SUM(r.valor_recebido) FROM apolice_repasse r "
+            "                   WHERE r.apolice_id = a.id)) AS receb_plenus, "
+            "       CASE WHEN EXISTS (SELECT 1 FROM apolice_repasse r WHERE r.apolice_id = a.id) "
+            "            THEN (SELECT COALESCE(SUM(r.valor_previsto), 0) FROM apolice_repasse r "
+            "                    WHERE r.apolice_id = a.id) "
+            "            WHEN a.comissao_valor_plenus_recebido IS NULL "
+            "            THEN COALESCE(a.comissao_valor_plenus_receber, 0) "
+            "            ELSE 0 END AS ple_a_receber, "
+            "       a.recebido_relatorio_seguralta AS rel_receb_seguralta, "
+            "       a.recebido_relatorio_plenus    AS rel_receb_plenus "
+            "  FROM apolice a "
+            "  LEFT JOIN cliente c    ON c.id = a.cliente_id "
+            "  LEFT JOIN seguradora s ON s.id = a.seguradora_id "
+            " ORDER BY seguradora_nome COLLATE NOCASE, c.nome COLLATE NOCASE, a.id"
+        ).fetchall()]
+    if data_ini:
+        rows = [r for r in rows if (r.get("vigencia_inicio") or "") >= data_ini]
+    if data_fim:
+        rows = [r for r in rows if (r.get("vigencia_inicio") or "") <= data_fim]
+    termo = (busca or "").strip()
+    if termo:
+        alvo = _sem_acento_minusculo(termo)
+        rows = [r for r in rows
+                if alvo in _sem_acento_minusculo(r.get("cliente_nome") or "")
+                or alvo in _sem_acento_minusculo(r.get("numero_apolice") or "")]
+    return rows
 
 
 def repasse_vs_relatorio_plenus():

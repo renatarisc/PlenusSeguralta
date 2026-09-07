@@ -23,7 +23,7 @@ from reportlab.platypus import (BaseDocTemplate, Frame, PageTemplate, Paragraph,
 
 from relatorio_pdf import (LARANJA, GRAFITE, CINZA_TXT, CINZA_LINHA, CINZA_CAB1,
                            MARGEM, _logo, _NumCanvas)
-from validacao import formatar_moeda
+from validacao import formatar_moeda, para_decimal, formatar_data_br
 
 _cel = ParagraphStyle("cc_cel", fontName="Helvetica", fontSize=8, leading=10)
 _cel_c = ParagraphStyle("cc_celC", parent=_cel, alignment=TA_CENTER)
@@ -32,19 +32,45 @@ _th = ParagraphStyle("cc_th", parent=_cel, fontName="Helvetica-Bold", fontSize=8
                      textColor=colors.white, alignment=TA_CENTER)
 _vazio = ParagraphStyle("cc_vazio", parent=_cel, fontSize=9, textColor=CINZA_TXT,
                         alignment=TA_CENTER, spaceBefore=24)
+_cel_c_forte = ParagraphStyle("cc_celCforte", parent=_cel_c, fontName="Helvetica-Bold")
 
 
 def _p(txt, st):
     return Paragraph(escape(str(txt)), st)
 
 
-_RE_UNIDADE = re.compile(r"\(([^)]+)\)\s*$")
+_RE_UNIDADE = re.compile(r"\s*\(([^()]+)\)\s*$")
 
 
 def _unidade(nome):
     """Sufixo entre parênteses no fim do nome do campo -> unidade. Ex.: 'Assistência (Km)' -> 'km'."""
     m = _RE_UNIDADE.search(nome or "")
     return m.group(1).strip().lower() if m else ""
+
+
+def _rotulo(nome):
+    """Nome do campo sem o sufixo entre parênteses. Ex.: 'Carro Reserva (dias)' -> 'Carro Reserva'."""
+    return _RE_UNIDADE.sub("", (nome or "").strip())
+
+
+# o parcelamento é calculado na linha do campo marcado (no cadastro) com papel
+# "num_parcelas": ele mostra "Nx de R$ y" dividindo o valor do campo com papel
+# "base_parcelamento". Sem esses papéis definidos, nada muda no PDF.
+
+
+def _fmt_parcelamento(qtd, valor_base):
+    """'12' + 3600 -> '12x de R$ 300,00'. Sem base ou qtd inválida -> texto como veio."""
+    q = (qtd or "").strip()
+    if not q:
+        return "—"
+    try:
+        n = int(float(q.replace(".", "").replace(",", ".")))
+    except ValueError:
+        return q
+    base = para_decimal(valor_base)
+    if n > 0 and base:
+        return f"{n}x de {formatar_moeda(round(base / n, 2))}"
+    return q
 
 
 def _fmt(valor, tipo, unidade=""):
@@ -54,6 +80,10 @@ def _fmt(valor, tipo, unidade=""):
     if tipo == "valor":
         m = formatar_moeda(v)
         return v if m == "—" else m   # texto livre (ex.: "sob consulta") passa como veio
+    if tipo == "data":
+        return formatar_data_br(v)
+    if tipo == "percentual":
+        return v if v.endswith("%") else f"{v}%"
     if tipo == "numerico" and unidade:
         return f"{v} {unidade}"
     return v
@@ -112,12 +142,20 @@ def gerar(cliente, cotacoes, campos):
         cab = [_p("Serviço", _th)] + [
             _p(co.get("seguradora") or f"Cotação {i + 1}", _th) for i, co in enumerate(cotacoes)
         ]
+        base_cid = next((c["id"] for c in campos if c.get("papel") == "base_parcelamento"), None)
+        parc_cid = next((c["id"] for c in campos if c.get("papel") == "num_parcelas"), None)
+
         linhas = [cab]
         for c in campos:
             uni = _unidade(c["nome"]) if c["tipo"] == "numerico" else ""
-            linha = [_p(c["nome"], _campo)]
+            linha = [_p(_rotulo(c["nome"]), _campo)]
             for co in cotacoes:
-                linha.append(_p(_fmt((co.get("valores") or {}).get(c["id"]), c["tipo"], uni), _cel_c))
+                vals = co.get("valores") or {}
+                if c["id"] == parc_cid:
+                    txt = _fmt_parcelamento(vals.get(c["id"]), vals.get(base_cid))
+                    linha.append(_p(txt, _cel_c_forte))
+                else:
+                    linha.append(_p(_fmt(vals.get(c["id"]), c["tipo"], uni), _cel_c))
             linhas.append(linha)
 
         t = Table(linhas, colWidths=col_widths, repeatRows=1)

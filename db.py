@@ -11,6 +11,7 @@ import contextlib
 import os
 import shutil
 import sqlite3
+import unicodedata
 from datetime import datetime
 
 _RAIZ = os.path.dirname(os.path.abspath(__file__))
@@ -87,8 +88,10 @@ CREATE TABLE IF NOT EXISTS categoria_saida (
 CREATE TABLE IF NOT EXISTS cotacao_campo (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     nome TEXT NOT NULL,
-    tipo TEXT NOT NULL,            -- valor | numerico | sim_nao | nivel (Simples/Interm./Completo) | livre_referenciada
+    tipo TEXT NOT NULL,            -- texto | valor | numerico | data | percentual | sim_nao | selecao
     ordem INTEGER NOT NULL DEFAULT 0,  -- ordem no formulário "Gerar cotação"
+    papel TEXT NOT NULL DEFAULT '',    -- '' | base_parcelamento | num_parcelas (usados no cálculo do PDF)
+    opcoes TEXT NOT NULL DEFAULT '',   -- tipo 'selecao': uma opção por linha
     criado_em TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -246,6 +249,7 @@ _COLUNAS_ESPERADAS = {
     "categoria_saida": {"nome": "TEXT"},
     "cotacao_campo": {
         "nome": "TEXT", "tipo": "TEXT", "ordem": "INTEGER NOT NULL DEFAULT 0",
+        "papel": "TEXT NOT NULL DEFAULT ''", "opcoes": "TEXT NOT NULL DEFAULT ''",
         "criado_em": "TEXT NOT NULL DEFAULT (datetime('now'))",
     },
     "apolice": {
@@ -361,6 +365,39 @@ def _backfill_dados(con):
             "  data = data_pagamento "
             "WHERE valor_previsto IS NULL AND valor IS NOT NULL"
         )
+
+    # cotacao_campo.papel: 1ª migração herda os papéis dos nomes usados até agora
+    # ("Valor do Seguro" / "Nº de Parcelas"). Só roda quando NENHUM campo tem papel,
+    # pra nunca brigar com a escolha feita na tela depois.
+    cc = {l["name"] for l in con.execute("PRAGMA table_info(cotacao_campo)")}
+    if "papel" in cc:
+        ja_tem = con.execute(
+            "SELECT COUNT(*) FROM cotacao_campo WHERE papel IS NOT NULL AND papel <> ''"
+        ).fetchone()[0]
+        if not ja_tem:
+            def _n(s):
+                t = unicodedata.normalize("NFKD", (s or "").strip().lower())
+                return "".join(c for c in t if not unicodedata.combining(c))
+            usados = set()
+            for cid, nome in con.execute("SELECT id, nome FROM cotacao_campo ORDER BY ordem, id").fetchall():
+                n = _n(nome)
+                if n == "valor do seguro" and "base_parcelamento" not in usados:
+                    con.execute("UPDATE cotacao_campo SET papel = 'base_parcelamento' WHERE id = ?", (cid,))
+                    usados.add("base_parcelamento")
+                elif n == "no de parcelas" and "num_parcelas" not in usados:
+                    con.execute("UPDATE cotacao_campo SET papel = 'num_parcelas' WHERE id = ?", (cid,))
+                    usados.add("num_parcelas")
+
+    # tipos antigos 'nivel' / 'livre_referenciada' viram 'selecao' com as opções fixas
+    # copiadas para a coluna `opcoes`. Idempotente: some quando não há mais esses tipos.
+    if "opcoes" in cc:
+        for tipo_antigo, opcoes in (("nivel", "Simples\nIntermediário\nCompleto"),
+                                    ("livre_referenciada", "Livre escolha\nReferenciada")):
+            con.execute(
+                "UPDATE cotacao_campo SET tipo = 'selecao', opcoes = ? "
+                "WHERE tipo = ? AND (opcoes IS NULL OR opcoes = '')",
+                (opcoes, tipo_antigo),
+            )
 
 
 # ---------- backup ----------

@@ -45,6 +45,9 @@
       <div class="campo c-6">
         <label for="cliente_id">Cliente *
           <a class="link-abrir" href="{{ url_for('cliente_form') }}" target="_blank" rel="noopener">＋ novo</a>
+          <a class="link-abrir" id="link-abrir-cliente" data-base="{{ url_for('clientes_lista') }}"
+             href="{{ url_for('cliente_form', cliente_id=a.cliente_id) if a.cliente_id else '#' }}"
+             target="_blank" rel="noopener" {{ 'hidden' if not a.cliente_id }}>abrir ficha</a>
         </label>
         <select id="cliente_id" name="cliente_id" required>
           <option value="">—</option>
@@ -104,12 +107,6 @@
                value="{{ a.aviso_vigencia_ok_em or '' }}">
       </div>
 
-      <div class="grade__linha" aria-hidden="true"></div>
-
-      <div class="campo c-12">
-        <label for="observacao">Observação</label>
-        <textarea id="observacao" name="observacao" rows="3">{{ a.observacao or '' }}</textarea>
-      </div>
     </div>
     <p class="dica" style="margin-top:4px">
       Enquanto for "Não", o Sistema manda e-mail todo dia para o Administrador lembrando de avisar o cliente da renovação.
@@ -228,6 +225,13 @@
     <div style="padding:10px 0 0">
       <button type="button" class="btn {{ 'btn--linha' if a.parcelas else 'btn--primario' }}" id="btn-add-parcela">{{ icone('mais') }} {{ 'Adicionar parcela' if a.parcelas else 'Adicionar parcela única' }}</button>
       <span class="dica" id="resumo-parcelas" style="margin-left:10px"></span>
+    </div>
+
+    <div class="grade" style="margin-top:16px">
+      <div class="campo c-12">
+        <label for="observacao">Observação</label>
+        <textarea id="observacao" name="observacao" rows="3">{{ a.observacao or '' }}</textarea>
+      </div>
     </div>
   </div>
 

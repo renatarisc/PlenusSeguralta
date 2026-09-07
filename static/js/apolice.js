@@ -308,6 +308,25 @@
     });
   }
 
+  // link "abrir ficha" ao lado do cliente: aponta para a ficha do cliente selecionado
+  (function () {
+    const sel = document.getElementById("cliente_id");
+    const lnk = document.getElementById("link-abrir-cliente");
+    if (!sel || !lnk) return;
+    const base = lnk.dataset.base || "/clientes";
+    function sincronizar() {
+      const id = sel.value;
+      if (id) {
+        lnk.href = base.replace(/\/$/, "") + "/" + id;
+        lnk.hidden = false;
+      } else {
+        lnk.hidden = true;
+      }
+    }
+    sel.addEventListener("change", sincronizar);
+    sincronizar();
+  })();
+
   // ao abrir: trava as parcelas que já vieram pagas
   linhas().forEach((tr) => {
     if (tr.querySelector('[name="parcela_paga"]').value === "1") travar(tr);
