@@ -37,7 +37,7 @@
   <td class="ent-col-parc"><span class="ent-parc-fixa">única</span></td>
   <td class="col-valor"><input name="comissao_valor_seguralta_receber" inputmode="decimal" data-num value="{{ ln.seg_previsto|numero }}" aria-label="Previsto Seguralta"></td>
   <td class="col-valor"><input name="comissao_valor_seguralta_recebido" inputmode="decimal" data-num value="{{ ln.seg_recebido|numero }}" aria-label="Recebido Seguralta"></td>
-  <td class="ent-na" title="Repasse único não tem data no lado Seguralta">—</td>
+  <td><input name="data_seguralta_recebido" type="date" value="{{ ln.seg_data or '' }}" aria-label="Data Seguralta"></td>
   <td class="ent-sep col-valor"><input name="comissao_valor_plenus_receber" inputmode="decimal" data-num value="{{ ln.ple_previsto|numero }}" aria-label="Pendente Plenus"></td>
   <td class="col-valor"><input name="comissao_valor_plenus_recebido" inputmode="decimal" data-num data-ple-receb value="{{ ln.ple_recebido|numero }}" aria-label="Pago Plenus"></td>
   <td><input name="data_plenus_recebido" type="date" value="{{ ln.ple_data or '' }}" aria-label="Data Plenus"></td>
@@ -57,29 +57,31 @@
 {% endmacro %}
 
 {% macro bloco(b) %}
-<section class="ent-bloco" data-bloco>
+<section class="ent-bloco{{ ' ent-bloco--endosso' if b.is_endosso or b.is_consorcio }}" data-bloco>
   <header class="ent-bloco__cab">
     <strong>{{ b.cliente_nome }}</strong>
-    <small>· apólice
+    <small>{% if b.is_consorcio %}· <a href="{{ url_for('consorcio_form', consorcio_id=b.consorcio_id) }}" class="ent-ap-link" target="_blank" rel="noopener">consórcio grupo {{ b.consorcio_grupo or '' }}</a>
+      {%- else %}· apólice
       <a href="{{ url_for('apolice_form', apolice_id=b.apolice_id) }}" class="ent-ap-link"
          target="_blank" rel="noopener" title="Abrir a apólice em outra aba">{{ b.numero_apolice or 'abrir' }}</a>
+      {%- if b.is_endosso %} · <a href="{{ url_for('endosso_form', endosso_id=b.endosso_id) }}" class="ent-ap-link" target="_blank" rel="noopener">endosso {{ b.endosso_numero or '' }}</a>{% endif %}{% endif %}
       {%- if b.seguradora_nome %} · {{ b.seguradora_nome }}{% endif %}
-      · prêmio líquido {{ b.premio_liquido|moeda }}
-      · comissão {% if b.comissao_percentual is not none %}{{ b.comissao_percentual|numero }}%{% else %}—{% endif %}
-      {%- if b.comissao_valor is not none %} ({{ b.comissao_valor|moeda }}){% endif %}
+      · {{ 'valor da carta' if b.is_consorcio else 'valor' if b.is_endosso else 'prêmio líquido' }} {{ b.premio_liquido|moeda }}
+      · comissão {% if b.comissao_percentual is not none %}{{ (b.comissao_percentual|numero).rstrip('0').rstrip(',') }}%{% else %}—{% endif %}
+      {%- if b.comissao_valor is not none %} ({{ b.comissao_valor|moeda }} — Seguralta {{ b.comissao_seguralta|moeda }} | Plenus {{ b.comissao_plenus|moeda }}{% if b.tipo_seguro_nome and 'vida' in b.tipo_seguro_nome|lower and not b.is_endosso and not b.is_consorcio %} - Valores mensais{% endif %}){% endif %}
       {%- if not b.comissao_parcelada %} · repasse único{% endif %}
       {%- if b.cocorretagem %} · COCORRETAGEM{% endif %}</small>
   </header>
-  <form method="post" action="{{ url_for('entradas_salvar_apolice', apolice_id=b.apolice_id) }}" class="ent-bloco__form">
+  <form method="post" action="{{ url_for('entradas_salvar_consorcio', consorcio_id=b.consorcio_id) if b.is_consorcio else url_for('entradas_salvar_endosso', endosso_id=b.endosso_id) if b.is_endosso else url_for('entradas_salvar_apolice', apolice_id=b.apolice_id) }}" class="ent-bloco__form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="voltar" value="{{ url_for('entradas_lista', **request.args) }}">
     <input type="hidden" name="comissao_parcelada" value="{{ '1' if b.comissao_parcelada else '0' }}">
     <div class="tabela-wrap">
       <table class="lista tab-fluxo ent-grid">
         <colgroup>
-          <col style="width:6%"><col style="width:11%"><col style="width:11%"><col style="width:12%">
-          <col style="width:11%"><col style="width:11%"><col style="width:12%">
-          <col style="width:8%"><col style="width:10%"><col style="width:8%">
+          <col style="width:6%"><col style="width:10%"><col style="width:10%"><col style="width:13%">
+          <col style="width:10%"><col style="width:10%"><col style="width:13%">
+          <col style="width:9%"><col style="width:11%"><col style="width:8%">
         </colgroup>
         <thead>
           <tr>
@@ -108,7 +110,11 @@
       {% if b.comissao_parcelada %}
       <button type="button" class="btn btn--linha btn--mini" data-add-linha>{{ icone('mais') }} Adicionar mês</button>
       {% endif %}
-      <button type="submit" class="btn btn--primario btn--mini">Salvar esta apólice</button>
+      <button type="submit" class="btn btn--primario btn--mini">Salvar {{ 'este consórcio' if b.is_consorcio else 'este endosso' if b.is_endosso else 'esta apólice' }}</button>
+      <small class="ent-bloco__soma">
+        <span data-soma>Seguralta {{ b.soma_seguralta|moeda }} | Plenus {{ b.soma_plenus|moeda }}</span>
+        (soma das colunas Recebido x Pago)
+      </small>
     </div>
   </form>
 </section>

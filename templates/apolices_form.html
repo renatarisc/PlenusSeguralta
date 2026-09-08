@@ -14,9 +14,19 @@
 {% block cabecalho %}{{ 'Editar apólice' if a.id else 'Nova apólice' }}{% set _cli = nome_cliente() %}{% if a.id and _cli %} · <span style="color:var(--texto-suave);font-weight:600">{{ _cli }}</span>{% endif %}{% endblock %}
 
 {% block acoes %}
-<button type="button" class="btn btn--linha" data-ler-pdf
-        data-endpoint="{{ url_for('apolice_ler_pdf') }}">{{ icone('apolices') }} Ler apólice</button>
+{% if a.id %}
+<a class="btn btn--primario" href="{{ url_for('endossos_lista', apolice=a.id) }}" title="Endossos desta apólice">
+  {{ icone('endosso') }} Endossos ({{ qtd_endossos or 0 }})
+</a>
+{% endif %}
 <a class="btn btn--linha" href="{{ url_for('apolices') }}">{{ icone('voltar') }} Voltar</a>
+{% if a.id %}
+<form method="post" action="{{ url_for('apolice_excluir', apolice_id=a.id) }}" style="display:inline"
+      onsubmit="return confirm('Excluir a apólice {{ a.numero_apolice or a.id }}? Esta ação não pode ser desfeita.')">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <button type="submit" class="btn btn--perigo">{{ icone('lixo') }} Excluir</button>
+</form>
+{% endif %}
 {% endblock %}
 
 {% block conteudo %}
@@ -277,6 +287,11 @@
           <input id="comissao_valor_seguralta_recebido" name="comissao_valor_seguralta_recebido"
                  inputmode="decimal" data-num style="max-width:120px"
                  value="{{ a.comissao_valor_seguralta_recebido or '' }}">
+        </div>
+        <div class="campo c-2">
+          <label for="data_seguralta_recebido">Seguralta recebido em</label>
+          <input id="data_seguralta_recebido" name="data_seguralta_recebido" type="date"
+                 style="max-width:150px" value="{{ a.data_seguralta_recebido or '' }}">
         </div>
 
         <div class="grade__linha" aria-hidden="true"></div>

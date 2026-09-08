@@ -23,7 +23,8 @@ from validacao import (
     formatar_numero, formatar_moeda, formatar_data_br, dias_ate_data,
     validar_apolice, preparar_parcelas, preparar_comissoes, preparar_repasses,
     gerar_repasses_cocorretagem, para_decimal,
-    validar_saida, preparar_lancamentos_saida,
+    validar_saida, preparar_lancamentos_saida, validar_endosso,
+    validar_consorcio, preparar_parcela_valores, preparar_boletos,
 )
 
 _HTTPS = os.environ.get("PLENUS_HTTPS") == "1"
@@ -79,6 +80,8 @@ _CADASTROS_SIMPLES = {
                    "singular": "seguradora", "acao_novo": "Nova seguradora"},
     "categoria-saida": {"tabela": "categoria_saida", "titulo": "Categorias de Saída",
                         "singular": "categoria de saída", "acao_novo": "Nova categoria de saída"},
+    "tipo-consorcio": {"tabela": "tipo_consorcio", "titulo": "Tipos de Consórcio",
+                       "singular": "tipo de consórcio", "acao_novo": "Novo tipo de consórcio"},
 }
 
 # disponível em todo template (máscaras na exibição, itens do menu)
@@ -98,22 +101,25 @@ app.jinja_env.globals["MENU"] = [
     {"rota": "dashboard", "texto": "Painel", "icone": "painel"},
     {"rota": "clientes_lista", "texto": "Clientes", "icone": "clientes"},
     {"rota": "apolices", "texto": "Apólices", "icone": "apolices"},
+    {"rota": "endossos_lista", "texto": "Endossos", "icone": "endosso"},
+    {"rota": "consorcios_lista", "texto": "Consórcios", "icone": "consorcio"},
     {"grupo": "Cotação", "icone": "cotacao", "divisoria_antes": True, "filhos": [
         {"rota": "cotacao_campos", "texto": "Cadastrar Campo", "icone": "lapis"},
         {"rota": "cotacao_gerar", "texto": "Gerar", "icone": "relatorio"},
     ]},
     {"grupo": "Fluxo de caixa", "icone": "fluxo", "divisoria_antes": True, "filhos": [
         {"rota": "saidas_lista", "texto": "Saídas", "icone": "saida"},
-        {"rota": "entradas_lista", "texto": "Entradas", "icone": "entrada"},
+        {"rota": "entradas_lista", "texto": "Entradas (Comissões)", "icone": "entrada"},
         {"rota": "fluxo_relatorios", "slug": "saidas", "texto": "Relatório de saídas", "icone": "relatorio"},
         {"rota": "fluxo_relatorios", "slug": "entradas", "texto": "Relatório de entradas", "icone": "relatorio"},
-        {"rota": "entradas_panorama", "texto": "Panorama de comissões", "icone": "relatorio"},
+        {"rota": "entradas_panorama", "texto": "Comissões recebidas", "icone": "relatorio"},
     ]},
     {"grupo": "Cadastros auxiliares", "icone": "pasta", "divisoria_antes": True, "filhos": [
         {"rota": "cadastro_simples", "texto": "Seguradoras", "icone": "predio", "slug": "seguradora"},
         {"rota": "cadastro_simples", "texto": "Tipos de Seguro", "icone": "tag", "slug": "tipo-seguro"},
         {"rota": "cadastro_simples", "texto": "Formas de Pagamento", "icone": "pagamento", "slug": "forma-pagamento"},
         {"rota": "cadastro_simples", "texto": "Categorias de Saída", "icone": "tag", "slug": "categoria-saida"},
+        {"rota": "cadastro_simples", "texto": "Tipos de Consórcio", "icone": "tag", "slug": "tipo-consorcio"},
     ]},
     {"rota": "usuarios_lista", "texto": "Usuários", "icone": "cadeado", "divisoria_antes": True},
 ]
@@ -287,7 +293,15 @@ def dashboard():
                            por_tipo=repo.apolices_por_tipo(),
                            vencendo=repo.apolices_por_vencer(DIAS_ALERTA_VIGENCIA),
                            boletos=repo.parcelas_boleto_a_vencer(DIAS_ALERTA_BOLETO),
+                           boletos_consorcio=repo.boletos_consorcio_a_enviar(),
                            contas_pagar=repo.saidas_a_pagar(DIAS_ALERTA_SAIDA))
+
+
+@app.route("/consorcios/boleto/<int:boleto_id>/enviado", methods=["POST"])
+def consorcio_boleto_enviado(boleto_id):
+    repo.marcar_boleto_consorcio_enviado(boleto_id, request.form.get("enviado") == "1")
+    flash("Status do boleto atualizado.", "ok")
+    return _voltar_seguro()
 
 
 # ---------- Clientes ----------
@@ -297,8 +311,51 @@ def clientes_lista():
     busca = request.args.get("busca", "").strip()
     uf = request.args.get("uf", "").strip().upper() or None
     cidade = request.args.get("cidade", "").strip() or None
+    agrupar = request.args.get("g", "")
+    if agrupar not in ("cidade", "uf", "tipo_seguro"):
+        agrupar = ""
+    clientes = repo.listar_clientes(busca or None, uf, cidade)
+
+    grupos = None
+    if agrupar:
+        baldes = {}
+        if agrupar == "tipo_seguro":
+            # cliente com apólices de vários tipos aparece em vários grupos;
+            # sem apólice mas com consórcio → grupo "Só consórcio"
+            por_cli = repo.tipos_seguro_por_cliente()
+            com_cons = repo.clientes_com_consorcio()
+            for c in clientes:
+                tipos = por_cli.get(c["id"])
+                if tipos:
+                    for t in tipos:
+                        baldes.setdefault(t, []).append(c)
+                elif c["id"] in com_cons:
+                    baldes.setdefault("Só consórcio", []).append(c)
+                else:
+                    baldes.setdefault("Sem apólice", []).append(c)
+        else:
+            def _chave(c):
+                if agrupar == "uf":
+                    return (c.get("end_estado") or "").strip().upper() or "Sem estado"
+                cid = (c.get("end_cidade") or "").strip()
+                est = (c.get("end_estado") or "").strip().upper()
+                return f"{cid} / {est}" if cid and est else (cid or est or "Sem cidade")
+            for c in clientes:
+                baldes.setdefault(_chave(c), []).append(c)
+
+        def _ordem_grupo(rot):
+            if rot == "Sem apólice":
+                return (3, "")
+            if rot == "Só consórcio":
+                return (2, "")
+            if rot.startswith("Sem "):
+                return (1, repo._sem_acento_minusculo(rot))
+            return (0, repo._sem_acento_minusculo(rot))
+        grupos = [{"rotulo": k, "itens": v}
+                  for k, v in sorted(baldes.items(), key=lambda kv: _ordem_grupo(kv[0]))]
+
     return render_template("clientes_lista.html", ativo="clientes_lista",
-                           clientes=repo.listar_clientes(busca or None, uf, cidade),
+                           clientes=clientes, grupos=grupos, agrupar=agrupar,
                            busca=busca, uf=uf, cidade=cidade,
                            ufs=repo.ufs_dos_clientes(), cidades=repo.cidades_dos_clientes(uf))
 
@@ -434,7 +491,7 @@ _CAMPOS_APOLICE = (
     "forma_pagamento_id", "comissao_percentual",
     "comissao_valor_seguralta_receber", "comissao_valor_plenus_receber",
     "comissao_valor_seguralta_recebido", "comissao_valor_plenus_recebido",
-    "data_plenus_recebido", "plenus_conferido_banco",
+    "data_seguralta_recebido", "data_plenus_recebido", "plenus_conferido_banco",
     "comissao_parcelada", "comissao_cocorretagem",
     "previsto_relatorio_seguralta", "recebido_relatorio_seguralta",
     "previsto_relatorio_plenus", "recebido_relatorio_plenus",
@@ -451,12 +508,14 @@ def _apolice_para_form(ap, parcelas=None):
     if ap is None:
         return None
     ap = dict(ap)
-    for campo in ("premio_liquido", "iof", "premio_total", "comissao_percentual",
+    for campo in ("premio_liquido", "iof", "premio_total",
                   "comissao_valor_seguralta_receber", "comissao_valor_plenus_receber",
                   "comissao_valor_seguralta_recebido", "comissao_valor_plenus_recebido",
                   "previsto_relatorio_seguralta", "recebido_relatorio_seguralta",
                   "previsto_relatorio_plenus", "recebido_relatorio_plenus"):
         ap[campo] = formatar_numero(ap.get(campo))
+    # percentual: sem forçar as 2 casas — "15" e não "15,00"; mantém "15,5" quando há
+    ap["comissao_percentual"] = formatar_numero(ap.get("comissao_percentual")).rstrip("0").rstrip(",")
     # flag 0/1 vinda ora do banco (int), ora do form re-renderizado após erro (str "0"/"1"):
     # normaliza p/ o template não tratar a string "0" como verdadeira
     ap["plenus_conferido_banco"] = 1 if str(ap.get("plenus_conferido_banco") or "").strip() in ("1", "sim", "on", "true") else 0
@@ -488,6 +547,7 @@ _MESES = ["", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
 def apolices():
     cliente_id = request.args.get("cliente", type=int)
     tipo_id = request.args.get("tipo", type=int)
+    forma_id = request.args.get("forma", type=int)
     mes = request.args.get("mes", type=int)
     if mes not in range(1, 13):
         mes = None
@@ -507,12 +567,14 @@ def apolices():
     return render_template(
         "apolices_lista.html", ativo="apolices",
         apolices=repo.listar_apolices(cliente_id=cliente_id, tipo_seguro_id=tipo_id,
+                                      forma_pagamento_id=forma_id,
                                       mes_inicio=mes, mes_fim=mes_fim, quiver=quiver,
                                       busca=busca or None, parcela_status=parcela or None,
                                       ordem=ordem or None),
-        cliente_filtro=cliente, busca=busca, tipo_id=tipo_id, mes=mes, mes_fim=mes_fim,
-        quiver=quiver_arg, parcela=parcela, ord=ordem,
-        tipos=repo.listar_simples("tipo_seguro"), MESES=_MESES)
+        cliente_filtro=cliente, busca=busca, tipo_id=tipo_id, forma_id=forma_id,
+        mes=mes, mes_fim=mes_fim, quiver=quiver_arg, parcela=parcela, ord=ordem,
+        tipos=repo.listar_simples("tipo_seguro"),
+        formas=repo.listar_simples("forma_pagamento"), MESES=_MESES)
 
 
 @app.route("/apolices/nova", methods=["GET", "POST"])
@@ -558,7 +620,8 @@ def apolice_form(apolice_id=None):
                 {**dados, "id": apolice_id, "comissoes": comissoes, "repasses": repasses},
                 parcelas=parcelas)
             return render_template("apolices_form.html", ativo="apolices",
-                                   apolice=apolice, **_dados_form_apolice())
+                                   apolice=apolice, **_dados_form_apolice(),
+                                   qtd_endossos=repo.contar_endossos_por_apolice(apolice_id) if apolice_id else 0)
         if apolice_id:
             repo.atualizar_apolice(apolice_id, dados, parcelas, comissoes, repasses)
             flash("Apólice atualizada.", "ok")
@@ -579,7 +642,8 @@ def apolice_form(apolice_id=None):
         if cliente_id and repo.obter_cliente(cliente_id):
             apolice = {"cliente_id": cliente_id}
     return render_template("apolices_form.html", ativo="apolices",
-                           apolice=_apolice_para_form(apolice), **_dados_form_apolice())
+                           apolice=_apolice_para_form(apolice), **_dados_form_apolice(),
+                           qtd_endossos=repo.contar_endossos_por_apolice(apolice_id) if apolice_id else 0)
 
 
 @app.route("/apolices/<int:apolice_id>/excluir", methods=["POST"])
@@ -589,6 +653,307 @@ def apolice_excluir(apolice_id):
     return redirect(url_for("apolices"))
 
 
+# ---------- Endossos ----------
+
+_ENDOSSO_SITUACOES = [("onus", "Com ônus"), ("devolucao", "Com devolução"),
+                      ("sem_alteracao", "Sem alteração financeira")]
+_CAMPOS_ENDOSSO = (
+    "apolice_id", "numero", "vigencia_inicio", "vigencia_fim", "motivacao",
+    "situacao", "valor", "forma_pagamento_id", "veiculo_placa", "veiculo_descricao",
+    "comissao_parcelada", "comissao_percentual",
+    "comissao_valor_seguralta_receber", "comissao_valor_seguralta_recebido",
+    "comissao_valor_plenus_receber", "comissao_valor_plenus_recebido",
+    "data_seguralta_recebido", "data_plenus_recebido", "plenus_conferido_banco",
+    "previsto_relatorio_seguralta", "recebido_relatorio_seguralta",
+    "previsto_relatorio_plenus", "recebido_relatorio_plenus",
+    "lancado_quiver", "link_onedrive",
+)
+
+
+def _dados_form_endosso():
+    return {"apolices_opcoes": repo.listar_apolices_select(),
+            "formas": repo.listar_simples("forma_pagamento"),
+            "situacoes": _ENDOSSO_SITUACOES}
+
+
+def _endosso_para_form(e, parcelas=None, comissoes=None, repasses=None):
+    if e is None:
+        return {"situacao": "sem_alteracao", "parcelas": parcelas or [],
+                "comissoes": comissoes or [], "repasses": repasses or []}
+    e = dict(e)
+    for campo in ("valor", "comissao_percentual",
+                  "comissao_valor_seguralta_receber", "comissao_valor_seguralta_recebido",
+                  "comissao_valor_plenus_receber", "comissao_valor_plenus_recebido",
+                  "previsto_relatorio_seguralta", "recebido_relatorio_seguralta",
+                  "previsto_relatorio_plenus", "recebido_relatorio_plenus"):
+        e[campo] = formatar_numero(e.get(campo))
+    e["plenus_conferido_banco"] = 1 if str(e.get("plenus_conferido_banco") or "").strip() in ("1", "sim", "on", "true") else 0
+    e["comissao_parcelada"] = 1 if str(e.get("comissao_parcelada") or "").strip() in ("1", "sim", "on", "true") else 0
+    e["lancado_quiver"] = 1 if str(e.get("lancado_quiver") or "").strip() in ("1", "sim", "on", "true") else 0
+    fonte = parcelas if parcelas is not None else e.get("parcelas", [])
+    e["parcelas"] = [{**p, "valor": formatar_numero(p.get("valor"))} for p in fonte]
+    fc = comissoes if comissoes is not None else e.get("comissoes", [])
+    e["comissoes"] = [{**c, "valor_previsto": formatar_numero(c.get("valor_previsto")),
+                       "valor_recebido": formatar_numero(c.get("valor_recebido"))} for c in fc]
+    fr = repasses if repasses is not None else e.get("repasses", [])
+    e["repasses"] = [{**r, "valor_previsto": formatar_numero(r.get("valor_previsto")),
+                      "valor_recebido": formatar_numero(r.get("valor_recebido"))} for r in fr]
+    return e
+
+
+@app.route("/endossos")
+def endossos_lista():
+    apolice_id = request.args.get("apolice", type=int)
+    busca = request.args.get("busca", "").strip()
+    return render_template(
+        "endossos_lista.html", ativo="endossos_lista",
+        endossos=repo.listar_endossos(apolice_id or None, busca or None),
+        busca=busca, apolice_id=apolice_id,
+        apolice_filtro=repo.obter_apolice_basico(apolice_id) if apolice_id else None,
+        tem_filtro=bool(busca or apolice_id),
+        situacoes=dict(_ENDOSSO_SITUACOES))
+
+
+@app.route("/endossos/novo", methods=["GET", "POST"])
+@app.route("/endossos/<int:endosso_id>", methods=["GET", "POST"])
+def endosso_form(endosso_id=None):
+    voltar = request.form.get("voltar") or request.args.get("voltar") or ""
+    if not (voltar.startswith("/") and not voltar.startswith("//")):
+        voltar = ""
+    endosso = repo.obter_endosso(endosso_id) if endosso_id else None
+    if endosso_id and not endosso:
+        flash("Endosso não encontrado.", "erro")
+        return redirect(url_for("endossos_lista"))
+
+    if request.method == "POST":
+        dados = {k: request.form.get(k, "") for k in _CAMPOS_ENDOSSO}
+        parcelas, erros_parc = preparar_parcelas(
+            request.form.getlist("parcela_identificacao"),
+            request.form.getlist("parcela_data"),
+            request.form.getlist("parcela_valor"),
+            request.form.getlist("parcela_paga"),
+            request.form.getlist("parcela_aviso"))
+        comissoes, erros_com = preparar_comissoes(
+            request.form.getlist("comissao_parcela"),
+            request.form.getlist("comissao_previsto"),
+            request.form.getlist("comissao_recebido"),
+            request.form.getlist("comissao_data"))
+        repasses, erros_rep = preparar_repasses(
+            request.form.getlist("repasse_parcela"),
+            request.form.getlist("repasse_previsto"),
+            request.form.getlist("repasse_recebido"),
+            request.form.getlist("repasse_data"),
+            request.form.getlist("repasse_conferido"))
+        if dados.get("comissao_parcelada") == "1":
+            # comissão em parcelas: zera os campos planos de comissão
+            for k in ("comissao_valor_seguralta_receber", "comissao_valor_seguralta_recebido",
+                      "comissao_valor_plenus_receber", "comissao_valor_plenus_recebido",
+                      "data_seguralta_recebido", "data_plenus_recebido", "plenus_conferido_banco"):
+                dados[k] = ""
+        else:
+            comissoes, repasses, erros_com, erros_rep = [], [], [], []
+            for k in ("previsto_relatorio_seguralta", "recebido_relatorio_seguralta",
+                      "previsto_relatorio_plenus", "recebido_relatorio_plenus"):
+                dados[k] = ""
+        if dados.get("situacao") == "sem_alteracao":
+            # sem alteração financeira: nada de pagamento nem comissão
+            parcelas, erros_parc = [], []
+            comissoes, repasses, erros_com, erros_rep = [], [], [], []
+            dados["comissao_parcelada"] = ""
+            for k in ("valor", "forma_pagamento_id", "comissao_percentual",
+                      "comissao_valor_seguralta_receber", "comissao_valor_seguralta_recebido",
+                      "comissao_valor_plenus_receber", "comissao_valor_plenus_recebido",
+                      "data_seguralta_recebido", "data_plenus_recebido", "plenus_conferido_banco",
+                      "previsto_relatorio_seguralta", "recebido_relatorio_seguralta",
+                      "previsto_relatorio_plenus", "recebido_relatorio_plenus"):
+                dados[k] = ""
+        erros = validar_endosso(dados) + erros_parc + erros_com + erros_rep
+        if erros:
+            for e in erros:
+                flash(e, "erro")
+            return render_template("endossos_form.html", ativo="endossos_lista",
+                                   endosso=_endosso_para_form({**dados, "id": endosso_id}, parcelas=parcelas,
+                                                              comissoes=comissoes, repasses=repasses),
+                                   voltar=voltar, **_dados_form_endosso())
+        if endosso_id:
+            repo.atualizar_endosso(endosso_id, dados, parcelas, comissoes, repasses)
+            flash("Endosso atualizado.", "ok")
+        else:
+            endosso_id = repo.criar_endosso(dados, parcelas, comissoes, repasses)
+            flash("Endosso cadastrado.", "ok")
+        if request.form.get("permanecer") == "1":
+            return redirect(url_for("endosso_form", endosso_id=endosso_id, voltar=voltar))
+        return redirect(voltar or url_for("endossos_lista"))
+
+    dados = _endosso_para_form(endosso)
+    if endosso is None:
+        ap = request.args.get("apolice", type=int)
+        if ap and repo.obter_apolice(ap):
+            dados["apolice_id"] = ap
+    return render_template("endossos_form.html", ativo="endossos_lista",
+                           endosso=dados, voltar=voltar, **_dados_form_endosso())
+
+
+@app.route("/endossos/<int:endosso_id>/excluir", methods=["POST"])
+def endosso_excluir(endosso_id):
+    repo.excluir_endosso(endosso_id)
+    flash("Endosso excluído.", "ok")
+    return redirect(url_for("endossos_lista"))
+
+
+# ---------- Consórcios ----------
+
+_CONSORCIO_SITUACOES = [("ativo", "Ativo"), ("contemplado", "Contemplado"),
+                        ("quitado", "Quitado"), ("cancelado", "Cancelado"),
+                        ("desistente", "Desistente")]
+_CONSORCIO_CONTEMPLACOES = [("", "—"), ("sorteio", "Sorteio"), ("lance", "Lance")]
+_CAMPOS_CONSORCIO = (
+    "cliente_id", "seguradora_id", "tipo_consorcio_id", "carta",
+    "numero_grupo", "numero_cota", "forma_pagamento_id", "quantidade_parcelas",
+    "parcela_dia_vencimento", "situacao", "forma_contemplacao", "data_contemplacao",
+    "comissao_percentual",
+    "comissao_valor_seguralta_receber", "comissao_valor_plenus_receber",
+    "comissao_valor_seguralta_recebido", "comissao_valor_plenus_recebido",
+    "data_seguralta_recebido", "data_plenus_recebido", "plenus_conferido_banco",
+    "comissao_parcelada", "comissao_cocorretagem",
+    "previsto_relatorio_seguralta", "recebido_relatorio_seguralta",
+    "previsto_relatorio_plenus", "recebido_relatorio_plenus",
+    "lancado_quiver", "link_onedrive", "observacao",
+)
+_COMISSAO_FLAT_CONSORCIO = ("comissao_valor_seguralta_receber", "comissao_valor_seguralta_recebido",
+                            "comissao_valor_plenus_receber", "comissao_valor_plenus_recebido",
+                            "data_seguralta_recebido", "data_plenus_recebido", "plenus_conferido_banco")
+_COMISSAO_REL_CONSORCIO = ("previsto_relatorio_seguralta", "recebido_relatorio_seguralta",
+                           "previsto_relatorio_plenus", "recebido_relatorio_plenus")
+
+
+def _dados_form_consorcio():
+    return {"clientes": repo.listar_clientes(),
+            "seguradoras": repo.listar_simples("seguradora"),
+            "tipos_consorcio": repo.listar_simples("tipo_consorcio"),
+            "formas": repo.listar_simples("forma_pagamento"),
+            "situacoes": _CONSORCIO_SITUACOES,
+            "contemplacoes": _CONSORCIO_CONTEMPLACOES}
+
+
+def _consorcio_para_form(co, parcela_valores=None, comissoes=None, repasses=None, boletos=None):
+    if co is None:
+        return {"situacao": "ativo", "parcela_valores": parcela_valores or [],
+                "comissoes": comissoes or [], "repasses": repasses or [],
+                "boletos": boletos or []}
+    co = dict(co)
+    for campo in ("carta", "comissao_percentual",
+                  "comissao_valor_seguralta_receber", "comissao_valor_seguralta_recebido",
+                  "comissao_valor_plenus_receber", "comissao_valor_plenus_recebido",
+                  "previsto_relatorio_seguralta", "recebido_relatorio_seguralta",
+                  "previsto_relatorio_plenus", "recebido_relatorio_plenus"):
+        co[campo] = formatar_numero(co.get(campo))
+    for campo in ("plenus_conferido_banco", "comissao_parcelada", "comissao_cocorretagem", "lancado_quiver"):
+        co[campo] = 1 if str(co.get(campo) or "").strip() in ("1", "sim", "on", "true") else 0
+    fpv = parcela_valores if parcela_valores is not None else co.get("parcela_valores", [])
+    co["parcela_valores"] = [{**v, "valor": formatar_numero(v.get("valor"))} for v in fpv]
+    fc = comissoes if comissoes is not None else co.get("comissoes", [])
+    co["comissoes"] = [{**c, "valor_previsto": formatar_numero(c.get("valor_previsto")),
+                        "valor_recebido": formatar_numero(c.get("valor_recebido"))} for c in fc]
+    fr = repasses if repasses is not None else co.get("repasses", [])
+    co["repasses"] = [{**r, "valor_previsto": formatar_numero(r.get("valor_previsto")),
+                       "valor_recebido": formatar_numero(r.get("valor_recebido"))} for r in fr]
+    fb = boletos if boletos is not None else co.get("boletos", [])
+    co["boletos"] = [{**b, "valor": formatar_numero(b.get("valor"))} for b in fb]
+    return co
+
+
+@app.route("/consorcios")
+def consorcios_lista():
+    busca = request.args.get("busca", "").strip()
+    return render_template(
+        "consorcios_lista.html", ativo="consorcios_lista",
+        consorcios=repo.listar_consorcios(busca or None),
+        busca=busca, tem_filtro=bool(busca),
+        situacoes=dict(_CONSORCIO_SITUACOES))
+
+
+@app.route("/consorcios/novo", methods=["GET", "POST"])
+@app.route("/consorcios/<int:consorcio_id>", methods=["GET", "POST"])
+def consorcio_form(consorcio_id=None):
+    voltar = request.form.get("voltar") or request.args.get("voltar") or ""
+    if not (voltar.startswith("/") and not voltar.startswith("//")):
+        voltar = ""
+    consorcio = repo.obter_consorcio(consorcio_id) if consorcio_id else None
+    if consorcio_id and not consorcio:
+        flash("Consórcio não encontrado.", "erro")
+        return redirect(url_for("consorcios_lista"))
+
+    if request.method == "POST":
+        dados = {k: request.form.get(k, "") for k in _CAMPOS_CONSORCIO}
+        parcela_valores, erros_pv = preparar_parcela_valores(
+            request.form.getlist("pv_valor"), request.form.getlist("pv_data"))
+        comissoes, erros_com = preparar_comissoes(
+            request.form.getlist("comissao_parcela"),
+            request.form.getlist("comissao_previsto"),
+            request.form.getlist("comissao_recebido"),
+            request.form.getlist("comissao_data"))
+        repasses, erros_rep = preparar_repasses(
+            request.form.getlist("repasse_parcela"),
+            request.form.getlist("repasse_previsto"),
+            request.form.getlist("repasse_recebido"),
+            request.form.getlist("repasse_data"),
+            request.form.getlist("repasse_conferido"))
+        boletos, erros_bol = preparar_boletos(
+            request.form.getlist("boleto_identificacao"),
+            request.form.getlist("boleto_valor"),
+            request.form.getlist("boleto_emissao"),
+            request.form.getlist("boleto_vencimento"),
+            request.form.getlist("boleto_pagamento"),
+            request.form.getlist("boleto_status"),
+            request.form.getlist("boleto_aviso"))
+        if (dados.get("comissao_parcelada") == "1" and dados.get("comissao_cocorretagem") == "1"
+                and comissoes and not repasses):
+            repasses = gerar_repasses_cocorretagem(
+                comissoes, dados.get("carta"), dados.get("comissao_percentual"))
+        if dados.get("comissao_parcelada") == "1":
+            for k in _COMISSAO_FLAT_CONSORCIO:
+                dados[k] = ""
+        else:
+            comissoes, repasses, erros_com, erros_rep = [], [], [], []
+            for k in _COMISSAO_REL_CONSORCIO:
+                dados[k] = ""
+        erros = (validar_consorcio(dados) + erros_pv + erros_com + erros_rep + erros_bol)
+        if erros:
+            for e in erros:
+                flash(e, "erro")
+            return render_template(
+                "consorcios_form.html", ativo="consorcios_lista",
+                consorcio=_consorcio_para_form({**dados, "id": consorcio_id},
+                                               parcela_valores=parcela_valores, comissoes=comissoes,
+                                               repasses=repasses, boletos=boletos),
+                voltar=voltar, **_dados_form_consorcio())
+        if consorcio_id:
+            repo.atualizar_consorcio(consorcio_id, dados, parcela_valores, comissoes, repasses, boletos)
+            flash("Consórcio atualizado.", "ok")
+        else:
+            consorcio_id = repo.criar_consorcio(dados, parcela_valores, comissoes, repasses, boletos)
+            flash("Consórcio cadastrado.", "ok")
+        if request.form.get("permanecer") == "1":
+            return redirect(url_for("consorcio_form", consorcio_id=consorcio_id, voltar=voltar))
+        return redirect(voltar or url_for("consorcios_lista"))
+
+    dados = _consorcio_para_form(consorcio)
+    if consorcio is None:
+        cli = request.args.get("cliente", type=int)
+        if cli and repo.obter_cliente(cli):
+            dados["cliente_id"] = cli
+    return render_template("consorcios_form.html", ativo="consorcios_lista",
+                           consorcio=dados, voltar=voltar, **_dados_form_consorcio())
+
+
+@app.route("/consorcios/<int:consorcio_id>/excluir", methods=["POST"])
+def consorcio_excluir(consorcio_id):
+    repo.excluir_consorcio(consorcio_id)
+    flash("Consórcio excluído.", "ok")
+    return redirect(url_for("consorcios_lista"))
+
+
 def _voltar_seguro(campo="voltar"):
     destino = request.form.get(campo)
     if destino and destino.startswith("/") and not destino.startswith("//"):
@@ -596,16 +961,21 @@ def _voltar_seguro(campo="voltar"):
     return redirect(url_for("dashboard"))
 
 
+def _origem_parcela():
+    o = request.form.get("origem")
+    return o if o in ("endosso", "consorcio") else "apolice"
+
+
 @app.route("/parcelas/<int:parcela_id>/pagamento", methods=["POST"])
 def parcela_pagamento(parcela_id):
-    repo.marcar_parcela_paga(parcela_id, request.form.get("paga") == "1")
+    repo.marcar_parcela_paga(parcela_id, request.form.get("paga") == "1", _origem_parcela())
     flash("Parcela atualizada.", "ok")
     return _voltar_seguro()
 
 
 @app.route("/parcelas/<int:parcela_id>/aviso-cliente", methods=["POST"])
 def parcela_aviso(parcela_id):
-    repo.marcar_aviso_parcela(parcela_id, request.form.get("aviso") == "1")
+    repo.marcar_aviso_parcela(parcela_id, request.form.get("aviso") == "1", _origem_parcela())
     flash("Aviso do boleto atualizado.", "ok")
     return _voltar_seguro()
 
@@ -953,8 +1323,11 @@ def entradas_lista():
     situacao = request.args.get("situacao", "")
     if situacao not in ("paga", "nao_paga"):
         situacao = ""
+    tipo_id = request.args.get("tipo_id", type=int)
 
     apolices = repo.comissoes_repasses_por_apolice(data_ini or None, data_fim or None)
+    if tipo_id:
+        apolices = [a for a in apolices if a.get("tipo_seguro_id") == tipo_id]
     if busca:
         alvo = repo._sem_acento_minusculo(busca)
         apolices = [a for a in apolices
@@ -968,7 +1341,8 @@ def entradas_lista():
         arvore_blocos=arvore_blocos, qtd_apolices=qtd_apolices,
         a_receber_mes=a_receber_mes, a_receber_total=a_receber_total,
         busca=busca, data_ini=data_ini, data_fim=data_fim, situacao=situacao,
-        tem_filtro=bool(busca or data_ini or data_fim or situacao),
+        tipo_id=tipo_id, tipos=repo.listar_simples("tipo_seguro"),
+        tem_filtro=bool(busca or data_ini or data_fim or situacao or tipo_id),
         mes_atual=date.today().month, MESES=_MESES, presets=_presets_periodo())
 
 
@@ -985,17 +1359,36 @@ def _calc_panorama(r):
     coco = bool(r.get("cocorretagem"))
     cheia = round(premio * pct / 100, 2)
     r["comissao_cheia"] = cheia
-    r["com_seguralta"] = round(cheia * 0.25, 2) if coco else cheia
-    r["com_plenus"] = round(cheia * 0.75, 2)
+    if r.get("is_endosso") or r.get("is_consorcio"):
+        # endosso / consórcio: usa os valores "a receber" lançados; se vazios, cai no prêmio×%
+        seg = r.get("end_com_seg")
+        r["com_seguralta"] = seg if seg is not None else (round(cheia * 0.25, 2) if coco else cheia)
+        ple = r.get("end_com_ple")
+        r["com_plenus"] = ple if ple is not None else round(cheia * 0.75, 2)
+    else:
+        r["com_seguralta"] = round(cheia * 0.25, 2) if coco else cheia
+        r["com_plenus"] = round(cheia * 0.75, 2)
     r["receb_seguralta"] = r.get("receb_seguralta") or 0
     r["receb_plenus"] = r.get("receb_plenus") or 0
     r["seguralta_a_receber"] = round(r["com_seguralta"] - r["receb_seguralta"], 2)
     r["plenus_a_receber"] = round(r["com_plenus"] - r["receb_plenus"], 2)
+    # Conferência: quanto ainda "falta" para bater.
+    #  - seguro de VIDA: comissão é mensal; confere se o recebido fecha um número
+    #    inteiro de meses (Σ recebido ≈ n × valor mensal). O "a receber" dos meses
+    #    futuros NÃO é falta.
+    #  - demais (e endossos): falta = repasse ainda pendente (ple_a_receber).
+    eh_vida = (not r.get("is_endosso") and not r.get("is_consorcio")
+               and "vida" in (r.get("tipo_seguro_nome") or "").lower())
+    if eh_vida and r["com_plenus"]:
+        n_meses = round(r["receb_plenus"] / r["com_plenus"])
+        r["conf_delta"] = round(n_meses * r["com_plenus"] - r["receb_plenus"], 2)
+    else:
+        r["conf_delta"] = r.get("ple_a_receber") or 0
     # divergência: recebido no sistema x recebido "no relatório da corretora"
     div = []
     rs, rp = r.get("rel_receb_seguralta"), r.get("rel_receb_plenus")
     if rs is not None and abs(rs - r["receb_seguralta"]) >= _PANORAMA_TOL:
-        div.append("SEGURALTA recebido: sistema %s · corretora %s"
+        div.append("Seguralta recebido: sistema %s · corretora %s"
                    % (formatar_moeda(r["receb_seguralta"]), formatar_moeda(rs)))
     if rp is not None and abs(rp - r["receb_plenus"]) >= _PANORAMA_TOL:
         div.append("Plenus recebido: sistema %s · corretora %s"
@@ -1004,7 +1397,7 @@ def _calc_panorama(r):
 
 
 _PANORAMA_SOMA = ("premio_liquido", "com_seguralta", "receb_seguralta",
-                  "com_plenus", "receb_plenus", "ple_a_receber")
+                  "com_plenus", "receb_plenus", "ple_a_receber", "conf_delta")
 
 _PANORAMA_GRUPOS = [("seguradora", "Seguradora"), ("mes", "Mês da vigência"),
                     ("cliente", "Cliente")]
@@ -1053,7 +1446,7 @@ def entradas_panorama():
         _calc_panorama(r)
     linhas.sort(key=lambda r: (_chave_grupo_panorama(r, g)[0],
                                repo._sem_acento_minusculo(r.get("cliente_nome") or ""),
-                               r["apolice_id"]))
+                               str(r.get("apolice_id") or r.get("consorcio_id") or "")))
     grupos = []
     for r in linhas:
         chave, rotulo = _chave_grupo_panorama(r, g)
@@ -1132,16 +1525,14 @@ def _agrupar_saidas(linhas, chaves):
     return {"campo": campo_rotulo, "chave": chaves[0], "grupos": grupos}
 
 
-# ---- entradas: parcela "paga" = recebido preenchido e data já passou (vale o recebido);
-#      não paga = só o previsto preenchido (vale o previsto) ----
+# ---- entradas: parcela "paga" = tem valor recebido preenchido (mesma regra da
+#      grade de Entradas, _merge_linhas_bloco); pagamento adiantado também conta.
+#      paga → vale o recebido; não paga → vale o previsto ----
 
 def _preparar_entradas(linhas):
-    hoje = date.today().isoformat()
     for l in linhas:
         receb = l.get("valor_recebido")
-        d = l.get("data") or ""
-        l["paga"] = receb is not None and d != "" and d < hoje
-        # paga → vale o recebido; não paga → vale o previsto
+        l["paga"] = receb is not None
         l["valor"] = (receb or 0) if l["paga"] else (l.get("valor_previsto") or 0)
         l["status"] = "recebido" if l["paga"] else "a_receber"
         l["mes_key"], l["mes_rotulo"] = _rotulo_mes_iso(l.get("data"))
@@ -1149,9 +1540,13 @@ def _preparar_entradas(linhas):
 
 
 def _totais_entrada(itens):
-    soma = sum(x["valor"] for x in itens)
-    paga = sum(x["valor"] for x in itens if x["paga"])
-    return {"qtd": len(itens), "soma": soma, "soma_paga": paga, "soma_aberto": soma - paga}
+    # soma REAL da coluna Pago Plenus: só o que de fato entrou (parcela sem
+    # "recebido" não conta). "a receber" = o previsto das que ainda não entraram.
+    recebido = sum(x.get("valor_recebido") or 0 for x in itens)
+    a_receber = sum(x.get("valor_previsto") or 0
+                    for x in itens if x.get("valor_recebido") is None)
+    return {"qtd": len(itens), "soma": recebido,
+            "soma_paga": recebido, "soma_aberto": a_receber}
 
 
 # agrupamento do relatório de entradas: 0..2 níveis à escolha; cada função
@@ -1193,12 +1588,19 @@ def _apolices_entrada(linhas, divs=None):
     apolices = []
     for parc in baldes.values():
         cab = parc[0]
+        prem, pct = cab.get("premio_liquido"), cab.get("comissao_percentual")
+        cheia = round(prem * pct / 100, 2) if prem is not None and pct is not None else None
+        # entrada da Plenus calculada pelo sistema = 75% da comissão cheia (ver _calc_panorama)
+        comissao_plenus = round(cheia * 0.75, 2) if cheia is not None else None
         apolices.append({
             "apolice_id": cab.get("apolice_id"),
             "cliente_nome": cab.get("cliente_nome") or "Sem cliente",
             "numero_apolice": cab.get("numero_apolice"),
+            "is_endosso": bool(cab.get("is_endosso")),
+            "is_consorcio": bool(cab.get("is_consorcio")),
             "premio_liquido": cab.get("premio_liquido"),
             "comissao_percentual": cab.get("comissao_percentual"),
+            "comissao_plenus": comissao_plenus,
             "cocorretagem": bool(cab.get("comissao_cocorretagem")),
             "divergencia": _divergencia_repasse(cab.get("apolice_id"), divs),
             "parcelas": parc, **_totais_entrada(parc),
@@ -1280,8 +1682,21 @@ def _blocos_entrada(apolices, chaves, situacao):
         primeira_data = next((l["seg_data"] or l["ple_data"] for l in linhas
                               if l["seg_data"] or l["ple_data"]), None)
         mes_key, mes_rotulo = _rotulo_mes_iso(primeira_data)
+        # soma das colunas de entrada REAL do bloco (Seguralta = Recebido; Plenus = Pago).
+        # O JS re-soma ao vivo.
+        soma_seguralta = round(sum(l["seg_recebido"] or 0 for l in linhas), 2)
+        soma_plenus = round(sum(l["ple_recebido"] or 0 for l in linhas), 2)
         prem, pct = ap.get("premio_liquido"), ap.get("comissao_percentual")
         comissao_valor = round(prem * pct / 100, 2) if prem is not None and pct is not None else None
+        # Rateio calculado pelo sistema (mesma regra do Panorama, ver _calc_panorama):
+        # Plenus fica sempre com 75% da comissão cheia; sem cocorretagem a Seguralta
+        # recebe a comissão inteira, com cocorretagem recebe só 25%.
+        if comissao_valor is None:
+            comissao_seguralta = comissao_plenus = None
+        else:
+            comissao_plenus = round(comissao_valor * 0.75, 2)
+            comissao_seguralta = (round(comissao_valor * 0.25, 2)
+                                  if ap.get("comissao_cocorretagem") else comissao_valor)
         blocos.append({
             "apolice_id": ap["apolice_id"],
             "cliente_nome": ap.get("cliente_nome") or "Sem cliente",
@@ -1291,8 +1706,18 @@ def _blocos_entrada(apolices, chaves, situacao):
             "premio_liquido": prem,
             "comissao_percentual": pct,
             "comissao_valor": comissao_valor,
+            "comissao_seguralta": comissao_seguralta,
+            "comissao_plenus": comissao_plenus,
+            "soma_seguralta": soma_seguralta,
+            "soma_plenus": soma_plenus,
             "comissao_parcelada": bool(ap.get("comissao_parcelada")),
             "cocorretagem": bool(ap.get("comissao_cocorretagem")),
+            "is_endosso": bool(ap.get("is_endosso")),
+            "endosso_id": ap.get("endosso_id"),
+            "endosso_numero": ap.get("endosso_numero"),
+            "is_consorcio": bool(ap.get("is_consorcio")),
+            "consorcio_id": ap.get("consorcio_id"),
+            "consorcio_grupo": ap.get("consorcio_grupo") or ap.get("numero_grupo"),
             "linhas": linhas, "mes_key": mes_key, "mes_rotulo": mes_rotulo,
         })
     return _agrupar_blocos(blocos, chaves), len(blocos)
@@ -1330,11 +1755,94 @@ def entradas_salvar_apolice(apolice_id):
                 para_decimal(request.form.get("comissao_valor_plenus_receber")),
             "comissao_valor_plenus_recebido":
                 para_decimal(request.form.get("comissao_valor_plenus_recebido")),
+            "data_seguralta_recebido": (request.form.get("data_seguralta_recebido") or "").strip(),
             "data_plenus_recebido": (request.form.get("data_plenus_recebido") or "").strip(),
             "plenus_conferido_banco": request.form.get("plenus_conferido_banco"),
         }
         repo.salvar_comissao_unica(apolice_id, valores)
         flash("Comissão da apólice atualizada.", "ok")
+    return _voltar_seguro()
+
+
+@app.route("/financeiro/entradas/endosso/<int:endosso_id>/comissoes", methods=["POST"])
+def entradas_salvar_endosso(endosso_id):
+    """Salva a comissão de um endosso, a partir do bloco editável de Entradas."""
+    if request.form.get("comissao_parcelada") == "1":
+        comissoes, erros_c = preparar_comissoes(
+            request.form.getlist("comissao_parcela"),
+            request.form.getlist("comissao_previsto"),
+            request.form.getlist("comissao_recebido"),
+            request.form.getlist("comissao_data"))
+        repasses, erros_r = preparar_repasses(
+            request.form.getlist("repasse_parcela"),
+            request.form.getlist("repasse_previsto"),
+            request.form.getlist("repasse_recebido"),
+            request.form.getlist("repasse_data"),
+            request.form.getlist("repasse_conferido"))
+        erros = erros_c + erros_r
+        if erros:
+            for e in erros:
+                flash(e, "erro")
+        else:
+            repo.salvar_comissoes_repasses_endosso(endosso_id, comissoes, repasses)
+            flash("Comissão do endosso atualizada.", "ok")
+        return _voltar_seguro()
+    valores = {
+        "comissao_valor_seguralta_receber":
+            para_decimal(request.form.get("comissao_valor_seguralta_receber")),
+        "comissao_valor_seguralta_recebido":
+            para_decimal(request.form.get("comissao_valor_seguralta_recebido")),
+        "comissao_valor_plenus_receber":
+            para_decimal(request.form.get("comissao_valor_plenus_receber")),
+        "comissao_valor_plenus_recebido":
+            para_decimal(request.form.get("comissao_valor_plenus_recebido")),
+        "data_seguralta_recebido": (request.form.get("data_seguralta_recebido") or "").strip(),
+        "data_plenus_recebido": (request.form.get("data_plenus_recebido") or "").strip(),
+        "plenus_conferido_banco": request.form.get("plenus_conferido_banco"),
+    }
+    repo.salvar_comissao_endosso(endosso_id, valores)
+    flash("Comissão do endosso atualizada.", "ok")
+    return _voltar_seguro()
+
+
+@app.route("/financeiro/entradas/consorcio/<int:consorcio_id>/comissoes", methods=["POST"])
+def entradas_salvar_consorcio(consorcio_id):
+    """Salva a comissão de um consórcio, a partir do bloco editável de Entradas."""
+    if request.form.get("comissao_parcelada") == "1":
+        comissoes, erros_c = preparar_comissoes(
+            request.form.getlist("comissao_parcela"),
+            request.form.getlist("comissao_previsto"),
+            request.form.getlist("comissao_recebido"),
+            request.form.getlist("comissao_data"))
+        repasses, erros_r = preparar_repasses(
+            request.form.getlist("repasse_parcela"),
+            request.form.getlist("repasse_previsto"),
+            request.form.getlist("repasse_recebido"),
+            request.form.getlist("repasse_data"),
+            request.form.getlist("repasse_conferido"))
+        erros = erros_c + erros_r
+        if erros:
+            for e in erros:
+                flash(e, "erro")
+        else:
+            repo.salvar_comissoes_repasses_consorcio(consorcio_id, comissoes, repasses)
+            flash("Comissão do consórcio atualizada.", "ok")
+        return _voltar_seguro()
+    valores = {
+        "comissao_valor_seguralta_receber":
+            para_decimal(request.form.get("comissao_valor_seguralta_receber")),
+        "comissao_valor_seguralta_recebido":
+            para_decimal(request.form.get("comissao_valor_seguralta_recebido")),
+        "comissao_valor_plenus_receber":
+            para_decimal(request.form.get("comissao_valor_plenus_receber")),
+        "comissao_valor_plenus_recebido":
+            para_decimal(request.form.get("comissao_valor_plenus_recebido")),
+        "data_seguralta_recebido": (request.form.get("data_seguralta_recebido") or "").strip(),
+        "data_plenus_recebido": (request.form.get("data_plenus_recebido") or "").strip(),
+        "plenus_conferido_banco": request.form.get("plenus_conferido_banco"),
+    }
+    repo.salvar_comissao_consorcio(consorcio_id, valores)
+    flash("Comissão do consórcio atualizada.", "ok")
     return _voltar_seguro()
 
 

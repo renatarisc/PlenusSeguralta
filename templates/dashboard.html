@@ -22,8 +22,8 @@
 </div>
 
 {% if vencendo %}
-<div class="cartao">
-  <h2 style="color:var(--erro)">Apólices vencendo ({{ vencendo|length }})</h2>
+<div class="cartao cartao--titulo cartao--alerta">
+  <h2>Apólices vencendo ({{ vencendo|length }})</h2>
   <div class="tabela-wrap">
     <table class="lista">
       <thead>
@@ -50,7 +50,6 @@
               <input type="hidden" name="voltar" value="{{ url_for('dashboard') }}">
               <button class="btn btn--linha btn--mini" type="submit" title="Cliente avisado da renovação">✓ avisei o cliente</button>
             </form>
-            <a class="btn btn--linha btn--mini" href="{{ url_for('apolice_form', apolice_id=a.id) }}">{{ icone('lapis') }}</a>
           </td>
         </tr>
         {% endfor %}
@@ -65,20 +64,27 @@
 {% endif %}
 
 {% if boletos %}
-<div class="cartao">
-  <h2 style="color:var(--erro)">Boletos a vencer ({{ boletos|length }})</h2>
+<div class="cartao cartao--titulo cartao--alerta">
+  <h2>Boletos de Clientes a vencer ({{ boletos|length }})</h2>
   <div class="tabela-wrap">
     <table class="lista">
       <thead>
-        <tr><th>Apólice</th><th>Cliente</th><th>Parcela</th><th>Valor</th><th>Vencimento</th><th></th></tr>
+        <tr><th>Cliente</th><th>Apólice</th><th>Parcela</th><th>Vencimento</th><th></th></tr>
       </thead>
       <tbody>
         {% for p in boletos %}
-        <tr class="{{ 'apolice-vencida' if p.dias_restantes < 0 else 'apolice-vencendo' }}">
-          <td><a class="cel-nome" href="{{ url_for('apolice_form', apolice_id=p.apolice_id) }}">{{ p.numero_apolice or '—' }}</a></td>
-          <td>{{ p.cliente_nome or '—' }}</td>
+        <tr>
+          <td><strong>{{ p.cliente_nome or '—' }}</strong></td>
+          <td>
+            {% if p.origem == 'consorcio' %}
+              <a class="cel-link" href="{{ url_for('consorcio_form', consorcio_id=p.consorcio_id) }}">{{ p.tipo_seguro_nome or 'Consórcio' }}{% if p.seguradora_nome %} · {{ p.seguradora_nome }}{% endif %}</a>
+              <span class="tag-endosso">consórcio</span>
+            {% else %}
+              <a class="cel-link" href="{{ url_for('apolice_form', apolice_id=p.apolice_id) }}">{{ p.numero_apolice or '—' }}</a>
+              {% if p.origem == 'endosso' %}<span class="tag-endosso">endosso {{ p.endosso_numero or '' }}</span>{% endif %}
+            {% endif %}
+          </td>
           <td>{{ p.identificacao or '—' }}</td>
-          <td>{{ p.valor|moeda }}</td>
           <td>
             {{ p.data|data_br }}
             {% if p.dias_restantes < 0 %}
@@ -91,16 +97,17 @@
             <form method="post" action="{{ url_for('parcela_aviso', parcela_id=p.parcela_id) }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="aviso" value="1">
+              <input type="hidden" name="origem" value="{{ p.origem }}">
               <input type="hidden" name="voltar" value="{{ url_for('dashboard') }}">
               <button class="btn btn--linha btn--mini" type="submit" title="Cliente avisado do boleto">✓ avisei o cliente</button>
             </form>
             <form method="post" action="{{ url_for('parcela_pagamento', parcela_id=p.parcela_id) }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="paga" value="1">
+              <input type="hidden" name="origem" value="{{ p.origem }}">
               <input type="hidden" name="voltar" value="{{ url_for('dashboard') }}">
               <button class="btn btn--linha btn--mini" type="submit" title="Marcar como paga">✓ paga</button>
             </form>
-            <a class="btn btn--linha btn--mini" href="{{ url_for('apolice_form', apolice_id=p.apolice_id) }}">{{ icone('lapis') }}</a>
           </td>
         </tr>
         {% endfor %}
@@ -108,8 +115,88 @@
     </table>
   </div>
   <p style="margin:12px 0 0;font-size:12px;color:var(--texto-suave)">
-    Parcelas de apólices com pagamento em boleto, vencendo nos próximos {{ DIAS_ALERTA_BOLETO }} dias (ou já vencidas).
-    O e-mail se repete todo dia até você clicar em <strong>✓ avisei o cliente</strong> (ou marcar a parcela como paga).
+    Parcelas de apólices, endossos e consórcios com pagamento em boleto vencendo nos próximos {{ DIAS_ALERTA_BOLETO }} dias (ou já vencidas).
+    O e-mail se repete todo dia, a partir de 10 dias para vencer, até você clicar em <strong>✓ avisei o cliente</strong> (ou marcar a parcela como paga).
+  </p>
+</div>
+{% endif %}
+
+{% if boletos_consorcio %}
+<div class="cartao cartao--titulo">
+  <h2>Boletos de Consórcio a enviar ({{ boletos_consorcio|length }})</h2>
+  <div class="tabela-wrap">
+    <table class="lista">
+      <thead>
+        <tr><th>Cliente</th><th>Consórcio</th><th>Parcela</th><th>Emissão</th><th>Vencimento</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for b in boletos_consorcio %}
+        <tr>
+          <td><strong>{{ b.cliente_nome or '—' }}</strong></td>
+          <td>
+            <a class="cel-link" href="{{ url_for('consorcio_form', consorcio_id=b.consorcio_id) }}">{{ b.tipo_consorcio_nome or 'Consórcio' }}{% if b.seguradora_nome %} · {{ b.seguradora_nome }}{% endif %}</a>
+          </td>
+          <td>{{ b.identificacao or '—' }}</td>
+          <td>{{ b.data_emissao|data_br if b.data_emissao else '—' }}</td>
+          <td>{{ b.data_vencimento|data_br if b.data_vencimento else '—' }}</td>
+          <td class="acoes">
+            <form method="post" action="{{ url_for('consorcio_boleto_enviado', boleto_id=b.boleto_id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="enviado" value="1">
+              <input type="hidden" name="voltar" value="{{ url_for('dashboard') }}">
+              <button class="btn btn--linha btn--mini" type="submit" title="Marcar boleto como enviado ao cliente">✓ enviei</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p style="margin:12px 0 0;font-size:12px;color:var(--texto-suave)">
+    Boletos de consórcio já disponíveis para envio (status = <strong>A enviar</strong>).
+    Clique em <strong>✓ enviei</strong> somente depois que mandar o boleto para o cliente.
+  </p>
+</div>
+{% endif %}
+
+{% if contas_pagar %}
+<div class="cartao cartao--titulo">
+  <h2>Contas a pagar ({{ contas_pagar|length }})</h2>
+  <div class="tabela-wrap">
+    <table class="lista">
+      <thead>
+        <tr><th>Descrição</th><th style="text-align:center">Categoria</th><th style="text-align:center">Parcela</th><th>Valor</th><th>Vencimento</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for s in contas_pagar %}
+        <tr>
+          <td><a class="cel-nome" href="{{ url_for('saida_form', saida_id=s.id) }}">{{ s.descricao }}</a></td>
+          <td style="text-align:center">{{ s.categoria or '—' }}</td>
+          <td style="text-align:center">{{ s.numero_parcela or '—' }}</td>
+          <td>{{ s.valor|moeda }}</td>
+          <td>
+            {{ s.data_vencimento|data_br }}
+            {% if s.dias_restantes is not none and s.dias_restantes < 0 %}
+            <span class="tag-venc tag-venc--fim">vencida há {{ -s.dias_restantes }}d</span>
+            {% elif s.dias_restantes is not none %}
+            <span class="tag-venc">{{ 'vence hoje' if s.dias_restantes == 0 else 'vence em ' ~ s.dias_restantes ~ 'd' }}</span>
+            {% endif %}
+          </td>
+          <td class="acoes">
+            <form method="post" action="{{ url_for('saida_pagamento', saida_id=s.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="paga" value="1">
+              <input type="hidden" name="voltar" value="{{ url_for('dashboard') }}">
+              <button class="btn btn--linha btn--mini" type="submit" title="Marcar como paga hoje">✓ paga</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p style="margin:12px 0 0;font-size:12px;color:var(--texto-suave)">
+    Saídas não pagas vencendo nos próximos {{ DIAS_ALERTA_SAIDA }} dias (ou já vencidas).
   </p>
 </div>
 {% endif %}
@@ -131,47 +218,4 @@
   <p class="vazio">Nenhuma apólice cadastrada ainda.</p>
   {% endif %}
 </div>
-
-{% if contas_pagar %}
-<div class="cartao">
-  <h2>Contas a pagar ({{ contas_pagar|length }})</h2>
-  <div class="tabela-wrap">
-    <table class="lista">
-      <thead>
-        <tr><th>Descrição</th><th>Categoria</th><th>Parcela</th><th>Valor</th><th>Vencimento</th><th></th></tr>
-      </thead>
-      <tbody>
-        {% for s in contas_pagar %}
-        <tr>
-          <td><a class="cel-nome" href="{{ url_for('saida_form', saida_id=s.id) }}">{{ s.descricao }}</a></td>
-          <td>{{ s.categoria or '—' }}</td>
-          <td>{{ s.numero_parcela or '—' }}</td>
-          <td>{{ s.valor|moeda }}</td>
-          <td>
-            {{ s.data_vencimento|data_br }}
-            {% if s.dias_restantes is not none and s.dias_restantes < 0 %}
-            <span class="tag-venc tag-venc--fim">vencida há {{ -s.dias_restantes }}d</span>
-            {% elif s.dias_restantes is not none %}
-            <span class="tag-venc">{{ 'vence hoje' if s.dias_restantes == 0 else 'vence em ' ~ s.dias_restantes ~ 'd' }}</span>
-            {% endif %}
-          </td>
-          <td class="acoes">
-            <form method="post" action="{{ url_for('saida_pagamento', saida_id=s.id) }}">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <input type="hidden" name="paga" value="1">
-              <input type="hidden" name="voltar" value="{{ url_for('dashboard') }}">
-              <button class="btn btn--linha btn--mini" type="submit" title="Marcar como paga hoje">✓ paga</button>
-            </form>
-            <a class="btn btn--linha btn--mini" href="{{ url_for('saida_form', saida_id=s.id) }}">{{ icone('lapis') }}</a>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  <p style="margin:12px 0 0;font-size:12px;color:var(--texto-suave)">
-    Saídas não pagas vencendo nos próximos {{ DIAS_ALERTA_SAIDA }} dias (ou já vencidas).
-  </p>
-</div>
-{% endif %}
 {% endblock %}

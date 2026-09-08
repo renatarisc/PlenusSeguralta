@@ -7,9 +7,14 @@
 {% if c.id %}
 <a class="btn btn--primario" href="{{ url_for('apolices', cliente=c.id) }}">{{ icone('apolices') }} Apólices ({{ qtd_apolices }})</a>
 {% endif %}
-<button type="button" class="btn btn--linha" data-ler-pdf
-        data-endpoint="{{ url_for('cliente_ler_pdf') }}">{{ icone('apolices') }} Ler apólice</button>
 <a class="btn btn--linha" href="{{ url_for('clientes_lista') }}">{{ icone('voltar') }} Voltar</a>
+{% if c.id %}
+<form method="post" action="{{ url_for('cliente_excluir', cliente_id=c.id) }}" style="display:inline"
+      onsubmit="return confirm('Excluir o cliente {{ c.nome }}? Esta ação não pode ser desfeita.')">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <button type="submit" class="btn btn--perigo">{{ icone('lixo') }} Excluir</button>
+</form>
+{% endif %}
 {% endblock %}
 
 {% block conteudo %}

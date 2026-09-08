@@ -75,16 +75,23 @@ def _passo_email(cfg, forcar, seco):
         d = dias_ate_data(p.get("data"))
         if d is None or d > janela_bol or d < -cap:
             continue
-        if not forcar and repo.email_boleto_enviado_hoje(p["parcela_id"]):
+        orig = p.get("origem", "apolice")
+        if not forcar and repo.email_boleto_enviado_hoje(p["parcela_id"], orig):
             pulados += 1
             continue
         assunto, corpo = texto_boleto(p, d)
-        rot = f"e-mail boleto {p.get('numero_apolice')} parc {p.get('identificacao')} ({d}d)"
+        if orig == "consorcio":
+            ref_rot = f"consórcio grupo {p.get('consorcio_grupo') or ''}"
+        elif orig == "endosso":
+            ref_rot = f"{p.get('numero_apolice')} endosso {p.get('endosso_numero')}"
+        else:
+            ref_rot = f"{p.get('numero_apolice')}"
+        rot = f"e-mail boleto {ref_rot} parc {p.get('identificacao')} ({d}d)"
         if seco:
             print(f"  [SECO] {rot}"); enviados += 1; continue
         ok, det = _enviar_canais(cfg, assunto, corpo)
         repo.registrar_notificacao_parcela(p["parcela_id"], 0, p["data"], "email",
-                                           "", ("OK: " if ok else "ERRO: ") + det)
+                                           "", ("OK: " if ok else "ERRO: ") + det, orig)
         print(f"  {'OK  ' if ok else 'ERRO'} {rot} -> {det}"); enviados += 1
 
     return enviados, pulados
@@ -112,9 +119,13 @@ def _passo_agenda(cfg, seco):
         d = dias_ate_data(p.get("data"))
         if d is None or d < 0:
             continue
-        chave = f"boleto:{p['parcela_id']}"
+        _suf = {"endosso": "-end", "consorcio": "-cons"}.get(p.get("origem"), "")
+        chave = f"boleto{_suf}:{p['parcela_id']}"
         ativos.add(chave)
-        titulo = f"Boleto {p.get('identificacao') or ''} apólice {p.get('numero_apolice') or ''}".strip()
+        if p.get("origem") == "consorcio":
+            titulo = f"Boleto {p.get('identificacao') or ''} consórcio grupo {p.get('consorcio_grupo') or ''}".strip()
+        else:
+            titulo = f"Boleto {p.get('identificacao') or ''} apólice {p.get('numero_apolice') or ''}".strip()
         if p.get("cliente_nome"):
             titulo += f" — {p['cliente_nome']}"
         _, corpo = texto_boleto(p, d)

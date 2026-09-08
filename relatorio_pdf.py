@@ -279,7 +279,7 @@ def _tabela(ctx):
 
 
 # ---------- relatório de ENTRADAS (repasses de comissão) ----------
-COLS_ENT = ["Parcela", "Data", "Previsto Plenus", "Recebido Plenus", "Conf.", "Situação"]
+COLS_ENT = ["Parcela", "Data", "Pendente Plenus", "Pago Plenus", "Conf.", "Situação"]
 COL_W_ENT = [92, 62, 98, 98, 58, 119]   # soma = 527
 
 
@@ -358,8 +358,12 @@ def _walk_ent(node, nivel, rows, sty, modo="completo"):
     # aninhada sob um grupo, fica sem sombra — a sombra é do grupo
     fundo_ap = CINZA_CAB2 if nivel == 1 else colors.white
     for ap in node["apolices"]:
-        pct = ("%s%%" % formatar_numero(ap["comissao_percentual"])
-               if ap.get("comissao_percentual") is not None else "—")
+        if ap.get("comissao_percentual") is not None:
+            pct = formatar_numero(ap["comissao_percentual"]).rstrip("0").rstrip(",") + "%"
+        else:
+            pct = "—"
+        if ap.get("comissao_plenus") is not None:
+            pct += " (Plenus %s)" % _m(ap["comissao_plenus"])
         cab = "%s   ·   apólice %s   ·   prêmio líquido %s   ·   comissão %s" % (
             ap["cliente_nome"], ap.get("numero_apolice") or "—",
             _m(ap.get("premio_liquido")), pct)

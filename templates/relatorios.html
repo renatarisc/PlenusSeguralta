@@ -79,9 +79,10 @@
 {% macro apolice_ent(ap, modo='completo', topo=false) %}
 <tr class="rel-cab rel-cab--3{{ ' rel-ap-topo' if topo }}"><td colspan="6">
   <strong>{{ ap.cliente_nome }}</strong>
-  <small>· apólice {{ ap.numero_apolice or '—' }}
-    · prêmio líquido {{ ap.premio_liquido|moeda }}
-    · comissão {% if ap.comissao_percentual is not none %}{{ ap.comissao_percentual|numero }}%{% else %}—{% endif %}</small>
+  <small>· {{ 'consórcio' if ap.is_consorcio else 'endosso' if ap.is_endosso else 'apólice' }} {{ ap.numero_apolice or '—' }}
+    · {{ 'valor da carta' if ap.is_consorcio else 'prêmio líquido' }} {{ ap.premio_liquido|moeda }}
+    · comissão {% if ap.comissao_percentual is not none %}{{ (ap.comissao_percentual|numero).rstrip('0').rstrip(',') }}%{% else %}—{% endif %}
+    {%- if ap.comissao_plenus is not none %} (Plenus {{ ap.comissao_plenus|moeda }}){% endif %}</small>
 </td></tr>
 {% if ap.divergencia %}
 <tr class="rel-diverg"><td colspan="6">
@@ -166,6 +167,17 @@
         </div>
       </div>
 
+      {% if tipo == 'entradas' %}
+      <div class="campo">
+        <label for="r-sit">Situação da parcela</label>
+        <select id="r-sit" name="situacao">
+          <option value="">Todas</option>
+          <option value="paga" {{ 'selected' if situacao == 'paga' }}>Paga (recebida)</option>
+          <option value="nao_paga" {{ 'selected' if situacao == 'nao_paga' }}>Não paga (a receber)</option>
+        </select>
+      </div>
+      {% endif %}
+
       {% if tipo != 'entradas' %}
       <div class="campo">
         <label for="r-busca">Descrição da saída</label>
@@ -177,15 +189,7 @@
     </div>
 
     {% if tipo == 'entradas' %}
-    <div class="campo c-3">
-      <label for="r-sit">Situação da parcela</label>
-      <select id="r-sit" name="situacao">
-        <option value="">Todas</option>
-        <option value="paga" {{ 'selected' if situacao == 'paga' }}>Paga (recebida)</option>
-        <option value="nao_paga" {{ 'selected' if situacao == 'nao_paga' }}>Não paga (a receber)</option>
-      </select>
-    </div>
-    <div class="rel-agrupar c-6">
+    <div class="rel-agrupar c-8">
       <div class="campo">
         <label for="r-g1">Agrupar por</label>
         <select id="r-g1" name="g1">
@@ -203,7 +207,7 @@
         </select>
       </div>
     </div>
-    <div class="campo c-3">
+    <div class="campo c-4">
       <label for="r-modo">Detalhe</label>
       <select id="r-modo" name="modo">
         <option value="completo" {{ 'selected' if modo == 'completo' }}>Completo</option>
@@ -325,7 +329,7 @@
       <thead>
         <tr>
           <th>Parcela</th><th class="rel-col-c">Data</th>
-          <th class="col-valor">Previsto Plenus</th><th class="col-valor">Recebido Plenus</th>
+          <th class="col-valor">Pendente Plenus</th><th class="col-valor">Pago Plenus</th>
           <th class="rel-col-c">Conf. banco</th><th class="rel-col-c">Situação</th>
         </tr>
       </thead>

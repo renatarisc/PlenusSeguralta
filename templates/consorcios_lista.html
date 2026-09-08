@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block titulo %}Consórcios{% endblock %}
+{% block cabecalho %}Consórcios{% endblock %}
+
+{% block acoes %}
+<a class="btn btn--primario" href="{{ url_for('consorcio_form') }}">{{ icone('mais') }} Novo consórcio</a>
+{% endblock %}
+
+{% block conteudo %}
+<form class="cartao filtros" method="get">
+  <div class="grade">
+    <div class="campo c-6">
+      <label for="f-busca">Buscar</label>
+      <div class="campo-busca">
+        {{ icone('busca') }}
+        <input id="f-busca" type="search" name="busca" value="{{ busca }}"
+               placeholder="Cliente, grupo, cota ou tipo" onfocus="this.select()">
+      </div>
+    </div>
+  </div>
+  <div class="filtros__acoes">
+    <button class="btn btn--primario" type="submit">{{ icone('busca') }} Buscar</button>
+    {% if tem_filtro %}<a class="btn btn--linha" href="{{ url_for('consorcios_lista') }}">Limpar</a>{% endif %}
+  </div>
+</form>
+
+{% set url_lista = url_for('consorcios_lista', **request.args) %}
+<div class="cartao" style="padding:0">
+  {% if consorcios %}
+  <div class="tabela-wrap">
+    <table class="lista">
+      <thead>
+        <tr>
+          <th class="col-cliente">Cliente</th>
+          <th>Tipo</th>
+          <th>Administradora</th>
+          <th style="width:120px">Grupo / cota</th>
+          <th style="width:120px">Carta</th>
+          <th style="width:110px">Situação</th>
+          <th style="width:150px" class="col-prox">Próximo boleto</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for co in consorcios %}
+        <tr>
+          <td class="col-cliente">{% if co.cliente_tipo_pessoa == 'J' %}<span class="tag-pj" title="Pessoa jurídica">PJ</span>{% endif %}<a class="cel-nome" href="{{ url_for('consorcio_form', consorcio_id=co.id, voltar=url_lista) }}">{{ co.cliente_nome or '—' }}</a></td>
+          <td>{{ co.tipo_consorcio_nome or '—' }}</td>
+          <td>{{ co.seguradora_nome or '—' }}</td>
+          <td>{{ co.numero_grupo or '—' }}{% if co.numero_cota %} / {{ co.numero_cota }}{% endif %}</td>
+          <td>{{ co.carta|moeda }}</td>
+          <td>{{ situacoes.get(co.situacao, co.situacao) }}</td>
+          <td class="col-prox">
+            {% if co.proximo_boleto_data %}
+              {{ co.proximo_boleto_data|data_br }}
+              {% set pd = dias_ate(co.proximo_boleto_data) %}
+              {% if pd is not none and pd < 0 %}<span class="tag-venc tag-venc--fim">vencido há {{ -pd }}d</span>
+              {% elif pd is not none and pd <= 10 %}<span class="tag-venc">{{ 'vence hoje' if pd == 0 else 'vence em ' ~ pd ~ 'd' }}</span>{% endif %}
+            {% elif co.total_boletos %}<span class="selo-quitado" title="Todos os boletos pagos">{{ icone('ok') }}</span>
+            {% else %}—{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="vazio">{% if tem_filtro %}Nenhum consórcio encontrado para o filtro.{% else %}Nenhum consórcio cadastrado ainda.{% endif %}</p>
+  {% endif %}
+</div>
+{% endblock %}

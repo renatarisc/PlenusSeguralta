@@ -5,6 +5,15 @@
 <a class="btn btn--primario" href="{{ url_for('cliente_form') }}">{{ icone('mais') }} Novo cliente</a>
 {% endblock %}
 
+{% macro linha_cliente(c) %}
+<tr>
+  <td class="col-cliente">{% if c.tipo_pessoa == 'J' %}<span class="tag-pj" title="Pessoa jurídica">PJ</span>{% endif %}<a class="cel-nome" href="{{ url_for('cliente_form', cliente_id=c.id) }}">{{ c.nome }}</a></td>
+  <td>{{ c.cpf|documento if c.cpf else '—' }}</td>
+  <td>{{ (c.end_cidade ~ (' / ' ~ c.end_estado if c.end_estado else '')) if c.end_cidade else '—' }}</td>
+  <td>{{ telefone(c.tel_ddd, c.tel_numero) or '—' }}</td>
+</tr>
+{% endmacro %}
+
 {% block conteudo %}
 <form class="cartao filtros filtros--linha" method="get">
   <div class="campo campo--busca">
@@ -15,7 +24,7 @@
     </div>
   </div>
   {% if ufs %}
-  <div class="campo campo--curto">
+  <div class="campo campo--mini">
     <label for="f-uf">Estado</label>
     <select id="f-uf" name="uf">
       <option value="">Todos</option>
@@ -36,41 +45,46 @@
     </select>
   </div>
   {% endif %}
+  <div class="campo campo--curto" style="flex-basis:150px">
+    <label for="f-g">Agrupar por</label>
+    <select id="f-g" name="g">
+      <option value="">—</option>
+      <option value="cidade" {{ 'selected' if agrupar == 'cidade' }}>Cidade/UF</option>
+      <option value="uf" {{ 'selected' if agrupar == 'uf' }}>Estado</option>
+      <option value="tipo_seguro" {{ 'selected' if agrupar == 'tipo_seguro' }}>Tipo de seguro</option>
+    </select>
+  </div>
   <button class="btn btn--primario" type="submit">{{ icone('busca') }} Buscar</button>
-  {% if busca or uf or cidade %}
+  {% if busca or uf or cidade or agrupar %}
   <a class="btn btn--linha" href="{{ url_for('clientes_lista') }}">Limpar</a>
   {% endif %}
 </form>
+
+{% if agrupar == 'tipo_seguro' %}
+<p class="dica" style="margin:-4px 0 12px">Agrupado pelo tipo de seguro das apólices — um cliente com apólices de tipos diferentes aparece em mais de um grupo.</p>
+{% endif %}
 
 <div class="cartao" style="padding:0">
   {% if clientes %}
   <div class="tabela-wrap">
     <table class="lista">
       <thead>
-        <tr><th>Nome</th><th>CPF / CNPJ</th><th>Cidade/UF</th><th>Telefone</th><th></th></tr>
+        <tr><th>Nome</th><th>CPF / CNPJ</th><th>Cidade/UF</th><th>Telefone</th></tr>
       </thead>
       <tbody>
-        {% for c in clientes %}
-        <tr>
-          <td>{% if c.tipo_pessoa == 'J' %}<span class="tag-pj" title="Pessoa jurídica">PJ</span>{% endif %}<a class="cel-nome" href="{{ url_for('cliente_form', cliente_id=c.id) }}">{{ c.nome }}</a></td>
-          <td>{{ c.cpf|documento if c.cpf else '—' }}</td>
-          <td>{{ (c.end_cidade ~ (' / ' ~ c.end_estado if c.end_estado else '')) if c.end_cidade else '—' }}</td>
-          <td>{{ telefone(c.tel_ddd, c.tel_numero) or '—' }}</td>
-          <td class="acoes">
-            <a class="btn btn--linha btn--mini" href="{{ url_for('cliente_form', cliente_id=c.id) }}">{{ icone('lapis') }}</a>
-            <form method="post" action="{{ url_for('cliente_excluir', cliente_id=c.id) }}"
-                  onsubmit="return confirm('Excluir o cliente {{ c.nome }}?')">
-  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <button class="btn btn--perigo btn--mini" type="submit">{{ icone('lixo') }}</button>
-            </form>
-          </td>
-        </tr>
-        {% endfor %}
+        {% if grupos %}
+          {% for g in grupos %}
+          <tr class="lista-grupo"><td colspan="4">{{ g.rotulo }} <small>({{ g.itens|length }})</small></td></tr>
+          {% for c in g.itens %}{{ linha_cliente(c) }}{% endfor %}
+          {% endfor %}
+        {% else %}
+          {% for c in clientes %}{{ linha_cliente(c) }}{% endfor %}
+        {% endif %}
       </tbody>
     </table>
   </div>
   {% else %}
-  <p class="vazio">{{ 'Nenhum cliente encontrado para o filtro.' if (busca or uf or cidade) else 'Nenhum cliente cadastrado ainda.' }}</p>
+  <p class="vazio">{{ 'Nenhum cliente encontrado para o filtro.' if (busca or uf or cidade or agrupar) else 'Nenhum cliente cadastrado ainda.' }}</p>
   {% endif %}
 </div>
 {% endblock %}

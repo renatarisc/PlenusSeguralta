@@ -273,7 +273,7 @@
     if (btnSeg) btnSeg.textContent = ehCoco()
       ? "Calcular 25% da comissão" : "Calcular % do prêmio líquido";
     if (btnPlenus) btnPlenus.textContent = ehCoco()
-      ? "Calcular 75% da comissão" : "Calcular 75% do recebido - SEGURALTA";
+      ? "Calcular 75% da comissão" : "Calcular 75% do recebido - Seguralta";
   }
   if (chkCoco) chkCoco.addEventListener("change", relabelComissao);
   relabelComissao();
@@ -301,7 +301,7 @@
           fmt(Math.round(base * 75) / 100);
       } else {
         const segRecebido = num(document.getElementById("comissao_valor_seguralta_recebido").value);
-        if (!segRecebido) { alert("Preencha o valor recebido pela SEGURALTA."); return; }
+        if (!segRecebido) { alert("Preencha o valor recebido pela Seguralta."); return; }
         document.getElementById("comissao_valor_plenus_receber").value =
           fmt(Math.round(segRecebido * 75) / 100);
       }

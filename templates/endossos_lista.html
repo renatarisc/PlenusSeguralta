@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block titulo %}Endossos{% endblock %}
+{% block cabecalho %}Endossos{% if apolice_filtro %} · {{ apolice_filtro.numero_apolice or '—' }}{% if apolice_filtro.cliente_nome %} <span style="color:var(--texto-suave);font-weight:600">— {{ apolice_filtro.cliente_nome }}</span>{% endif %}{% endif %}{% endblock %}
+
+{% block acoes %}
+{% if apolice_filtro %}
+<a class="btn btn--linha" href="{{ url_for('endossos_lista') }}">{{ icone('endosso') }} Ver todos</a>
+{% endif %}
+<a class="btn btn--primario" href="{{ url_for('endosso_form', apolice=apolice_id) if apolice_id else url_for('endosso_form') }}">{{ icone('mais') }} Novo endosso</a>
+{% endblock %}
+
+{% block conteudo %}
+{% if not apolice_filtro %}
+<form class="cartao filtros" method="get">
+  <div class="grade">
+    <div class="campo c-6">
+      <label for="f-busca">Buscar</label>
+      <div class="campo-busca">
+        {{ icone('busca') }}
+        <input id="f-busca" type="search" name="busca" value="{{ busca }}"
+               placeholder="Cliente, nº da apólice ou nº do endosso" onfocus="this.select()">
+      </div>
+    </div>
+  </div>
+  <div class="filtros__acoes">
+    <button class="btn btn--primario" type="submit">{{ icone('busca') }} Buscar</button>
+    {% if tem_filtro %}<a class="btn btn--linha" href="{{ url_for('endossos_lista') }}">Limpar</a>{% endif %}
+  </div>
+</form>
+{% endif %}
+
+{% set url_lista = url_for('endossos_lista', **request.args) %}
+<div class="cartao" style="padding:0">
+  {% if endossos %}
+  <div class="tabela-wrap">
+    <table class="lista">
+      <thead>
+        <tr>
+          <th class="col-cliente">Cliente</th>
+          <th style="width:120px">Número do endosso</th>
+          <th>Número da apólice</th>
+          <th>Seguradora</th>
+          <th style="width:150px">Vigência</th>
+          <th style="width:110px">Situação</th>
+          <th style="width:150px" class="col-prox">Próxima parcela</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in endossos %}
+        <tr>
+          <td class="col-cliente">{% if e.cliente_tipo_pessoa == 'J' %}<span class="tag-pj" title="Pessoa jurídica">PJ</span>{% endif %}<a class="cel-nome" href="{{ url_for('endosso_form', endosso_id=e.id, voltar=url_lista) }}">{{ e.cliente_nome or 'Sem cliente' }}</a></td>
+          <td>{{ e.numero or '—' }}</td>
+          <td>{% if e.apolice_id %}<a class="cel-link" href="{{ url_for('apolice_form', apolice_id=e.apolice_id) }}" title="Abrir a apólice">{{ e.numero_apolice or '—' }}</a>{% else %}{{ e.numero_apolice or '—' }}{% endif %}</td>
+          <td>{{ e.seguradora_nome or '—' }}</td>
+          <td class="vig-datas">
+            {% if e.vigencia_inicio or e.vigencia_fim %}{{ e.vigencia_inicio|data_br }} a {{ e.vigencia_fim|data_br }}{% else %}—{% endif %}
+          </td>
+          <td>{{ situacoes.get(e.situacao, e.situacao) }}</td>
+          <td class="col-prox">
+            {% if e.proxima_parcela_data %}
+              {{ e.proxima_parcela_data|data_br }}
+              {% set pd = dias_ate(e.proxima_parcela_data) %}
+              {% if pd is not none and pd < 0 %}<span class="tag-venc tag-venc--fim">vencida há {{ -pd }}d</span>
+              {% elif pd is not none and pd <= 10 %}<span class="tag-venc">{{ 'vence hoje' if pd == 0 else 'vence em ' ~ pd ~ 'd' }}</span>{% endif %}
+            {% elif e.total_parcelas %}<span class="selo-quitado" title="Todas as parcelas quitadas">{{ icone('ok') }}</span>
+            {% else %}—{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="vazio">{% if tem_filtro %}Nenhum endosso encontrado para o filtro.{% else %}Nenhum endosso cadastrado ainda.{% endif %}</p>
+  {% endif %}
+</div>
+{% endblock %}

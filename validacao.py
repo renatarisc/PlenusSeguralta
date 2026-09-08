@@ -250,9 +250,8 @@ def gerar_repasses_cocorretagem(comissoes, premio_liquido, comissao_percentual):
     — mesma quantidade, mesma data, mesmo rótulo — repartindo o total
     T = prêmio líquido × comissão% × 0,75 na MESMA proporção das parcelas de
     comissão (coluna "previsto"); a última parcela absorve o arredondamento.
-    Coluna "recebido": mesma proporção sobre o que a comissão marca como
-    recebido; parcela de comissão sem "recebido" → repasse sem "recebido"
-    (se TODAS têm recebido, a última também fecha exatamente em T).
+    Preenche SÓ parcela, data e "pendente" (previsto). A coluna "pago"
+    (recebido) fica SEMPRE em branco — é lançada à mão quando o repasse entrar.
     Devolve [] se faltar prêmio/percentual ou não houver parcelas de comissão."""
     prem = para_decimal(premio_liquido)
     pct = para_decimal(comissao_percentual)
@@ -260,36 +259,21 @@ def gerar_repasses_cocorretagem(comissoes, premio_liquido, comissao_percentual):
         return []
     total = round(prem * pct / 100 * 0.75, 2)
     prevs = [float(c.get("valor_previsto") or 0.0) for c in comissoes]
-    recs = [c.get("valor_recebido") for c in comissoes]
     base = sum(prevs)
     n = len(comissoes)
 
-    def _reparte(valores, absorver):
-        idx_ult = max((i for i, v in enumerate(valores) if v is not None), default=-1)
-        out, acum = [], 0.0
-        for i, v in enumerate(valores):
-            if v is None:
-                out.append(None)
-                continue
-            if absorver and i == idx_ult:
-                parte = round(total - acum, 2)
-            elif base:
-                parte = round(total * (float(v) / base), 2)
-            else:
-                parte = round(total / n, 2)
-            out.append(parte)
-            acum += parte
-        return out
-
-    todas_receb = bool(recs) and all(r is not None for r in recs)
-    rep_prev = _reparte(prevs, absorver=True)
-    rep_rec = _reparte(recs, absorver=todas_receb)
-
-    return [
-        {"parcela": c.get("parcela"), "valor_previsto": vp, "valor_recebido": vr,
-         "data": c.get("data"), "conferido_banco": 0}
-        for c, vp, vr in zip(comissoes, rep_prev, rep_rec)
-    ]
+    saida, acum = [], 0.0
+    for i, c in enumerate(comissoes):
+        if i == n - 1:
+            parte = round(total - acum, 2)
+        elif base:
+            parte = round(total * (prevs[i] / base), 2)
+        else:
+            parte = round(total / n, 2)
+        acum += parte
+        saida.append({"parcela": c.get("parcela"), "valor_previsto": parte,
+                      "valor_recebido": None, "data": c.get("data"), "conferido_banco": 0})
+    return saida
 
 
 # ---------- validação do formulário de apólice ----------
@@ -318,9 +302,9 @@ def validar_apolice(dados):
                           ("iof", "IOF"),
                           ("premio_total", "Prêmio total"),
                           ("comissao_percentual", "Comissão (%)"),
-                          ("comissao_valor_seguralta_receber", "Comissão SEGURALTA a receber"),
+                          ("comissao_valor_seguralta_receber", "Comissão Seguralta a receber"),
                           ("comissao_valor_plenus_receber", "Comissão Plenus a receber"),
-                          ("comissao_valor_seguralta_recebido", "Comissão SEGURALTA recebido"),
+                          ("comissao_valor_seguralta_recebido", "Comissão Seguralta recebido"),
                           ("comissao_valor_plenus_recebido", "Comissão Plenus recebido")):
         if _numero_preenchido_invalido(dados.get(campo)):
             erros.append(f"{rotulo}: valor numérico inválido.")
@@ -330,6 +314,132 @@ def validar_apolice(dados):
         erros.append("Comissão (%) deve ficar entre 0 e 100.")
 
     return erros
+
+
+# ---------- validação do endosso ----------
+
+def validar_endosso(dados):
+    erros = []
+    if not (dados.get("apolice_id") or "").strip():
+        erros.append("Selecione a apólice.")
+    if not (dados.get("numero") or "").strip():
+        erros.append("Informe o número do endosso.")
+    ini = (dados.get("vigencia_inicio") or "").strip()
+    fim = (dados.get("vigencia_fim") or "").strip()
+    if not ini:
+        erros.append("Informe o início da vigência do endosso.")
+    if not fim:
+        erros.append("Informe o fim da vigência do endosso.")
+    if ini and fim and fim < ini:
+        erros.append("O fim da vigência do endosso é anterior ao início.")
+    if dados.get("situacao") not in ("onus", "devolucao", "sem_alteracao"):
+        erros.append("Situação do endosso inválida.")
+    for campo, rot in (("valor", "Valor"),
+                       ("comissao_percentual", "Comissão (%)"),
+                       ("comissao_valor_seguralta_receber", "Comissão Seguralta a receber"),
+                       ("comissao_valor_seguralta_recebido", "Comissão Seguralta recebido"),
+                       ("comissao_valor_plenus_receber", "Comissão Plenus a receber"),
+                       ("comissao_valor_plenus_recebido", "Comissão Plenus recebido"),
+                       ("previsto_relatorio_seguralta", "Comissão prevista no relatório"),
+                       ("recebido_relatorio_seguralta", "Comissão recebida no relatório"),
+                       ("previsto_relatorio_plenus", "Repasse previsto no relatório"),
+                       ("recebido_relatorio_plenus", "Repasse recebido no relatório")):
+        if _numero_preenchido_invalido(dados.get(campo)):
+            erros.append(f"{rot}: valor numérico inválido.")
+    pct = para_decimal(dados.get("comissao_percentual"))
+    if pct is not None and not (0 <= pct <= 100):
+        erros.append("Comissão (%) deve ficar entre 0 e 100.")
+    return erros
+
+
+def validar_consorcio(dados):
+    erros = []
+    if not (dados.get("cliente_id") or "").strip():
+        erros.append("Selecione o cliente.")
+    if not (dados.get("seguradora_id") or "").strip():
+        erros.append("Selecione a seguradora / administradora.")
+    if not (dados.get("tipo_consorcio_id") or "").strip():
+        erros.append("Selecione o tipo de consórcio.")
+    if not (dados.get("carta") or "").strip():
+        erros.append("Informe o valor da carta.")
+    if dados.get("situacao") not in ("ativo", "contemplado", "quitado", "cancelado", "desistente"):
+        erros.append("Situação do consórcio inválida.")
+    fc = (dados.get("forma_contemplacao") or "").strip()
+    if fc and fc not in ("sorteio", "lance"):
+        erros.append("Forma de contemplação inválida.")
+    for campo, rot in (("carta", "Carta"),
+                       ("comissao_percentual", "Comissão (%)"),
+                       ("comissao_valor_seguralta_receber", "Comissão Seguralta a receber"),
+                       ("comissao_valor_seguralta_recebido", "Comissão Seguralta recebido"),
+                       ("comissao_valor_plenus_receber", "Comissão Plenus a receber"),
+                       ("comissao_valor_plenus_recebido", "Comissão Plenus recebido"),
+                       ("previsto_relatorio_seguralta", "Comissão prevista no relatório"),
+                       ("recebido_relatorio_seguralta", "Comissão recebida no relatório"),
+                       ("previsto_relatorio_plenus", "Repasse previsto no relatório"),
+                       ("recebido_relatorio_plenus", "Repasse recebido no relatório")):
+        if _numero_preenchido_invalido(dados.get(campo)):
+            erros.append(f"{rot}: valor numérico inválido.")
+    qp = (dados.get("quantidade_parcelas") or "").strip()
+    if qp and (not qp.isdigit() or int(qp) < 1):
+        erros.append("Quantidade de parcelas inválida.")
+    pct = para_decimal(dados.get("comissao_percentual"))
+    if pct is not None and not (0 <= pct <= 100):
+        erros.append("Comissão (%) deve ficar entre 0 e 100.")
+    return erros
+
+
+def preparar_parcela_valores(valores, datas):
+    """Histórico do valor da parcela do consórcio (listas paralelas do form).
+    Ignora linhas vazias. Devolve (linhas, erros) — {valor(float|None), data}."""
+    linhas, erros = [], []
+    z = zip_longest(valores or [], datas or [], fillvalue="")
+    n = 0
+    for valor, data in z:
+        valor_txt = (valor or "").strip()
+        data = (data or "").strip()
+        if not (valor_txt or data):
+            continue
+        n += 1
+        v = para_decimal(valor_txt)
+        if valor_txt and v is None:
+            erros.append(f"Valor da parcela {n}: número inválido.")
+        linhas.append({"valor": v, "data": data or None})
+    return linhas, erros
+
+
+_STATUS_BOLETO = ("a_enviar", "enviado", "pago")
+
+
+def preparar_boletos(identificacoes, valores, emissoes, vencimentos, pagamentos, status=None, avisos=None):
+    """Boletos do consórcio (listas paralelas do form). Ignora linhas vazias.
+    Devolve (linhas, erros) — {identificacao, valor(float|None), data_emissao,
+    data_vencimento, data_pagamento, status, aviso_ok}. `status` fica 'pago' se
+    houver data de pagamento; senão o que veio ('a_enviar' por padrão → 'enviado'
+    quando o usuário marca que enviou)."""
+    linhas, erros = [], []
+    z = zip_longest(identificacoes or [], valores or [], emissoes or [], vencimentos or [],
+                    pagamentos or [], status or [], avisos or [], fillvalue="")
+    n = 0
+    for ident, valor, emis, venc, pago, st, aviso in z:
+        ident = (ident or "").strip()
+        valor_txt = (valor or "").strip()
+        emis = (emis or "").strip()
+        venc = (venc or "").strip()
+        pago = (pago or "").strip()
+        st = (st or "").strip()
+        if not (ident or valor_txt or emis or venc or pago):
+            continue
+        n += 1
+        v = para_decimal(valor_txt)
+        if valor_txt and v is None:
+            erros.append(f"Boleto {n}: valor numérico inválido.")
+        st_final = "pago" if pago else (st if st in _STATUS_BOLETO else "a_enviar")
+        linhas.append({
+            "identificacao": ident or None, "valor": v,
+            "data_emissao": emis or None, "data_vencimento": venc or None,
+            "data_pagamento": pago or None, "status": st_final, "aviso_ok": _sim(aviso),
+        })
+    return linhas, erros
 
 
 # ---------- validação da saída (fluxo de caixa) ----------

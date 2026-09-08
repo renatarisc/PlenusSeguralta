@@ -144,6 +144,30 @@ def listar_clientes(busca=None, uf=None, cidade=None):
     ]
 
 
+def tipos_seguro_por_cliente():
+    """{cliente_id: [nomes de tipo de seguro das apólices do cliente]} — p/ agrupar
+    a lista de clientes por tipo de seguro (cliente com vários tipos entra em vários)."""
+    with conexao() as con:
+        rows = con.execute(
+            "SELECT DISTINCT a.cliente_id, t.nome "
+            "  FROM apolice a "
+            "  LEFT JOIN tipo_seguro t ON t.id = a.tipo_seguro_id "
+            " WHERE a.cliente_id IS NOT NULL"
+        ).fetchall()
+    m = {}
+    for cid, nome in rows:
+        m.setdefault(cid, set()).add(nome or "(sem tipo)")
+    return {k: sorted(v, key=_sem_acento_minusculo) for k, v in m.items()}
+
+
+def clientes_com_consorcio():
+    """Conjunto de cliente_id que têm ao menos um consórcio."""
+    with conexao() as con:
+        return {r[0] for r in con.execute(
+            "SELECT DISTINCT cliente_id FROM consorcio WHERE cliente_id IS NOT NULL"
+        ).fetchall()}
+
+
 def ufs_dos_clientes():
     with conexao() as con:
         return [r[0] for r in con.execute(
@@ -216,7 +240,7 @@ def excluir_cliente(cliente_id):
 
 # ---------- cadastros simples (tipo_seguro, forma_pagamento) - só nome ----------
 
-_TABELAS_SIMPLES = {"tipo_seguro", "forma_pagamento", "seguradora", "categoria_saida"}
+_TABELAS_SIMPLES = {"tipo_seguro", "forma_pagamento", "seguradora", "categoria_saida", "tipo_consorcio"}
 
 
 def listar_simples(tabela, busca=None):
@@ -399,7 +423,7 @@ _COLS_APOLICE = (
     "forma_pagamento_id", "comissao_percentual",
     "comissao_valor_seguralta_receber", "comissao_valor_plenus_receber",
     "comissao_valor_seguralta_recebido", "comissao_valor_plenus_recebido",
-    "data_plenus_recebido", "plenus_conferido_banco",
+    "data_seguralta_recebido", "data_plenus_recebido", "plenus_conferido_banco",
     "comissao_parcelada", "comissao_cocorretagem",
     "previsto_relatorio_seguralta", "recebido_relatorio_seguralta",
     "previsto_relatorio_plenus", "recebido_relatorio_plenus",
@@ -432,6 +456,7 @@ def _valores_apolice(dados):
         para_decimal(dados.get("comissao_valor_plenus_receber")),
         para_decimal(dados.get("comissao_valor_seguralta_recebido")),
         para_decimal(dados.get("comissao_valor_plenus_recebido")),
+        (dados.get("data_seguralta_recebido") or "").strip() or None,
         (dados.get("data_plenus_recebido") or "").strip() or None,
         _sim_nao(dados.get("plenus_conferido_banco")),
         _sim_nao(dados.get("comissao_parcelada")),
@@ -494,7 +519,8 @@ def _inserir_repasses(con, apolice_id, linhas):
 
 
 def listar_apolices(cliente_id=None, tipo_seguro_id=None, mes_inicio=None, quiver=None,
-                    busca=None, parcela_status=None, mes_fim=None, ordem=None):
+                    busca=None, parcela_status=None, mes_fim=None, ordem=None,
+                    forma_pagamento_id=None):
     sql = """SELECT a.id, a.numero_apolice, a.vigencia_inicio, a.vigencia_fim,
                     a.premio_liquido, a.lancado_quiver, a.aviso_vigencia_ok, a.cliente_id,
                     c.nome AS cliente_nome, c.tipo_pessoa AS cliente_tipo_pessoa,
@@ -506,7 +532,8 @@ def listar_apolices(cliente_id=None, tipo_seguro_id=None, mes_inicio=None, quive
                     (SELECT p.valor FROM apolice_parcela p
                        WHERE p.apolice_id = a.id AND COALESCE(p.paga, 0) = 0 AND p.data IS NOT NULL
                        ORDER BY p.data LIMIT 1) AS proxima_parcela_valor,
-                    (SELECT COUNT(*) FROM apolice_parcela p WHERE p.apolice_id = a.id) AS total_parcelas
+                    (SELECT COUNT(*) FROM apolice_parcela p WHERE p.apolice_id = a.id) AS total_parcelas,
+                    (SELECT COUNT(*) FROM apolice_endosso e WHERE e.apolice_id = a.id) AS qtd_endossos
                FROM apolice a
                LEFT JOIN cliente c     ON c.id = a.cliente_id
                LEFT JOIN tipo_seguro t ON t.id = a.tipo_seguro_id
@@ -518,6 +545,9 @@ def listar_apolices(cliente_id=None, tipo_seguro_id=None, mes_inicio=None, quive
     if tipo_seguro_id:
         filtros.append("a.tipo_seguro_id = ?")
         params.append(tipo_seguro_id)
+    if forma_pagamento_id:
+        filtros.append("a.forma_pagamento_id = ?")
+        params.append(forma_pagamento_id)
     if mes_inicio:
         filtros.append("substr(a.vigencia_inicio, 6, 2) = ?")
         params.append(f"{int(mes_inicio):02d}")
@@ -643,19 +673,29 @@ def obter_apolice(apolice_id):
         return ap
 
 
-def marcar_parcela_paga(parcela_id, paga):
+def _tabela_parcela(origem):
+    return {"endosso": "apolice_endosso_parcela",
+            "consorcio": "consorcio_boleto"}.get(origem, "apolice_parcela")
+
+
+def marcar_parcela_paga(parcela_id, paga, origem="apolice"):
+    hoje = date.today().isoformat() if paga else None
     with conexao() as con:
-        con.execute(
-            "UPDATE apolice_parcela SET paga = ?, pago_em = ? WHERE id = ?",
-            (1 if paga else 0, date.today().isoformat() if paga else None, parcela_id),
-        )
+        if origem == "consorcio":
+            con.execute(
+                "UPDATE consorcio_boleto SET status = ?, data_pagamento = ? WHERE id = ?",
+                ("pago" if paga else "enviado", hoje, parcela_id))
+        else:
+            con.execute(
+                f"UPDATE {_tabela_parcela(origem)} SET paga = ?, pago_em = ? WHERE id = ?",
+                (1 if paga else 0, hoje, parcela_id))
     fazer_backup()
 
 
-def marcar_aviso_parcela(parcela_id, ok):
+def marcar_aviso_parcela(parcela_id, ok, origem="apolice"):
     with conexao() as con:
         con.execute(
-            "UPDATE apolice_parcela SET aviso_ok = ?, aviso_ok_em = ? WHERE id = ?",
+            f"UPDATE {_tabela_parcela(origem)} SET aviso_ok = ?, aviso_ok_em = ? WHERE id = ?",
             (1 if ok else 0, date.today().isoformat() if ok else None, parcela_id),
         )
     fazer_backup()
@@ -707,6 +747,408 @@ def excluir_apolice(apolice_id):
     fazer_backup()
 
 
+# ---------- endossos ----------
+
+_SITUACOES_ENDOSSO = ("onus", "devolucao", "sem_alteracao")
+
+_COLS_ENDOSSO = (
+    "apolice_id", "numero", "vigencia_inicio", "vigencia_fim", "motivacao",
+    "situacao", "valor", "forma_pagamento_id", "veiculo_placa", "veiculo_descricao",
+    "comissao_parcelada", "comissao_percentual",
+    "comissao_valor_seguralta_receber", "comissao_valor_seguralta_recebido",
+    "comissao_valor_plenus_receber", "comissao_valor_plenus_recebido",
+    "data_seguralta_recebido", "data_plenus_recebido", "plenus_conferido_banco",
+    "previsto_relatorio_seguralta", "recebido_relatorio_seguralta",
+    "previsto_relatorio_plenus", "recebido_relatorio_plenus",
+    "lancado_quiver", "link_onedrive",
+)
+
+
+def _valores_endosso(d):
+    return [
+        _int_ou_none(d.get("apolice_id")),
+        (d.get("numero") or "").strip() or None,
+        (d.get("vigencia_inicio") or "").strip() or None,
+        (d.get("vigencia_fim") or "").strip() or None,
+        (d.get("motivacao") or "").strip() or None,
+        d.get("situacao") if d.get("situacao") in _SITUACOES_ENDOSSO else "sem_alteracao",
+        para_decimal(d.get("valor")),
+        _int_ou_none(d.get("forma_pagamento_id")),
+        (d.get("veiculo_placa") or "").strip().upper() or None,
+        (d.get("veiculo_descricao") or "").strip() or None,
+        _sim_nao(d.get("comissao_parcelada")),
+        para_decimal(d.get("comissao_percentual")),
+        para_decimal(d.get("comissao_valor_seguralta_receber")),
+        para_decimal(d.get("comissao_valor_seguralta_recebido")),
+        para_decimal(d.get("comissao_valor_plenus_receber")),
+        para_decimal(d.get("comissao_valor_plenus_recebido")),
+        (d.get("data_seguralta_recebido") or "").strip() or None,
+        (d.get("data_plenus_recebido") or "").strip() or None,
+        _sim_nao(d.get("plenus_conferido_banco")),
+        para_decimal(d.get("previsto_relatorio_seguralta")),
+        para_decimal(d.get("recebido_relatorio_seguralta")),
+        para_decimal(d.get("previsto_relatorio_plenus")),
+        para_decimal(d.get("recebido_relatorio_plenus")),
+        _sim_nao(d.get("lancado_quiver")),
+        (d.get("link_onedrive") or "").strip() or None,
+    ]
+
+
+def _inserir_endosso_comissoes(con, endosso_id, linhas):
+    for i, c in enumerate(linhas or []):
+        con.execute(
+            "INSERT INTO apolice_endosso_comissao "
+            "(endosso_id, parcela, valor_previsto, valor_recebido, data, ordem) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (endosso_id, c.get("parcela"), c.get("valor_previsto"),
+             c.get("valor_recebido"), c.get("data"), i))
+
+
+def _inserir_endosso_repasses(con, endosso_id, linhas):
+    for i, r in enumerate(linhas or []):
+        conf = 1 if r.get("conferido_banco") in (1, "1", True, "sim", "on") else 0
+        con.execute(
+            "INSERT INTO apolice_endosso_repasse "
+            "(endosso_id, parcela, valor_previsto, valor_recebido, data, conferido_banco, ordem) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (endosso_id, r.get("parcela"), r.get("valor_previsto"),
+             r.get("valor_recebido"), r.get("data"), conf, i))
+
+
+def _inserir_endosso_parcelas(con, endosso_id, parcelas):
+    hoje = date.today().isoformat()
+    for p in parcelas or []:
+        paga = 1 if p.get("paga") in (1, "1", True, "sim", "on") else 0
+        pago_em = (p.get("pago_em") or "").strip() or (hoje if paga else None)
+        aviso = 1 if p.get("aviso_ok") in (1, "1", True, "sim", "on") else 0
+        aviso_em = (p.get("aviso_ok_em") or "").strip() or (hoje if aviso else None)
+        con.execute(
+            "INSERT INTO apolice_endosso_parcela "
+            "(endosso_id, identificacao, data, valor, paga, pago_em, aviso_ok, aviso_ok_em) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (endosso_id, p.get("identificacao"), p.get("data"), p.get("valor"),
+             paga, pago_em, aviso, aviso_em),
+        )
+
+
+_SQL_ENDOSSO_SEL = """
+SELECT e.*, a.numero_apolice, a.cliente_id,
+       c.nome AS cliente_nome, c.tipo_pessoa AS cliente_tipo_pessoa, s.nome AS seguradora_nome,
+       t.nome AS tipo_seguro_nome, f.nome AS forma_pagamento_nome,
+       (SELECT p.data FROM apolice_endosso_parcela p
+          WHERE p.endosso_id = e.id AND COALESCE(p.paga, 0) = 0 AND p.data IS NOT NULL
+          ORDER BY p.data LIMIT 1) AS proxima_parcela_data,
+       (SELECT COUNT(*) FROM apolice_endosso_parcela p WHERE p.endosso_id = e.id) AS total_parcelas
+  FROM apolice_endosso e
+  JOIN apolice a          ON a.id = e.apolice_id
+  LEFT JOIN cliente c     ON c.id = a.cliente_id
+  LEFT JOIN seguradora s  ON s.id = a.seguradora_id
+  LEFT JOIN tipo_seguro t ON t.id = a.tipo_seguro_id
+  LEFT JOIN forma_pagamento f ON f.id = e.forma_pagamento_id
+"""
+
+
+def listar_endossos(apolice_id=None, busca=None):
+    sql, params = _SQL_ENDOSSO_SEL, []
+    if apolice_id:
+        sql += " WHERE e.apolice_id = ?"
+        params.append(apolice_id)
+    sql += " ORDER BY e.criado_em DESC, e.id DESC"
+    with conexao() as con:
+        linhas = [dict(l) for l in con.execute(sql, params).fetchall()]
+    termo = (busca or "").strip()
+    if termo:
+        alvo = _sem_acento_minusculo(termo)
+        linhas = [l for l in linhas
+                  if alvo in _sem_acento_minusculo(l.get("cliente_nome") or "")
+                  or alvo in _sem_acento_minusculo(l.get("numero_apolice") or "")
+                  or alvo in _sem_acento_minusculo(l.get("numero") or "")]
+    return linhas
+
+
+def obter_endosso(endosso_id):
+    with conexao() as con:
+        l = con.execute(_SQL_ENDOSSO_SEL + " WHERE e.id = ?", (endosso_id,)).fetchone()
+        if not l:
+            return None
+        e = dict(l)
+        e["parcelas"] = [dict(p) for p in con.execute(
+            "SELECT id, identificacao, data, valor, paga, pago_em, aviso_ok, aviso_ok_em "
+            "FROM apolice_endosso_parcela WHERE endosso_id = ? ORDER BY COALESCE(data, ''), id",
+            (endosso_id,)).fetchall()]
+        e["comissoes"] = [dict(x) for x in con.execute(
+            "SELECT id, parcela, valor_previsto, valor_recebido, data "
+            "FROM apolice_endosso_comissao WHERE endosso_id = ? ORDER BY ordem, id",
+            (endosso_id,)).fetchall()]
+        e["repasses"] = [dict(x) for x in con.execute(
+            "SELECT id, parcela, valor_previsto, valor_recebido, data, conferido_banco "
+            "FROM apolice_endosso_repasse WHERE endosso_id = ? ORDER BY ordem, id",
+            (endosso_id,)).fetchall()]
+        return e
+
+
+def criar_endosso(dados, parcelas=None, comissoes=None, repasses=None):
+    with conexao() as con:
+        marc = ", ".join("?" for _ in _COLS_ENDOSSO)
+        cur = con.execute(
+            f"INSERT INTO apolice_endosso ({', '.join(_COLS_ENDOSSO)}) VALUES ({marc})",
+            _valores_endosso(dados))
+        novo_id = cur.lastrowid
+        _inserir_endosso_parcelas(con, novo_id, parcelas)
+        _inserir_endosso_comissoes(con, novo_id, comissoes)
+        _inserir_endosso_repasses(con, novo_id, repasses)
+    fazer_backup()
+    return novo_id
+
+
+def atualizar_endosso(endosso_id, dados, parcelas=None, comissoes=None, repasses=None):
+    with conexao() as con:
+        atrib = ", ".join(f"{c} = ?" for c in _COLS_ENDOSSO)
+        con.execute(
+            f"UPDATE apolice_endosso SET {atrib}, atualizado_em = datetime('now') WHERE id = ?",
+            _valores_endosso(dados) + [endosso_id])
+        for tab in ("apolice_endosso_parcela", "apolice_endosso_comissao", "apolice_endosso_repasse"):
+            con.execute(f"DELETE FROM {tab} WHERE endosso_id = ?", (endosso_id,))
+        _inserir_endosso_parcelas(con, endosso_id, parcelas)
+        _inserir_endosso_comissoes(con, endosso_id, comissoes)
+        _inserir_endosso_repasses(con, endosso_id, repasses)
+    fazer_backup()
+
+
+def excluir_endosso(endosso_id):
+    with conexao() as con:
+        con.execute("DELETE FROM apolice_endosso WHERE id = ?", (endosso_id,))
+    fazer_backup()
+
+
+def contar_endossos_por_apolice(apolice_id):
+    with conexao() as con:
+        return con.execute("SELECT COUNT(*) FROM apolice_endosso WHERE apolice_id = ?",
+                           (apolice_id,)).fetchone()[0]
+
+
+# ---------- consórcios ----------
+
+_SITUACOES_CONSORCIO = ("ativo", "contemplado", "quitado", "cancelado", "desistente")
+_CONTEMPLACOES_CONSORCIO = ("sorteio", "lance")
+
+_COLS_CONSORCIO = (
+    "cliente_id", "seguradora_id", "tipo_consorcio_id", "carta",
+    "numero_grupo", "numero_cota", "forma_pagamento_id", "quantidade_parcelas",
+    "parcela_dia_vencimento", "situacao", "forma_contemplacao", "data_contemplacao",
+    "comissao_percentual",
+    "comissao_valor_seguralta_receber", "comissao_valor_plenus_receber",
+    "comissao_valor_seguralta_recebido", "comissao_valor_plenus_recebido",
+    "data_seguralta_recebido", "data_plenus_recebido", "plenus_conferido_banco",
+    "comissao_parcelada", "comissao_cocorretagem",
+    "previsto_relatorio_seguralta", "recebido_relatorio_seguralta",
+    "previsto_relatorio_plenus", "recebido_relatorio_plenus",
+    "lancado_quiver", "link_onedrive", "observacao",
+)
+
+
+def _valores_consorcio(d):
+    return [
+        _int_ou_none(d.get("cliente_id")),
+        _int_ou_none(d.get("seguradora_id")),
+        _int_ou_none(d.get("tipo_consorcio_id")),
+        para_decimal(d.get("carta")),
+        (d.get("numero_grupo") or "").strip() or None,
+        (d.get("numero_cota") or "").strip() or None,
+        _int_ou_none(d.get("forma_pagamento_id")),
+        _int_ou_none(d.get("quantidade_parcelas")),
+        (d.get("parcela_dia_vencimento") or "").strip() or None,
+        d.get("situacao") if d.get("situacao") in _SITUACOES_CONSORCIO else "ativo",
+        d.get("forma_contemplacao") if d.get("forma_contemplacao") in _CONTEMPLACOES_CONSORCIO else None,
+        (d.get("data_contemplacao") or "").strip() or None,
+        para_decimal(d.get("comissao_percentual")),
+        para_decimal(d.get("comissao_valor_seguralta_receber")),
+        para_decimal(d.get("comissao_valor_plenus_receber")),
+        para_decimal(d.get("comissao_valor_seguralta_recebido")),
+        para_decimal(d.get("comissao_valor_plenus_recebido")),
+        (d.get("data_seguralta_recebido") or "").strip() or None,
+        (d.get("data_plenus_recebido") or "").strip() or None,
+        _sim_nao(d.get("plenus_conferido_banco")),
+        _sim_nao(d.get("comissao_parcelada")),
+        _sim_nao(d.get("comissao_cocorretagem")),
+        para_decimal(d.get("previsto_relatorio_seguralta")),
+        para_decimal(d.get("recebido_relatorio_seguralta")),
+        para_decimal(d.get("previsto_relatorio_plenus")),
+        para_decimal(d.get("recebido_relatorio_plenus")),
+        _sim_nao(d.get("lancado_quiver")),
+        (d.get("link_onedrive") or "").strip() or None,
+        (d.get("observacao") or "").strip() or None,
+    ]
+
+
+def _inserir_consorcio_parcela_valores(con, consorcio_id, linhas):
+    for i, v in enumerate(linhas or []):
+        con.execute(
+            "INSERT INTO consorcio_parcela_valor (consorcio_id, valor, data, ordem) "
+            "VALUES (?, ?, ?, ?)",
+            (consorcio_id, v.get("valor"), v.get("data"), i))
+
+
+def _inserir_consorcio_comissoes(con, consorcio_id, linhas):
+    for i, c in enumerate(linhas or []):
+        con.execute(
+            "INSERT INTO consorcio_comissao "
+            "(consorcio_id, parcela, valor_previsto, valor_recebido, data, ordem) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (consorcio_id, c.get("parcela"), c.get("valor_previsto"),
+             c.get("valor_recebido"), c.get("data"), i))
+
+
+def _inserir_consorcio_repasses(con, consorcio_id, linhas):
+    for i, r in enumerate(linhas or []):
+        conf = 1 if r.get("conferido_banco") in (1, "1", True, "sim", "on") else 0
+        con.execute(
+            "INSERT INTO consorcio_repasse "
+            "(consorcio_id, parcela, valor_previsto, valor_recebido, data, conferido_banco, ordem) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (consorcio_id, r.get("parcela"), r.get("valor_previsto"),
+             r.get("valor_recebido"), r.get("data"), conf, i))
+
+
+def _inserir_consorcio_boletos(con, consorcio_id, boletos):
+    hoje = date.today().isoformat()
+    for i, b in enumerate(boletos or []):
+        pago_em = (b.get("data_pagamento") or "").strip() or None
+        _st = (b.get("status") or "").strip()
+        status = "pago" if pago_em else (_st if _st in ("a_enviar", "enviado", "pago") else "a_enviar")
+        aviso = 1 if b.get("aviso_ok") in (1, "1", True, "sim", "on") else 0
+        aviso_em = (b.get("aviso_ok_em") or "").strip() or (hoje if aviso else None)
+        con.execute(
+            "INSERT INTO consorcio_boleto "
+            "(consorcio_id, identificacao, valor, data_emissao, data_vencimento, "
+            " data_pagamento, status, aviso_ok, aviso_ok_em, ordem) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (consorcio_id, b.get("identificacao"), b.get("valor"),
+             (b.get("data_emissao") or "").strip() or None,
+             (b.get("data_vencimento") or "").strip() or None,
+             pago_em, status, aviso, aviso_em, i))
+
+
+_SQL_CONSORCIO_SEL = """
+SELECT co.*,
+       c.nome AS cliente_nome, c.tipo_pessoa AS cliente_tipo_pessoa, s.nome AS seguradora_nome,
+       tc.nome AS tipo_consorcio_nome, f.nome AS forma_pagamento_nome,
+       (SELECT b.data_vencimento FROM consorcio_boleto b
+          WHERE b.consorcio_id = co.id AND COALESCE(b.status,'') <> 'pago'
+                AND b.data_vencimento IS NOT NULL
+          ORDER BY b.data_vencimento LIMIT 1) AS proximo_boleto_data,
+       (SELECT COUNT(*) FROM consorcio_boleto b WHERE b.consorcio_id = co.id) AS total_boletos,
+       (SELECT cv.valor FROM consorcio_parcela_valor cv
+          WHERE cv.consorcio_id = co.id ORDER BY cv.ordem DESC, cv.id DESC LIMIT 1) AS parcela_valor_atual
+  FROM consorcio co
+  LEFT JOIN cliente c        ON c.id = co.cliente_id
+  LEFT JOIN seguradora s     ON s.id = co.seguradora_id
+  LEFT JOIN tipo_consorcio tc ON tc.id = co.tipo_consorcio_id
+  LEFT JOIN forma_pagamento f ON f.id = co.forma_pagamento_id
+"""
+
+
+def listar_consorcios(busca=None):
+    with conexao() as con:
+        linhas = [dict(l) for l in con.execute(
+            _SQL_CONSORCIO_SEL + " ORDER BY co.criado_em DESC, co.id DESC").fetchall()]
+    termo = (busca or "").strip()
+    if termo:
+        alvo = _sem_acento_minusculo(termo)
+        linhas = [l for l in linhas
+                  if alvo in _sem_acento_minusculo(l.get("cliente_nome") or "")
+                  or alvo in _sem_acento_minusculo(l.get("numero_grupo") or "")
+                  or alvo in _sem_acento_minusculo(l.get("numero_cota") or "")
+                  or alvo in _sem_acento_minusculo(l.get("tipo_consorcio_nome") or "")]
+    return linhas
+
+
+def obter_consorcio(consorcio_id):
+    with conexao() as con:
+        l = con.execute(_SQL_CONSORCIO_SEL + " WHERE co.id = ?", (consorcio_id,)).fetchone()
+        if not l:
+            return None
+        co = dict(l)
+        co["parcela_valores"] = [dict(x) for x in con.execute(
+            "SELECT id, valor, data FROM consorcio_parcela_valor "
+            "WHERE consorcio_id = ? ORDER BY ordem, id", (consorcio_id,)).fetchall()]
+        co["comissoes"] = [dict(x) for x in con.execute(
+            "SELECT id, parcela, valor_previsto, valor_recebido, data "
+            "FROM consorcio_comissao WHERE consorcio_id = ? ORDER BY ordem, id",
+            (consorcio_id,)).fetchall()]
+        co["repasses"] = [dict(x) for x in con.execute(
+            "SELECT id, parcela, valor_previsto, valor_recebido, data, conferido_banco "
+            "FROM consorcio_repasse WHERE consorcio_id = ? ORDER BY ordem, id",
+            (consorcio_id,)).fetchall()]
+        co["boletos"] = [dict(x) for x in con.execute(
+            "SELECT id, identificacao, valor, data_emissao, data_vencimento, "
+            "       data_pagamento, status, aviso_ok, aviso_ok_em "
+            "FROM consorcio_boleto WHERE consorcio_id = ? ORDER BY ordem, id",
+            (consorcio_id,)).fetchall()]
+        return co
+
+
+def criar_consorcio(dados, parcela_valores=None, comissoes=None, repasses=None, boletos=None):
+    with conexao() as con:
+        marc = ", ".join("?" for _ in _COLS_CONSORCIO)
+        cur = con.execute(
+            f"INSERT INTO consorcio ({', '.join(_COLS_CONSORCIO)}) VALUES ({marc})",
+            _valores_consorcio(dados))
+        novo_id = cur.lastrowid
+        _inserir_consorcio_parcela_valores(con, novo_id, parcela_valores)
+        _inserir_consorcio_comissoes(con, novo_id, comissoes)
+        _inserir_consorcio_repasses(con, novo_id, repasses)
+        _inserir_consorcio_boletos(con, novo_id, boletos)
+    fazer_backup()
+    return novo_id
+
+
+def atualizar_consorcio(consorcio_id, dados, parcela_valores=None, comissoes=None,
+                        repasses=None, boletos=None):
+    with conexao() as con:
+        atrib = ", ".join(f"{c} = ?" for c in _COLS_CONSORCIO)
+        con.execute(
+            f"UPDATE consorcio SET {atrib}, atualizado_em = datetime('now') WHERE id = ?",
+            _valores_consorcio(dados) + [consorcio_id])
+        for tab in ("consorcio_parcela_valor", "consorcio_comissao",
+                    "consorcio_repasse", "consorcio_boleto"):
+            con.execute(f"DELETE FROM {tab} WHERE consorcio_id = ?", (consorcio_id,))
+        _inserir_consorcio_parcela_valores(con, consorcio_id, parcela_valores)
+        _inserir_consorcio_comissoes(con, consorcio_id, comissoes)
+        _inserir_consorcio_repasses(con, consorcio_id, repasses)
+        _inserir_consorcio_boletos(con, consorcio_id, boletos)
+    fazer_backup()
+
+
+def excluir_consorcio(consorcio_id):
+    with conexao() as con:
+        con.execute("DELETE FROM consorcio WHERE id = ?", (consorcio_id,))
+    fazer_backup()
+
+
+def obter_apolice_basico(apolice_id):
+    """id, número, cliente e seguradora — sem carregar parcelas/comissões."""
+    with conexao() as con:
+        l = con.execute(
+            "SELECT a.id, a.numero_apolice, c.nome AS cliente_nome, s.nome AS seguradora_nome "
+            "  FROM apolice a "
+            "  LEFT JOIN cliente c    ON c.id = a.cliente_id "
+            "  LEFT JOIN seguradora s ON s.id = a.seguradora_id "
+            " WHERE a.id = ?", (apolice_id,)).fetchone()
+        return dict(l) if l else None
+
+
+def listar_apolices_select():
+    """(id, numero_apolice, cliente_nome, tipo_seguro_nome) — leve, p/ o <select> do endosso."""
+    with conexao() as con:
+        return [dict(l) for l in con.execute(
+            "SELECT a.id, a.numero_apolice, c.nome AS cliente_nome, t.nome AS tipo_seguro_nome "
+            "  FROM apolice a "
+            "  LEFT JOIN cliente c     ON c.id = a.cliente_id "
+            "  LEFT JOIN tipo_seguro t ON t.id = a.tipo_seguro_id "
+            " ORDER BY c.nome COLLATE NOCASE, a.criado_em DESC, a.id DESC").fetchall()]
+
+
 def salvar_comissoes_repasses(apolice_id, comissoes, repasses):
     """Regrava SÓ as tabelas-filhas de comissão de UMA apólice (mesma lógica
     wipe+reinsert de `atualizar_apolice`), sem tocar em nenhuma coluna da
@@ -723,7 +1165,7 @@ def salvar_comissoes_repasses(apolice_id, comissoes, repasses):
 
 def salvar_comissao_unica(apolice_id, valores):
     """Grava os valores achatados de comissão (repasse único / cocorretagem) de
-    uma apólice. `valores` = dict com as 6 chaves abaixo (float/str ou None)."""
+    uma apólice. `valores` = dict com as 7 chaves abaixo (float/str ou None)."""
     with conexao() as con:
         con.execute(
             "UPDATE apolice SET "
@@ -731,6 +1173,7 @@ def salvar_comissao_unica(apolice_id, valores):
             "  comissao_valor_seguralta_recebido = ?, "
             "  comissao_valor_plenus_receber = ?, "
             "  comissao_valor_plenus_recebido = ?, "
+            "  data_seguralta_recebido = ?, "
             "  data_plenus_recebido = ?, "
             "  plenus_conferido_banco = ?, "
             "  atualizado_em = datetime('now') "
@@ -739,9 +1182,78 @@ def salvar_comissao_unica(apolice_id, valores):
              valores.get("comissao_valor_seguralta_recebido"),
              valores.get("comissao_valor_plenus_receber"),
              valores.get("comissao_valor_plenus_recebido"),
+             (valores.get("data_seguralta_recebido") or None),
              (valores.get("data_plenus_recebido") or None),
              1 if valores.get("plenus_conferido_banco") in (1, "1", True, "sim", "on") else 0,
              apolice_id),
+        )
+    fazer_backup()
+
+
+def salvar_comissoes_repasses_endosso(endosso_id, comissoes, repasses):
+    """Regrava só as tabelas-filhas de comissão parcelada de UM endosso (grade de Entradas)."""
+    with conexao() as con:
+        con.execute("DELETE FROM apolice_endosso_comissao WHERE endosso_id = ?", (endosso_id,))
+        _inserir_endosso_comissoes(con, endosso_id, comissoes)
+        con.execute("DELETE FROM apolice_endosso_repasse WHERE endosso_id = ?", (endosso_id,))
+        _inserir_endosso_repasses(con, endosso_id, repasses)
+        con.execute("UPDATE apolice_endosso SET atualizado_em = datetime('now') WHERE id = ?", (endosso_id,))
+    fazer_backup()
+
+
+def salvar_comissao_endosso(endosso_id, valores):
+    """Grava só a comissão (valores achatados) de um endosso, a partir do bloco
+    editável de Entradas. Mesmas 7 chaves de `salvar_comissao_unica`."""
+    with conexao() as con:
+        con.execute(
+            "UPDATE apolice_endosso SET "
+            "  comissao_valor_seguralta_receber = ?, comissao_valor_seguralta_recebido = ?, "
+            "  comissao_valor_plenus_receber = ?, comissao_valor_plenus_recebido = ?, "
+            "  data_seguralta_recebido = ?, data_plenus_recebido = ?, "
+            "  plenus_conferido_banco = ?, atualizado_em = datetime('now') "
+            "WHERE id = ?",
+            (valores.get("comissao_valor_seguralta_receber"),
+             valores.get("comissao_valor_seguralta_recebido"),
+             valores.get("comissao_valor_plenus_receber"),
+             valores.get("comissao_valor_plenus_recebido"),
+             (valores.get("data_seguralta_recebido") or None),
+             (valores.get("data_plenus_recebido") or None),
+             1 if valores.get("plenus_conferido_banco") in (1, "1", True, "sim", "on") else 0,
+             endosso_id),
+        )
+    fazer_backup()
+
+
+def salvar_comissoes_repasses_consorcio(consorcio_id, comissoes, repasses):
+    """Regrava só as tabelas-filhas de comissão parcelada de UM consórcio (grade de Entradas)."""
+    with conexao() as con:
+        con.execute("DELETE FROM consorcio_comissao WHERE consorcio_id = ?", (consorcio_id,))
+        _inserir_consorcio_comissoes(con, consorcio_id, comissoes)
+        con.execute("DELETE FROM consorcio_repasse WHERE consorcio_id = ?", (consorcio_id,))
+        _inserir_consorcio_repasses(con, consorcio_id, repasses)
+        con.execute("UPDATE consorcio SET atualizado_em = datetime('now') WHERE id = ?", (consorcio_id,))
+    fazer_backup()
+
+
+def salvar_comissao_consorcio(consorcio_id, valores):
+    """Grava só a comissão (valores achatados) de um consórcio, a partir do bloco
+    editável de Entradas. Mesmas 7 chaves de `salvar_comissao_unica`."""
+    with conexao() as con:
+        con.execute(
+            "UPDATE consorcio SET "
+            "  comissao_valor_seguralta_receber = ?, comissao_valor_seguralta_recebido = ?, "
+            "  comissao_valor_plenus_receber = ?, comissao_valor_plenus_recebido = ?, "
+            "  data_seguralta_recebido = ?, data_plenus_recebido = ?, "
+            "  plenus_conferido_banco = ?, atualizado_em = datetime('now') "
+            "WHERE id = ?",
+            (valores.get("comissao_valor_seguralta_receber"),
+             valores.get("comissao_valor_seguralta_recebido"),
+             valores.get("comissao_valor_plenus_receber"),
+             valores.get("comissao_valor_plenus_recebido"),
+             (valores.get("data_seguralta_recebido") or None),
+             (valores.get("data_plenus_recebido") or None),
+             1 if valores.get("plenus_conferido_banco") in (1, "1", True, "sim", "on") else 0,
+             consorcio_id),
         )
     fazer_backup()
 
@@ -780,10 +1292,15 @@ def email_vigencia_enviado_hoje(apolice_id):
         return r is not None
 
 
-def email_boleto_enviado_hoje(parcela_id):
+def _tabela_notif_parcela(origem):
+    return {"endosso": "notificacao_endosso_parcela",
+            "consorcio": "notificacao_consorcio_boleto"}.get(origem, "notificacao_parcela")
+
+
+def email_boleto_enviado_hoje(parcela_id, origem="apolice"):
     with conexao() as con:
         r = con.execute(
-            "SELECT 1 FROM notificacao_parcela "
+            f"SELECT 1 FROM {_tabela_notif_parcela(origem)} "
             "WHERE parcela_id = ? AND marco = 0 AND date(enviado_em) = date('now', 'localtime')",
             (parcela_id,),
         ).fetchone()
@@ -793,7 +1310,9 @@ def email_boleto_enviado_hoje(parcela_id):
 # ---------- avisos de boleto (parcela a vencer) ----------
 
 _SQL_PARCELAS_BOLETO = """
-SELECT p.id AS parcela_id, p.identificacao, p.data, p.valor, p.aviso_ok,
+SELECT 'apolice' AS origem, p.id AS parcela_id, NULL AS endosso_id, NULL AS endosso_numero,
+       NULL AS consorcio_id, NULL AS consorcio_grupo, NULL AS consorcio_cota, NULL AS boleto_status,
+       p.identificacao, p.data, p.valor, p.aviso_ok,
        a.id AS apolice_id, a.numero_apolice, a.vigencia_inicio, a.vigencia_fim,
        c.nome AS cliente_nome, s.nome AS seguradora_nome, t.nome AS tipo_seguro_nome,
        f.nome AS forma_pagamento_nome
@@ -808,11 +1327,53 @@ SELECT p.id AS parcela_id, p.identificacao, p.data, p.valor, p.aviso_ok,
    AND COALESCE(p.paga, 0) = 0
 """
 
+_SQL_PARCELAS_BOLETO_END = """
+SELECT 'endosso' AS origem, p.id AS parcela_id, e.id AS endosso_id, e.numero AS endosso_numero,
+       NULL AS consorcio_id, NULL AS consorcio_grupo, NULL AS consorcio_cota, NULL AS boleto_status,
+       p.identificacao, p.data, p.valor, p.aviso_ok,
+       a.id AS apolice_id, a.numero_apolice, a.vigencia_inicio, a.vigencia_fim,
+       c.nome AS cliente_nome, s.nome AS seguradora_nome, t.nome AS tipo_seguro_nome,
+       f.nome AS forma_pagamento_nome
+  FROM apolice_endosso_parcela p
+  JOIN apolice_endosso e  ON e.id = p.endosso_id
+  JOIN apolice a          ON a.id = e.apolice_id
+  LEFT JOIN cliente c     ON c.id = a.cliente_id
+  LEFT JOIN seguradora s  ON s.id = a.seguradora_id
+  LEFT JOIN tipo_seguro t ON t.id = a.tipo_seguro_id
+  JOIN forma_pagamento f  ON f.id = e.forma_pagamento_id
+ WHERE lower(f.nome) LIKE '%boleto%'
+   AND p.data IS NOT NULL AND p.data <> ''
+   AND COALESCE(p.paga, 0) = 0
+"""
+
+# boletos do consórcio: são boletos por natureza — não filtra pela forma de pagamento
+_SQL_PARCELAS_BOLETO_CONS = """
+SELECT 'consorcio' AS origem, b.id AS parcela_id, NULL AS endosso_id, NULL AS endosso_numero,
+       co.id AS consorcio_id, co.numero_grupo AS consorcio_grupo, co.numero_cota AS consorcio_cota,
+       b.status AS boleto_status,
+       b.identificacao, b.data_vencimento AS data, b.valor, b.aviso_ok,
+       NULL AS apolice_id, NULL AS numero_apolice, NULL AS vigencia_inicio, NULL AS vigencia_fim,
+       c.nome AS cliente_nome, s.nome AS seguradora_nome, tc.nome AS tipo_seguro_nome,
+       f.nome AS forma_pagamento_nome
+  FROM consorcio_boleto b
+  JOIN consorcio co        ON co.id = b.consorcio_id
+  LEFT JOIN cliente c      ON c.id = co.cliente_id
+  LEFT JOIN seguradora s   ON s.id = co.seguradora_id
+  LEFT JOIN tipo_consorcio tc ON tc.id = co.tipo_consorcio_id
+  LEFT JOIN forma_pagamento f ON f.id = co.forma_pagamento_id
+ WHERE b.data_vencimento IS NOT NULL AND b.data_vencimento <> ''
+   AND COALESCE(b.status, '') <> 'pago'
+"""
+
 
 def parcelas_boleto_pendentes():
-    """Todas as parcelas de apólices com forma de pagamento 'boleto' (com data)."""
+    """Boletos com data e não pagos — de apólices, endossos E consórcios."""
     with conexao() as con:
-        return [dict(l) for l in con.execute(_SQL_PARCELAS_BOLETO + " ORDER BY p.data").fetchall()]
+        linhas = [dict(l) for l in con.execute(_SQL_PARCELAS_BOLETO).fetchall()]
+        linhas += [dict(l) for l in con.execute(_SQL_PARCELAS_BOLETO_END).fetchall()]
+        linhas += [dict(l) for l in con.execute(_SQL_PARCELAS_BOLETO_CONS).fetchall()]
+    linhas.sort(key=lambda l: l.get("data") or "")
+    return linhas
 
 
 def parcelas_boleto_a_vencer(limite_dias, incluir_avisadas=False):
@@ -834,19 +1395,54 @@ def contar_parcelas_boleto_a_vencer(limite_dias):
     return len(parcelas_boleto_a_vencer(limite_dias))
 
 
-def notificacao_parcela_ja_enviada(parcela_id, marco, data_venc):
+def boletos_consorcio_a_enviar():
+    """Boletos de consórcio já disponíveis para envio: status 'a_enviar' e com
+    data de emissão vazia ou já alcançada (não mostra emissões futuras). Mais
+    antigo primeiro."""
+    with conexao() as con:
+        linhas = [dict(l) for l in con.execute(
+            "SELECT b.id AS boleto_id, b.identificacao, b.valor, "
+            "       b.data_emissao, b.data_vencimento, "
+            "       co.id AS consorcio_id, co.numero_grupo, co.numero_cota, "
+            "       c.nome AS cliente_nome, s.nome AS seguradora_nome, tc.nome AS tipo_consorcio_nome "
+            "  FROM consorcio_boleto b "
+            "  JOIN consorcio co           ON co.id = b.consorcio_id "
+            "  LEFT JOIN cliente c         ON c.id = co.cliente_id "
+            "  LEFT JOIN seguradora s      ON s.id = co.seguradora_id "
+            "  LEFT JOIN tipo_consorcio tc ON tc.id = co.tipo_consorcio_id "
+            " WHERE COALESCE(b.status, '') = 'a_enviar' "
+            "   AND (b.data_emissao IS NULL OR b.data_emissao = '' "
+            "        OR b.data_emissao <= date('now', 'localtime')) "
+            " ORDER BY COALESCE(b.data_emissao, ''), COALESCE(b.data_vencimento, ''), b.id"
+        ).fetchall()]
+    return linhas
+
+
+def marcar_boleto_consorcio_enviado(boleto_id, enviado=True):
+    """Alterna o status de um boleto de consórcio entre 'enviado' e 'a_enviar'
+    (não mexe em boleto já 'pago')."""
+    with conexao() as con:
+        con.execute(
+            "UPDATE consorcio_boleto SET status = ? "
+            "WHERE id = ? AND COALESCE(status, '') <> 'pago'",
+            ("enviado" if enviado else "a_enviar", boleto_id))
+    fazer_backup()
+
+
+def notificacao_parcela_ja_enviada(parcela_id, marco, data_venc, origem="apolice"):
     with conexao() as con:
         r = con.execute(
-            "SELECT 1 FROM notificacao_parcela WHERE parcela_id = ? AND marco = ? AND data_vencimento IS ?",
+            f"SELECT 1 FROM {_tabela_notif_parcela(origem)} "
+            "WHERE parcela_id = ? AND marco = ? AND data_vencimento IS ?",
             (parcela_id, marco, data_venc),
         ).fetchone()
         return r is not None
 
 
-def registrar_notificacao_parcela(parcela_id, marco, data_venc, canal, destino, resultado):
+def registrar_notificacao_parcela(parcela_id, marco, data_venc, canal, destino, resultado, origem="apolice"):
     with conexao() as con:
         con.execute(
-            """INSERT OR REPLACE INTO notificacao_parcela
+            f"""INSERT OR REPLACE INTO {_tabela_notif_parcela(origem)}
                    (parcela_id, marco, data_vencimento, canal, destino, resultado, enviado_em)
                VALUES (?, ?, ?, ?, ?, ?, datetime('now'))""",
             (parcela_id, marco, data_venc, canal, destino, resultado),
@@ -1177,6 +1773,69 @@ def listar_entradas_repasse(data_ini=None, data_fim=None):
             " WHERE NOT EXISTS (SELECT 1 FROM apolice_repasse r WHERE r.apolice_id = a.id) "
             " ORDER BY a.id"
         ).fetchall()
+        # endossos SEM comissão parcelada: repasse "único" dos campos achatados
+        endossos = con.execute(
+            "SELECT a.id AS apolice_id, " + cols_apolice + ", "
+            "       e.numero AS _end_num, "
+            "       e.comissao_valor_plenus_receber  AS valor_previsto, "
+            "       e.comissao_valor_plenus_recebido AS valor_recebido, "
+            "       e.data_plenus_recebido           AS data, "
+            "       COALESCE(e.plenus_conferido_banco, 0) AS conferido_banco "
+            "  FROM apolice_endosso e "
+            "  JOIN apolice a          ON a.id = e.apolice_id "
+            "  LEFT JOIN cliente c     ON c.id = a.cliente_id "
+            "  LEFT JOIN tipo_seguro t ON t.id = a.tipo_seguro_id "
+            "  LEFT JOIN seguradora sg ON sg.id = a.seguradora_id "
+            " WHERE COALESCE(e.comissao_parcelada, 0) = 0 "
+            " ORDER BY a.id, e.id"
+        ).fetchall()
+        # endossos COM comissão parcelada: uma linha por parcela de repasse
+        endossos_parc = con.execute(
+            "SELECT a.id AS apolice_id, " + cols_apolice + ", "
+            "       e.numero AS _end_num, r.parcela AS _end_parc, "
+            "       r.data, r.valor_previsto, r.valor_recebido, "
+            "       COALESCE(r.conferido_banco, 0) AS conferido_banco "
+            "  FROM apolice_endosso_repasse r "
+            "  JOIN apolice_endosso e  ON e.id = r.endosso_id "
+            "  JOIN apolice a          ON a.id = e.apolice_id "
+            "  LEFT JOIN cliente c     ON c.id = a.cliente_id "
+            "  LEFT JOIN tipo_seguro t ON t.id = a.tipo_seguro_id "
+            "  LEFT JOIN seguradora sg ON sg.id = a.seguradora_id "
+            " ORDER BY a.id, e.id, r.ordem, r.id"
+        ).fetchall()
+        cols_cons = (
+            "       c.nome AS cliente_nome, tc.nome AS tipo_seguro_nome, "
+            "       sg.nome AS seguradora_nome, "
+            "       co.numero_grupo, co.numero_cota, co.carta AS premio_liquido, "
+            "       co.comissao_percentual, "
+            "       COALESCE(co.comissao_cocorretagem, 0) AS comissao_cocorretagem ")
+        cons_joins = (" FROM consorcio co "
+                      " LEFT JOIN cliente c         ON c.id = co.cliente_id "
+                      " LEFT JOIN tipo_consorcio tc ON tc.id = co.tipo_consorcio_id "
+                      " LEFT JOIN seguradora sg     ON sg.id = co.seguradora_id ")
+        # consórcios SEM comissão parcelada: repasse "único" dos campos achatados
+        consorcios = con.execute(
+            "SELECT co.id AS _cons_id, " + cols_cons + ", "
+            "       co.comissao_valor_plenus_receber  AS valor_previsto, "
+            "       co.comissao_valor_plenus_recebido AS valor_recebido, "
+            "       co.data_plenus_recebido           AS data, "
+            "       COALESCE(co.plenus_conferido_banco, 0) AS conferido_banco "
+            + cons_joins +
+            " WHERE COALESCE(co.comissao_parcelada, 0) = 0 "
+            " ORDER BY co.id"
+        ).fetchall()
+        # consórcios COM comissão parcelada: uma linha por parcela de repasse
+        consorcios_parc = con.execute(
+            "SELECT co.id AS _cons_id, " + cols_cons + ", "
+            "       r.parcela AS _cons_parc, r.data, r.valor_previsto, r.valor_recebido, "
+            "       COALESCE(r.conferido_banco, 0) AS conferido_banco "
+            "  FROM consorcio_repasse r "
+            "  JOIN consorcio co           ON co.id = r.consorcio_id "
+            "  LEFT JOIN cliente c         ON c.id = co.cliente_id "
+            "  LEFT JOIN tipo_consorcio tc ON tc.id = co.tipo_consorcio_id "
+            "  LEFT JOIN seguradora sg     ON sg.id = co.seguradora_id "
+            " ORDER BY co.id, r.ordem, r.id"
+        ).fetchall()
 
     linhas = []
     for row in parceladas:
@@ -1189,6 +1848,45 @@ def listar_entradas_repasse(data_ini=None, data_fim=None):
             continue  # apólice sem nenhum dado de repasse — fora do relatório
         d["parcela"] = "única"
         d["origem"] = "unico"
+        linhas.append(d)
+    for row in endossos:
+        d = dict(row)
+        if d.get("valor_previsto") is None and d.get("valor_recebido") is None:
+            continue  # endosso sem repasse — fora do relatório
+        d["parcela"] = ("endosso " + (d.pop("_end_num") or "").strip()).strip()
+        d["origem"] = "endosso"
+        linhas.append(d)
+    for row in endossos_parc:
+        d = dict(row)
+        num_end = (d.pop("_end_num") or "").strip()
+        parc = (d.pop("_end_parc") or "").strip()
+        d["parcela"] = ("endosso " + num_end + (" " + parc if parc else "")).strip()
+        d["origem"] = "endosso"
+        linhas.append(d)
+    for row in consorcios:
+        d = dict(row)
+        if d.get("valor_previsto") is None and d.get("valor_recebido") is None:
+            continue
+        cid = d.pop("_cons_id")
+        d["apolice_id"] = f"cons:{cid}"
+        d["consorcio_id"] = cid
+        d["is_consorcio"] = True
+        d["numero_apolice"] = ("Grupo " + (d.get("numero_grupo") or "—")
+                               + (" / cota " + d["numero_cota"] if d.get("numero_cota") else ""))
+        d["parcela"] = "consórcio"
+        d["origem"] = "consorcio"
+        linhas.append(d)
+    for row in consorcios_parc:
+        d = dict(row)
+        cid = d.pop("_cons_id")
+        parc = (d.pop("_cons_parc") or "").strip()
+        d["apolice_id"] = f"cons:{cid}"
+        d["consorcio_id"] = cid
+        d["is_consorcio"] = True
+        d["numero_apolice"] = ("Grupo " + (d.get("numero_grupo") or "—")
+                               + (" / cota " + d["numero_cota"] if d.get("numero_cota") else ""))
+        d["parcela"] = ("consórcio " + parc).strip()
+        d["origem"] = "consorcio"
         linhas.append(d)
 
     # o período recorta as parcelas COM data; as parcelas ainda SEM data
@@ -1208,29 +1906,123 @@ def panorama_comissoes(busca=None, data_ini=None, data_fim=None):
     with conexao() as con:
         rows = [dict(r) for r in con.execute(
             "SELECT a.id AS apolice_id, a.numero_apolice, a.vigencia_inicio, "
-            "       c.nome AS cliente_nome, "
+            "       c.nome AS cliente_nome, ts.nome AS tipo_seguro_nome, "
             "       COALESCE(s.nome, '(sem seguradora)') AS seguradora_nome, "
             "       a.premio_liquido, a.comissao_percentual, "
             "       COALESCE(a.comissao_cocorretagem, 0) AS cocorretagem, "
-            "       COALESCE(a.comissao_valor_seguralta_recebido, "
-            "                (SELECT SUM(cm.valor_recebido) FROM apolice_comissao cm "
-            "                   WHERE cm.apolice_id = a.id)) AS receb_seguralta, "
-            "       COALESCE(a.comissao_valor_plenus_recebido, "
-            "                (SELECT SUM(r.valor_recebido) FROM apolice_repasse r "
-            "                   WHERE r.apolice_id = a.id)) AS receb_plenus, "
+            "       CASE WHEN EXISTS (SELECT 1 FROM apolice_comissao cm WHERE cm.apolice_id = a.id) "
+            "            THEN (SELECT SUM(cm.valor_recebido) FROM apolice_comissao cm WHERE cm.apolice_id = a.id) "
+            "            ELSE a.comissao_valor_seguralta_recebido END AS receb_seguralta, "
+            "       CASE WHEN EXISTS (SELECT 1 FROM apolice_repasse r WHERE r.apolice_id = a.id) "
+            "            THEN (SELECT SUM(r.valor_recebido) FROM apolice_repasse r WHERE r.apolice_id = a.id) "
+            "            ELSE a.comissao_valor_plenus_recebido END AS receb_plenus, "
+            "       (SELECT COUNT(DISTINCT cm.parcela) FROM apolice_comissao cm "
+            "          WHERE cm.apolice_id = a.id AND cm.valor_recebido IS NOT NULL) AS n_seg_pagas, "
+            "       (SELECT COUNT(DISTINCT r.parcela) FROM apolice_repasse r "
+            "          WHERE r.apolice_id = a.id AND r.valor_recebido IS NOT NULL) AS n_ple_pagas, "
             "       CASE WHEN EXISTS (SELECT 1 FROM apolice_repasse r WHERE r.apolice_id = a.id) "
             "            THEN (SELECT COALESCE(SUM(r.valor_previsto), 0) FROM apolice_repasse r "
-            "                    WHERE r.apolice_id = a.id) "
+            "                    WHERE r.apolice_id = a.id AND r.valor_recebido IS NULL) "
             "            WHEN a.comissao_valor_plenus_recebido IS NULL "
             "            THEN COALESCE(a.comissao_valor_plenus_receber, 0) "
             "            ELSE 0 END AS ple_a_receber, "
             "       a.recebido_relatorio_seguralta AS rel_receb_seguralta, "
             "       a.recebido_relatorio_plenus    AS rel_receb_plenus "
             "  FROM apolice a "
-            "  LEFT JOIN cliente c    ON c.id = a.cliente_id "
-            "  LEFT JOIN seguradora s ON s.id = a.seguradora_id "
+            "  LEFT JOIN cliente c     ON c.id = a.cliente_id "
+            "  LEFT JOIN seguradora s  ON s.id = a.seguradora_id "
+            "  LEFT JOIN tipo_seguro ts ON ts.id = a.tipo_seguro_id "
             " ORDER BY seguradora_nome COLLATE NOCASE, c.nome COLLATE NOCASE, a.id"
         ).fetchall()]
+        # endossos com comissão — entram como linhas próprias, ao lado da apólice
+        endossos = [dict(r) for r in con.execute(
+            "SELECT a.id AS apolice_id, a.numero_apolice, "
+            "       COALESCE(e.vigencia_inicio, a.vigencia_inicio) AS vigencia_inicio, "
+            "       c.nome AS cliente_nome, ts.nome AS tipo_seguro_nome, "
+            "       COALESCE(s.nome, '(sem seguradora)') AS seguradora_nome, "
+            "       e.valor AS premio_liquido, e.comissao_percentual, 0 AS cocorretagem, "
+            "       CASE WHEN COALESCE(e.comissao_parcelada,0)=1 "
+            "            THEN (SELECT SUM(x.valor_recebido) FROM apolice_endosso_comissao x WHERE x.endosso_id=e.id) "
+            "            ELSE e.comissao_valor_seguralta_recebido END AS receb_seguralta, "
+            "       CASE WHEN COALESCE(e.comissao_parcelada,0)=1 "
+            "            THEN (SELECT SUM(x.valor_recebido) FROM apolice_endosso_repasse x WHERE x.endosso_id=e.id) "
+            "            ELSE e.comissao_valor_plenus_recebido END AS receb_plenus, "
+            "       (SELECT COUNT(DISTINCT x.parcela) FROM apolice_endosso_repasse x "
+            "          WHERE x.endosso_id=e.id AND x.valor_recebido IS NOT NULL) AS n_ple_pagas, "
+            "       (SELECT COUNT(DISTINCT x.parcela) FROM apolice_endosso_comissao x "
+            "          WHERE x.endosso_id=e.id AND x.valor_recebido IS NOT NULL) AS n_seg_pagas, "
+            "       CASE WHEN COALESCE(e.comissao_parcelada,0)=1 "
+            "            THEN (SELECT COALESCE(SUM(x.valor_previsto),0) FROM apolice_endosso_repasse x "
+            "                    WHERE x.endosso_id=e.id AND x.valor_recebido IS NULL) "
+            "            WHEN COALESCE(e.comissao_valor_plenus_receber,0) - COALESCE(e.comissao_valor_plenus_recebido,0) > 0 "
+            "            THEN COALESCE(e.comissao_valor_plenus_receber,0) - COALESCE(e.comissao_valor_plenus_recebido,0) "
+            "            ELSE 0 END AS ple_a_receber, "
+            "       NULL AS rel_receb_seguralta, NULL AS rel_receb_plenus, "
+            "       1 AS is_endosso, e.numero AS endosso_numero, e.id AS endosso_id, "
+            "       CASE WHEN COALESCE(e.comissao_parcelada,0)=1 "
+            "            THEN (SELECT SUM(x.valor_previsto) FROM apolice_endosso_comissao x WHERE x.endosso_id=e.id) "
+            "            ELSE e.comissao_valor_seguralta_receber END AS end_com_seg, "
+            "       CASE WHEN COALESCE(e.comissao_parcelada,0)=1 "
+            "            THEN (SELECT SUM(x.valor_previsto) FROM apolice_endosso_repasse x WHERE x.endosso_id=e.id) "
+            "            ELSE e.comissao_valor_plenus_receber END AS end_com_ple "
+            "  FROM apolice_endosso e "
+            "  JOIN apolice a          ON a.id = e.apolice_id "
+            "  LEFT JOIN cliente c     ON c.id = a.cliente_id "
+            "  LEFT JOIN seguradora s  ON s.id = a.seguradora_id "
+            "  LEFT JOIN tipo_seguro ts ON ts.id = a.tipo_seguro_id "
+            " WHERE COALESCE(e.comissao_parcelada, 0) = 1 "
+            "    OR e.comissao_percentual IS NOT NULL "
+            "    OR e.comissao_valor_seguralta_receber IS NOT NULL "
+            "    OR e.comissao_valor_seguralta_recebido IS NOT NULL "
+            "    OR e.comissao_valor_plenus_receber IS NOT NULL "
+            "    OR e.comissao_valor_plenus_recebido IS NOT NULL"
+        ).fetchall()]
+        # consórcios com comissão — linhas próprias (comissão sobre o valor da carta)
+        consorcios = [dict(r) for r in con.execute(
+            "SELECT co.id AS consorcio_id, NULL AS numero_apolice, co.numero_grupo, co.numero_cota, "
+            "       COALESCE(co.data_plenus_recebido, co.data_seguralta_recebido, substr(co.criado_em,1,10)) AS vigencia_inicio, "
+            "       c.nome AS cliente_nome, tc.nome AS tipo_seguro_nome, "
+            "       COALESCE(s.nome, '(sem seguradora)') AS seguradora_nome, "
+            "       co.carta AS premio_liquido, co.comissao_percentual, "
+            "       COALESCE(co.comissao_cocorretagem, 0) AS cocorretagem, "
+            "       CASE WHEN COALESCE(co.comissao_parcelada,0)=1 "
+            "            THEN (SELECT SUM(x.valor_recebido) FROM consorcio_comissao x WHERE x.consorcio_id=co.id) "
+            "            ELSE co.comissao_valor_seguralta_recebido END AS receb_seguralta, "
+            "       CASE WHEN COALESCE(co.comissao_parcelada,0)=1 "
+            "            THEN (SELECT SUM(x.valor_recebido) FROM consorcio_repasse x WHERE x.consorcio_id=co.id) "
+            "            ELSE co.comissao_valor_plenus_recebido END AS receb_plenus, "
+            "       (SELECT COUNT(DISTINCT x.parcela) FROM consorcio_repasse x "
+            "          WHERE x.consorcio_id=co.id AND x.valor_recebido IS NOT NULL) AS n_ple_pagas, "
+            "       (SELECT COUNT(DISTINCT x.parcela) FROM consorcio_comissao x "
+            "          WHERE x.consorcio_id=co.id AND x.valor_recebido IS NOT NULL) AS n_seg_pagas, "
+            "       CASE WHEN COALESCE(co.comissao_parcelada,0)=1 "
+            "            THEN (SELECT COALESCE(SUM(x.valor_previsto),0) FROM consorcio_repasse x "
+            "                    WHERE x.consorcio_id=co.id AND x.valor_recebido IS NULL) "
+            "            WHEN COALESCE(co.comissao_valor_plenus_receber,0) - COALESCE(co.comissao_valor_plenus_recebido,0) > 0 "
+            "            THEN COALESCE(co.comissao_valor_plenus_receber,0) - COALESCE(co.comissao_valor_plenus_recebido,0) "
+            "            ELSE 0 END AS ple_a_receber, "
+            "       co.recebido_relatorio_seguralta AS rel_receb_seguralta, "
+            "       co.recebido_relatorio_plenus    AS rel_receb_plenus, "
+            "       1 AS is_consorcio, co.numero_grupo AS consorcio_grupo, "
+            "       CASE WHEN COALESCE(co.comissao_parcelada,0)=1 "
+            "            THEN (SELECT SUM(x.valor_previsto) FROM consorcio_comissao x WHERE x.consorcio_id=co.id) "
+            "            ELSE co.comissao_valor_seguralta_receber END AS end_com_seg, "
+            "       CASE WHEN COALESCE(co.comissao_parcelada,0)=1 "
+            "            THEN (SELECT SUM(x.valor_previsto) FROM consorcio_repasse x WHERE x.consorcio_id=co.id) "
+            "            ELSE co.comissao_valor_plenus_receber END AS end_com_ple "
+            "  FROM consorcio co "
+            "  LEFT JOIN cliente c        ON c.id = co.cliente_id "
+            "  LEFT JOIN seguradora s     ON s.id = co.seguradora_id "
+            "  LEFT JOIN tipo_consorcio tc ON tc.id = co.tipo_consorcio_id "
+            " WHERE COALESCE(co.comissao_parcelada, 0) = 1 "
+            "    OR co.comissao_percentual IS NOT NULL "
+            "    OR co.comissao_valor_seguralta_receber IS NOT NULL "
+            "    OR co.comissao_valor_seguralta_recebido IS NOT NULL "
+            "    OR co.comissao_valor_plenus_receber IS NOT NULL "
+            "    OR co.comissao_valor_plenus_recebido IS NOT NULL"
+        ).fetchall()]
+    rows += endossos
+    rows += consorcios
     if data_ini:
         rows = [r for r in rows if (r.get("vigencia_inicio") or "") >= data_ini]
     if data_fim:
@@ -1279,7 +2071,7 @@ def comissoes_repasses_por_apolice(data_ini=None, data_fim=None):
     parcela com `data` no intervalo, ou tem parcela sem data). NÃO recortam as
     linhas de dentro do bloco — o "salvar" regrava a tabela inteira da apólice."""
     cols_apolice = (
-        "       c.nome AS cliente_nome, t.nome AS tipo_seguro_nome, "
+        "       c.nome AS cliente_nome, a.tipo_seguro_id, t.nome AS tipo_seguro_nome, "
         "       sg.nome AS seguradora_nome, "
         "       a.numero_apolice, a.premio_liquido, a.comissao_percentual, "
         "       COALESCE(a.comissao_parcelada, 0)    AS comissao_parcelada, "
@@ -1289,7 +2081,7 @@ def comissoes_repasses_por_apolice(data_ini=None, data_fim=None):
             "SELECT a.id AS apolice_id, " + cols_apolice + ", "
             "       a.comissao_valor_seguralta_receber, a.comissao_valor_seguralta_recebido, "
             "       a.comissao_valor_plenus_receber,   a.comissao_valor_plenus_recebido, "
-            "       a.data_plenus_recebido, "
+            "       a.data_seguralta_recebido, a.data_plenus_recebido, "
             "       COALESCE(a.plenus_conferido_banco, 0) AS plenus_conferido_banco "
             "  FROM apolice a "
             "  LEFT JOIN cliente c     ON c.id = a.cliente_id "
@@ -1306,12 +2098,70 @@ def comissoes_repasses_por_apolice(data_ini=None, data_fim=None):
             "       COALESCE(conferido_banco, 0) AS conferido_banco "
             "  FROM apolice_repasse ORDER BY apolice_id, ordem, id"
         ).fetchall()
+        end_com = con.execute(
+            "SELECT endosso_id, parcela, valor_previsto, valor_recebido, data "
+            "  FROM apolice_endosso_comissao ORDER BY endosso_id, ordem, id").fetchall()
+        end_rep = con.execute(
+            "SELECT endosso_id, parcela, valor_previsto, valor_recebido, data, "
+            "       COALESCE(conferido_banco, 0) AS conferido_banco "
+            "  FROM apolice_endosso_repasse ORDER BY endosso_id, ordem, id").fetchall()
+        endossos = con.execute(
+            "SELECT e.id AS endosso_id, e.numero AS endosso_numero, e.apolice_id, "
+            "       c.nome AS cliente_nome, a.tipo_seguro_id, t.nome AS tipo_seguro_nome, "
+            "       sg.nome AS seguradora_nome, a.numero_apolice, "
+            "       e.valor AS premio_liquido, e.comissao_percentual, "
+            "       COALESCE(e.comissao_parcelada, 0) AS comissao_parcelada, 0 AS comissao_cocorretagem, "
+            "       e.comissao_valor_seguralta_receber, e.comissao_valor_seguralta_recebido, "
+            "       e.comissao_valor_plenus_receber, e.comissao_valor_plenus_recebido, "
+            "       e.data_seguralta_recebido, e.data_plenus_recebido, "
+            "       COALESCE(e.plenus_conferido_banco, 0) AS plenus_conferido_banco "
+            "  FROM apolice_endosso e "
+            "  JOIN apolice a          ON a.id = e.apolice_id "
+            "  LEFT JOIN cliente c     ON c.id = a.cliente_id "
+            "  LEFT JOIN tipo_seguro t ON t.id = a.tipo_seguro_id "
+            "  LEFT JOIN seguradora sg ON sg.id = a.seguradora_id "
+            " ORDER BY e.id"
+        ).fetchall()
+        cons_com = con.execute(
+            "SELECT consorcio_id, parcela, valor_previsto, valor_recebido, data "
+            "  FROM consorcio_comissao ORDER BY consorcio_id, ordem, id").fetchall()
+        cons_rep = con.execute(
+            "SELECT consorcio_id, parcela, valor_previsto, valor_recebido, data, "
+            "       COALESCE(conferido_banco, 0) AS conferido_banco "
+            "  FROM consorcio_repasse ORDER BY consorcio_id, ordem, id").fetchall()
+        consorcios = con.execute(
+            "SELECT co.id AS consorcio_id, co.numero_grupo, co.numero_cota, "
+            "       c.nome AS cliente_nome, NULL AS tipo_seguro_id, tc.nome AS tipo_seguro_nome, "
+            "       sg.nome AS seguradora_nome, "
+            "       co.carta AS premio_liquido, co.comissao_percentual, "
+            "       COALESCE(co.comissao_parcelada, 0) AS comissao_parcelada, "
+            "       COALESCE(co.comissao_cocorretagem, 0) AS comissao_cocorretagem, "
+            "       co.comissao_valor_seguralta_receber, co.comissao_valor_seguralta_recebido, "
+            "       co.comissao_valor_plenus_receber, co.comissao_valor_plenus_recebido, "
+            "       co.data_seguralta_recebido, co.data_plenus_recebido, "
+            "       COALESCE(co.plenus_conferido_banco, 0) AS plenus_conferido_banco "
+            "  FROM consorcio co "
+            "  LEFT JOIN cliente c        ON c.id = co.cliente_id "
+            "  LEFT JOIN tipo_consorcio tc ON tc.id = co.tipo_consorcio_id "
+            "  LEFT JOIN seguradora sg    ON sg.id = co.seguradora_id "
+            " ORDER BY co.id"
+        ).fetchall()
 
     por_apolice_com, por_apolice_rep = {}, {}
     for r in comissoes:
         por_apolice_com.setdefault(r["apolice_id"], []).append(dict(r))
     for r in repasses:
         por_apolice_rep.setdefault(r["apolice_id"], []).append(dict(r))
+    por_end_com, por_end_rep = {}, {}
+    for r in end_com:
+        por_end_com.setdefault(r["endosso_id"], []).append(dict(r))
+    for r in end_rep:
+        por_end_rep.setdefault(r["endosso_id"], []).append(dict(r))
+    por_cons_com, por_cons_rep = {}, {}
+    for r in cons_com:
+        por_cons_com.setdefault(r["consorcio_id"], []).append(dict(r))
+    for r in cons_rep:
+        por_cons_rep.setdefault(r["consorcio_id"], []).append(dict(r))
 
     def _no_periodo(linhas):
         """True se alguma linha tem data no intervalo, ou tem linha sem data."""
@@ -1344,7 +2194,7 @@ def comissoes_repasses_por_apolice(data_ini=None, data_fim=None):
             com = [{"parcela": "única",
                     "valor_previsto": ap["comissao_valor_seguralta_receber"],
                     "valor_recebido": ap["comissao_valor_seguralta_recebido"],
-                    "data": None}]
+                    "data": ap["data_seguralta_recebido"]}]
             rep = [{"parcela": "única",
                     "valor_previsto": ap["comissao_valor_plenus_receber"],
                     "valor_recebido": ap["comissao_valor_plenus_recebido"],
@@ -1355,4 +2205,68 @@ def comissoes_repasses_por_apolice(data_ini=None, data_fim=None):
         ap["comissoes"] = com
         ap["repasses"] = rep
         saida.append(ap)
+
+    for row in endossos:
+        e = dict(row)
+        eid = e["endosso_id"]
+        if e["comissao_parcelada"]:
+            com = por_end_com.get(eid, [])
+            rep = por_end_rep.get(eid, [])
+            if not com and not rep:
+                continue
+        else:
+            valores = (e["comissao_valor_seguralta_receber"], e["comissao_valor_seguralta_recebido"],
+                       e["comissao_valor_plenus_receber"], e["comissao_valor_plenus_recebido"])
+            if all(v is None for v in valores):
+                continue
+            rot = ("endosso " + (e["endosso_numero"] or "")).strip()
+            com = [{"parcela": rot,
+                    "valor_previsto": e["comissao_valor_seguralta_receber"],
+                    "valor_recebido": e["comissao_valor_seguralta_recebido"],
+                    "data": e["data_seguralta_recebido"]}]
+            rep = [{"parcela": rot,
+                    "valor_previsto": e["comissao_valor_plenus_receber"],
+                    "valor_recebido": e["comissao_valor_plenus_recebido"],
+                    "data": e["data_plenus_recebido"],
+                    "conferido_banco": e["plenus_conferido_banco"]}]
+        if not _no_periodo(com + rep):
+            continue
+        e["is_endosso"] = True
+        e["comissoes"] = com
+        e["repasses"] = rep
+        saida.append(e)
+
+    for row in consorcios:
+        co = dict(row)
+        cid = co["consorcio_id"]
+        rot = ("consórcio grupo " + (co["numero_grupo"] or "")).strip()
+        if co["comissao_parcelada"]:
+            com = por_cons_com.get(cid, [])
+            rep = por_cons_rep.get(cid, [])
+            if not com and not rep:
+                continue
+        else:
+            valores = (co["comissao_valor_seguralta_receber"], co["comissao_valor_seguralta_recebido"],
+                       co["comissao_valor_plenus_receber"], co["comissao_valor_plenus_recebido"])
+            if all(v is None for v in valores):
+                continue
+            com = [{"parcela": rot,
+                    "valor_previsto": co["comissao_valor_seguralta_receber"],
+                    "valor_recebido": co["comissao_valor_seguralta_recebido"],
+                    "data": co["data_seguralta_recebido"]}]
+            rep = [{"parcela": rot,
+                    "valor_previsto": co["comissao_valor_plenus_receber"],
+                    "valor_recebido": co["comissao_valor_plenus_recebido"],
+                    "data": co["data_plenus_recebido"],
+                    "conferido_banco": co["plenus_conferido_banco"]}]
+        if not _no_periodo(com + rep):
+            continue
+        co["is_consorcio"] = True
+        co["apolice_id"] = f"cons:{cid}"
+        co["consorcio_grupo"] = co.get("numero_grupo")
+        co["numero_apolice"] = ("Grupo " + (co.get("numero_grupo") or "—")
+                                + (" / cota " + co["numero_cota"] if co.get("numero_cota") else ""))
+        co["comissoes"] = com
+        co["repasses"] = rep
+        saida.append(co)
     return saida

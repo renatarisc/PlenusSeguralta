@@ -219,12 +219,21 @@ def texto_vencimento(ap, dias):
 
 
 def texto_boleto(p, dias):
-    """Devolve (assunto, corpo) do aviso de parcela de boleto."""
-    num = p.get("numero_apolice") or "(sem número)"
+    """Devolve (assunto, corpo) do aviso de parcela de boleto (apólice, endosso ou consórcio)."""
     ident = p.get("identificacao") or "?"
-    assunto = f"[Plenus] Boleto {ident} da apólice {num} {_quando(dias)} — avisar o cliente"
+    if p.get("origem") == "consorcio":
+        grupo = p.get("consorcio_grupo") or "—"
+        cota = f" / cota {p.get('consorcio_cota')}" if p.get("consorcio_cota") else ""
+        ref = f"do consórcio grupo {grupo}{cota}"
+        ref_curto = f"consórcio grupo {grupo}"
+    else:
+        num = p.get("numero_apolice") or "(sem número)"
+        if p.get("origem") == "endosso":
+            num += f" (endosso {p.get('endosso_numero') or ''})".rstrip().replace(" )", ")")
+        ref = ref_curto = f"da apólice {num}"
+    assunto = f"[Plenus] Boleto {ident} {ref_curto} {_quando(dias)} — avisar o cliente"
     corpo = "\n".join([
-        f"Parcela {ident} da apólice {num} {_quando(dias)} ({_data_br(p.get('data'))}).",
+        f"Parcela {ident} {ref} {_quando(dias)} ({_data_br(p.get('data'))}).",
         f"Valor: {_moeda(p.get('valor'))}",
         "",
         f"Cliente: {p.get('cliente_nome') or '—'}",

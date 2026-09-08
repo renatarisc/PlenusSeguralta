@@ -84,6 +84,14 @@ CREATE TABLE IF NOT EXISTS categoria_saida (
     nome TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS tipo_consorcio (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nome TEXT NOT NULL
+);
+-- não deixa cadastrar o mesmo tipo de consórcio duas vezes (ignora maiúsc./minúsc.)
+CREATE UNIQUE INDEX IF NOT EXISTS ix_tipo_consorcio_nome_unico
+    ON tipo_consorcio (nome COLLATE NOCASE);
+
 -- campos configuráveis da cotação (montam o formulário de cotação)
 CREATE TABLE IF NOT EXISTS cotacao_campo (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -112,6 +120,7 @@ CREATE TABLE IF NOT EXISTS apolice (
     comissao_valor_plenus_receber REAL,      -- calculado: 75% do que a SEGURALTA recebeu
     comissao_valor_seguralta_recebido REAL,  -- lançado à mão
     comissao_valor_plenus_recebido REAL,     -- lançado à mão
+    data_seguralta_recebido TEXT,            -- data em que a SEGURALTA recebeu (ISO), repasse único
     data_plenus_recebido TEXT,               -- data em que a Plenus recebeu (ISO)
     plenus_conferido_banco INTEGER NOT NULL DEFAULT 0,  -- 1 = repasse único conferido no extrato bancário da Plenus
     comissao_parcelada INTEGER NOT NULL DEFAULT 0,  -- 1 = repasse mensal (usa apolice_comissao/apolice_repasse)
@@ -172,6 +181,67 @@ CREATE TABLE IF NOT EXISTS apolice_repasse (
     ordem INTEGER NOT NULL DEFAULT 0
 );
 
+-- endosso da apólice: alteração após a emissão (número próprio, vigência, motivo,
+-- situação financeira e comissão própria). Ônus/devolução NÃO geram parcelas de
+-- pagamento — o valor fica só como registro.
+CREATE TABLE IF NOT EXISTS apolice_endosso (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    apolice_id INTEGER NOT NULL REFERENCES apolice(id) ON DELETE CASCADE,
+    numero TEXT,
+    vigencia_inicio TEXT,
+    vigencia_fim TEXT,
+    motivacao TEXT,
+    situacao TEXT NOT NULL DEFAULT 'sem_alteracao',   -- 'onus' | 'devolucao' | 'sem_alteracao'
+    valor REAL,                                        -- valor total do endosso (ônus/devolução)
+    forma_pagamento_id INTEGER REFERENCES forma_pagamento(id),
+    veiculo_placa TEXT,                                -- endosso de troca de veículo
+    veiculo_descricao TEXT,
+    comissao_parcelada INTEGER NOT NULL DEFAULT 0,     -- 1 = comissão mês a mês (tabelas-filhas)
+    comissao_percentual REAL,
+    comissao_valor_seguralta_receber REAL,
+    comissao_valor_seguralta_recebido REAL,
+    comissao_valor_plenus_receber REAL,
+    comissao_valor_plenus_recebido REAL,
+    data_seguralta_recebido TEXT,
+    data_plenus_recebido TEXT,
+    plenus_conferido_banco INTEGER NOT NULL DEFAULT 0,
+    previsto_relatorio_seguralta REAL,
+    recebido_relatorio_seguralta REAL,
+    previsto_relatorio_plenus REAL,
+    recebido_relatorio_plenus REAL,
+    lancado_quiver INTEGER NOT NULL DEFAULT 0,
+    link_onedrive TEXT,
+    criado_em TEXT NOT NULL DEFAULT (datetime('now')),
+    atualizado_em TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- comissão parcelada do endosso (mesma ideia de apolice_comissao / apolice_repasse)
+CREATE TABLE IF NOT EXISTS apolice_endosso_comissao (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    endosso_id INTEGER NOT NULL REFERENCES apolice_endosso(id) ON DELETE CASCADE,
+    parcela TEXT, valor_previsto REAL, valor_recebido REAL, data TEXT,
+    ordem INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS apolice_endosso_repasse (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    endosso_id INTEGER NOT NULL REFERENCES apolice_endosso(id) ON DELETE CASCADE,
+    parcela TEXT, valor_previsto REAL, valor_recebido REAL, data TEXT,
+    conferido_banco INTEGER NOT NULL DEFAULT 0, ordem INTEGER NOT NULL DEFAULT 0
+);
+
+-- parcelas de pagamento do endosso (mesma ideia de apolice_parcela)
+CREATE TABLE IF NOT EXISTS apolice_endosso_parcela (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    endosso_id INTEGER NOT NULL REFERENCES apolice_endosso(id) ON DELETE CASCADE,
+    identificacao TEXT,
+    data TEXT,
+    valor REAL,
+    paga INTEGER NOT NULL DEFAULT 0,
+    pago_em TEXT,
+    aviso_ok INTEGER NOT NULL DEFAULT 0,
+    aviso_ok_em TEXT
+);
+
 -- registro de aviso de vencimento já enviado (pra não repetir o mesmo marco)
 CREATE TABLE IF NOT EXISTS notificacao_vencimento (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -199,6 +269,112 @@ CREATE TABLE IF NOT EXISTS notificacao_parcela (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS ix_notif_parcela_unico
     ON notificacao_parcela (parcela_id, marco, data_vencimento);
+
+-- mesmo controle de aviso, para as parcelas de boleto do ENDOSSO
+CREATE TABLE IF NOT EXISTS notificacao_endosso_parcela (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    parcela_id INTEGER NOT NULL REFERENCES apolice_endosso_parcela(id) ON DELETE CASCADE,
+    marco INTEGER NOT NULL,
+    data_vencimento TEXT,
+    canal TEXT,
+    destino TEXT,
+    resultado TEXT,
+    enviado_em TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ix_notif_end_parcela_unico
+    ON notificacao_endosso_parcela (parcela_id, marco, data_vencimento);
+
+-- consórcio: cota de um grupo, com carta de crédito, parcelas mensais (boletos)
+-- e comissão nos mesmos moldes da apólice (cocorretagem, parcelada, 25/75).
+CREATE TABLE IF NOT EXISTS consorcio (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cliente_id INTEGER REFERENCES cliente(id),
+    seguradora_id INTEGER REFERENCES seguradora(id),
+    tipo_consorcio_id INTEGER REFERENCES tipo_consorcio(id),
+    carta REAL,                                  -- valor da carta de crédito (base da comissão)
+    numero_grupo TEXT,
+    numero_cota TEXT,
+    forma_pagamento_id INTEGER REFERENCES forma_pagamento(id),
+    quantidade_parcelas INTEGER,
+    parcela_dia_vencimento TEXT,                 -- dia do mês em que a parcela vence
+    situacao TEXT NOT NULL DEFAULT 'ativo',      -- ativo | contemplado | quitado | cancelado | desistente
+    forma_contemplacao TEXT,                     -- sorteio | lance
+    data_contemplacao TEXT,                      -- ISO
+    -- comissão (idêntica à da apólice) — calculada sobre o valor da carta
+    comissao_percentual REAL,
+    comissao_valor_seguralta_receber REAL,
+    comissao_valor_plenus_receber REAL,
+    comissao_valor_seguralta_recebido REAL,
+    comissao_valor_plenus_recebido REAL,
+    data_seguralta_recebido TEXT,
+    data_plenus_recebido TEXT,
+    plenus_conferido_banco INTEGER NOT NULL DEFAULT 0,
+    comissao_parcelada INTEGER NOT NULL DEFAULT 0,
+    comissao_cocorretagem INTEGER NOT NULL DEFAULT 0,
+    previsto_relatorio_seguralta REAL,
+    recebido_relatorio_seguralta REAL,
+    previsto_relatorio_plenus REAL,
+    recebido_relatorio_plenus REAL,
+    lancado_quiver INTEGER NOT NULL DEFAULT 0,
+    link_onedrive TEXT,
+    observacao TEXT,
+    criado_em TEXT NOT NULL DEFAULT (datetime('now')),
+    atualizado_em TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- histórico do valor da parcela do consórcio: o 1º registro é o valor inicial;
+-- cada reajuste entra como uma nova linha (valor + data em que passou a vigorar).
+CREATE TABLE IF NOT EXISTS consorcio_parcela_valor (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    consorcio_id INTEGER NOT NULL REFERENCES consorcio(id) ON DELETE CASCADE,
+    valor REAL,
+    data TEXT,                                   -- ISO: a partir de quando este valor vale
+    ordem INTEGER NOT NULL DEFAULT 0
+);
+
+-- comissão parcelada do consórcio (mesma ideia de apolice_comissao / apolice_repasse)
+CREATE TABLE IF NOT EXISTS consorcio_comissao (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    consorcio_id INTEGER NOT NULL REFERENCES consorcio(id) ON DELETE CASCADE,
+    parcela TEXT, valor_previsto REAL, valor_recebido REAL, data TEXT,
+    ordem INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS consorcio_repasse (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    consorcio_id INTEGER NOT NULL REFERENCES consorcio(id) ON DELETE CASCADE,
+    parcela TEXT, valor_previsto REAL, valor_recebido REAL, data TEXT,
+    conferido_banco INTEGER NOT NULL DEFAULT 0, ordem INTEGER NOT NULL DEFAULT 0
+);
+
+-- boletos do consórcio: controle próprio (emissão / vencimento / pagamento / status)
+CREATE TABLE IF NOT EXISTS consorcio_boleto (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    consorcio_id INTEGER NOT NULL REFERENCES consorcio(id) ON DELETE CASCADE,
+    identificacao TEXT,                          -- rótulo da parcela ("1/60", "12"...)
+    valor REAL,
+    data_emissao TEXT,
+    data_vencimento TEXT,
+    data_pagamento TEXT,                         -- NULL = ainda não pago
+    status TEXT NOT NULL DEFAULT 'a_enviar',     -- 'a_enviar' (recém-gerado) | 'enviado' | 'pago'
+    aviso_ok INTEGER NOT NULL DEFAULT 0,         -- 1 = cliente já avisado deste boleto (e-mail diário)
+    aviso_ok_em TEXT,
+    ordem INTEGER NOT NULL DEFAULT 0
+);
+
+-- mesmo controle de aviso de vencimento, para os boletos do CONSÓRCIO
+-- (a coluna se chama parcela_id p/ reaproveitar as mesmas funções dos outros boletos)
+CREATE TABLE IF NOT EXISTS notificacao_consorcio_boleto (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    parcela_id INTEGER NOT NULL REFERENCES consorcio_boleto(id) ON DELETE CASCADE,
+    marco INTEGER NOT NULL,
+    data_vencimento TEXT,
+    canal TEXT,
+    destino TEXT,
+    resultado TEXT,
+    enviado_em TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ix_notif_consorcio_boleto_unico
+    ON notificacao_consorcio_boleto (parcela_id, marco, data_vencimento);
 
 -- fluxo de caixa: saídas (contas a pagar)
 CREATE TABLE IF NOT EXISTS saida (
@@ -247,6 +423,7 @@ _COLUNAS_ESPERADAS = {
     "forma_pagamento": {"nome": "TEXT"},
     "seguradora": {"nome": "TEXT"},
     "categoria_saida": {"nome": "TEXT"},
+    "tipo_consorcio": {"nome": "TEXT"},
     "cotacao_campo": {
         "nome": "TEXT", "tipo": "TEXT", "ordem": "INTEGER NOT NULL DEFAULT 0",
         "papel": "TEXT NOT NULL DEFAULT ''", "opcoes": "TEXT NOT NULL DEFAULT ''",
@@ -260,7 +437,7 @@ _COLUNAS_ESPERADAS = {
         "forma_pagamento_id": "INTEGER", "comissao_percentual": "REAL",
         "comissao_valor_seguralta_receber": "REAL", "comissao_valor_plenus_receber": "REAL",
         "comissao_valor_seguralta_recebido": "REAL", "comissao_valor_plenus_recebido": "REAL",
-        "data_plenus_recebido": "TEXT",
+        "data_seguralta_recebido": "TEXT", "data_plenus_recebido": "TEXT",
         "plenus_conferido_banco": "INTEGER NOT NULL DEFAULT 0",
         "comissao_parcelada": "INTEGER NOT NULL DEFAULT 0",
         "comissao_cocorretagem": "INTEGER NOT NULL DEFAULT 0",
@@ -289,7 +466,90 @@ _COLUNAS_ESPERADAS = {
         "valor_recebido": "REAL", "data": "TEXT",
         "conferido_banco": "INTEGER NOT NULL DEFAULT 0", "ordem": "INTEGER NOT NULL DEFAULT 0",
     },
+    "apolice_endosso": {
+        "apolice_id": "INTEGER", "numero": "TEXT",
+        "vigencia_inicio": "TEXT", "vigencia_fim": "TEXT", "motivacao": "TEXT",
+        "situacao": "TEXT NOT NULL DEFAULT 'sem_alteracao'", "valor": "REAL",
+        "forma_pagamento_id": "INTEGER",
+        "veiculo_placa": "TEXT", "veiculo_descricao": "TEXT",
+        "comissao_parcelada": "INTEGER NOT NULL DEFAULT 0",
+        "comissao_percentual": "REAL",
+        "comissao_valor_seguralta_receber": "REAL", "comissao_valor_seguralta_recebido": "REAL",
+        "comissao_valor_plenus_receber": "REAL", "comissao_valor_plenus_recebido": "REAL",
+        "data_seguralta_recebido": "TEXT", "data_plenus_recebido": "TEXT",
+        "plenus_conferido_banco": "INTEGER NOT NULL DEFAULT 0",
+        "previsto_relatorio_seguralta": "REAL", "recebido_relatorio_seguralta": "REAL",
+        "previsto_relatorio_plenus": "REAL", "recebido_relatorio_plenus": "REAL",
+        "lancado_quiver": "INTEGER NOT NULL DEFAULT 0", "link_onedrive": "TEXT",
+        "criado_em": "TEXT NOT NULL DEFAULT (datetime('now'))",
+        "atualizado_em": "TEXT NOT NULL DEFAULT (datetime('now'))",
+    },
+    "apolice_endosso_parcela": {
+        "endosso_id": "INTEGER", "identificacao": "TEXT", "data": "TEXT", "valor": "REAL",
+        "paga": "INTEGER NOT NULL DEFAULT 0", "pago_em": "TEXT",
+        "aviso_ok": "INTEGER NOT NULL DEFAULT 0", "aviso_ok_em": "TEXT",
+    },
+    "apolice_endosso_comissao": {
+        "endosso_id": "INTEGER", "parcela": "TEXT", "valor_previsto": "REAL",
+        "valor_recebido": "REAL", "data": "TEXT", "ordem": "INTEGER NOT NULL DEFAULT 0",
+    },
+    "apolice_endosso_repasse": {
+        "endosso_id": "INTEGER", "parcela": "TEXT", "valor_previsto": "REAL",
+        "valor_recebido": "REAL", "data": "TEXT",
+        "conferido_banco": "INTEGER NOT NULL DEFAULT 0", "ordem": "INTEGER NOT NULL DEFAULT 0",
+    },
+    "notificacao_endosso_parcela": {
+        "parcela_id": "INTEGER", "marco": "INTEGER", "data_vencimento": "TEXT",
+        "canal": "TEXT", "destino": "TEXT", "resultado": "TEXT",
+        "enviado_em": "TEXT NOT NULL DEFAULT (datetime('now'))",
+    },
     "notificacao_parcela": {
+        "parcela_id": "INTEGER", "marco": "INTEGER", "data_vencimento": "TEXT",
+        "canal": "TEXT", "destino": "TEXT", "resultado": "TEXT",
+        "enviado_em": "TEXT NOT NULL DEFAULT (datetime('now'))",
+    },
+    "consorcio": {
+        "cliente_id": "INTEGER", "seguradora_id": "INTEGER", "tipo_consorcio_id": "INTEGER",
+        "carta": "REAL", "numero_grupo": "TEXT", "numero_cota": "TEXT",
+        "forma_pagamento_id": "INTEGER", "quantidade_parcelas": "INTEGER",
+        "parcela_dia_vencimento": "TEXT",
+        "situacao": "TEXT NOT NULL DEFAULT 'ativo'",
+        "forma_contemplacao": "TEXT", "data_contemplacao": "TEXT",
+        "comissao_percentual": "REAL",
+        "comissao_valor_seguralta_receber": "REAL", "comissao_valor_plenus_receber": "REAL",
+        "comissao_valor_seguralta_recebido": "REAL", "comissao_valor_plenus_recebido": "REAL",
+        "data_seguralta_recebido": "TEXT", "data_plenus_recebido": "TEXT",
+        "plenus_conferido_banco": "INTEGER NOT NULL DEFAULT 0",
+        "comissao_parcelada": "INTEGER NOT NULL DEFAULT 0",
+        "comissao_cocorretagem": "INTEGER NOT NULL DEFAULT 0",
+        "previsto_relatorio_seguralta": "REAL", "recebido_relatorio_seguralta": "REAL",
+        "previsto_relatorio_plenus": "REAL", "recebido_relatorio_plenus": "REAL",
+        "lancado_quiver": "INTEGER NOT NULL DEFAULT 0", "link_onedrive": "TEXT",
+        "observacao": "TEXT",
+        "criado_em": "TEXT NOT NULL DEFAULT (datetime('now'))",
+        "atualizado_em": "TEXT NOT NULL DEFAULT (datetime('now'))",
+    },
+    "consorcio_parcela_valor": {
+        "consorcio_id": "INTEGER", "valor": "REAL", "data": "TEXT",
+        "ordem": "INTEGER NOT NULL DEFAULT 0",
+    },
+    "consorcio_comissao": {
+        "consorcio_id": "INTEGER", "parcela": "TEXT", "valor_previsto": "REAL",
+        "valor_recebido": "REAL", "data": "TEXT", "ordem": "INTEGER NOT NULL DEFAULT 0",
+    },
+    "consorcio_repasse": {
+        "consorcio_id": "INTEGER", "parcela": "TEXT", "valor_previsto": "REAL",
+        "valor_recebido": "REAL", "data": "TEXT",
+        "conferido_banco": "INTEGER NOT NULL DEFAULT 0", "ordem": "INTEGER NOT NULL DEFAULT 0",
+    },
+    "consorcio_boleto": {
+        "consorcio_id": "INTEGER", "identificacao": "TEXT", "valor": "REAL",
+        "data_emissao": "TEXT", "data_vencimento": "TEXT", "data_pagamento": "TEXT",
+        "status": "TEXT NOT NULL DEFAULT 'a_enviar'",
+        "aviso_ok": "INTEGER NOT NULL DEFAULT 0", "aviso_ok_em": "TEXT",
+        "ordem": "INTEGER NOT NULL DEFAULT 0",
+    },
+    "notificacao_consorcio_boleto": {
         "parcela_id": "INTEGER", "marco": "INTEGER", "data_vencimento": "TEXT",
         "canal": "TEXT", "destino": "TEXT", "resultado": "TEXT",
         "enviado_em": "TEXT NOT NULL DEFAULT (datetime('now'))",

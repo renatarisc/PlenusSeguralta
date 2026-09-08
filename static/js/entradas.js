@@ -10,6 +10,29 @@
   function hasVal(el) {
     return !!el && ("" + (el.value == null ? "" : el.value)).trim() !== "";
   }
+
+  // número pt-BR <-> float (igual apolice.js)
+  function num(v) {
+    v = (v == null ? "" : "" + v).trim().replace(/\s|R\$/g, "");
+    if (!v) return 0;
+    if (v.indexOf(",") > -1) v = v.replace(/\./g, "").replace(",", ".");
+    const n = parseFloat(v);
+    return isNaN(n) ? 0 : n;
+  }
+  const fmt = (n) =>
+    (Number(n) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  // soma da entrada REAL: Seguralta = Recebido; Plenus = Pago
+  function recomputarSoma(sec) {
+    const alvo = sec.querySelector("[data-soma]");
+    const corpo = sec.querySelector("[data-corpo]");
+    if (!alvo || !corpo) return;
+    const somar = (sel) =>
+      Array.from(corpo.querySelectorAll(sel)).reduce((t, el) => t + num(el.value), 0);
+    const seg = somar('input[name="comissao_recebido"], input[name="comissao_valor_seguralta_recebido"]');
+    const ple = somar('input[name="repasse_recebido"], input[name="comissao_valor_plenus_recebido"]');
+    alvo.textContent = "Seguralta R$ " + fmt(seg) + " | Plenus R$ " + fmt(ple);
+  }
   function addMeses(iso, k) {
     const p = (iso || "").split("-").map(Number);
     if (p.length !== 3 || p.some(isNaN)) return "";
@@ -76,12 +99,14 @@
       sincronizarParcela(tr);
       if (hasVal(tr.querySelector("[data-ple-receb]"))) travar(tr);
     });
+    recomputarSoma(sec);
 
     sec.addEventListener("input", (e) => {
       const tr = e.target.closest("tr");
       if (!tr) return;
       sincronizarParcela(tr);
       if (e.target.hasAttribute("data-ple-receb")) atualizarSituacao(tr);
+      recomputarSoma(sec);
     });
 
     sec.addEventListener("click", (e) => {
@@ -105,6 +130,7 @@
         if (alvo) alvo.focus();
       } else if (bDel) {
         bDel.closest("tr").remove();
+        recomputarSoma(sec);
       } else if (bAdd) {
         const nova = tpl.content.firstElementChild.cloneNode(true);
         const linhas = corpo.querySelectorAll("tr");
@@ -119,6 +145,7 @@
             nova.querySelector("[data-parcela]").value = String(parseInt(p.value, 10) + 1);
         }
         corpo.appendChild(nova);
+        recomputarSoma(sec);
         const foco = nova.querySelector("input:not([type=hidden])");
         if (foco) foco.focus();
       }
