@@ -28,6 +28,7 @@ import repo
 from validacao import dias_ate_data
 from notificacoes import (
     carregar_config, enviar_email, enviar_whatsapp, texto_vencimento, texto_boleto,
+    texto_boletos_a_enviar,
 )
 
 
@@ -103,6 +104,26 @@ def _passo_email(cfg, forcar, seco):
     return enviados, pulados
 
 
+def _passo_envio(cfg, seco):
+    """Lembrete diário (um e-mail consolidado) dos boletos que a corretora ainda precisa
+    repassar ao cliente — apólice, endosso e consórcio."""
+    janela = max([int(m) for m in cfg.get("marcos_dias_boleto", [10, 1])] or [10])
+    itens = repo.boletos_a_enviar(janela)
+    if not itens:
+        print("  boletos a enviar: nenhum")
+        return 0
+    assunto, corpo = texto_boletos_a_enviar(itens)
+    if seco:
+        print(f"  [SECO] {assunto}")
+        for l in corpo.splitlines():
+            if l.startswith("- "):
+                print(f"    {l}")
+        return len(itens)
+    ok, det = _enviar_canais(cfg, assunto, corpo)
+    print(f"  {'OK  ' if ok else 'ERRO'} {assunto} -> {det}")
+    return len(itens)
+
+
 def _passo_agenda(cfg, seco):
     lembretes = cfg.get("google_agenda", {}).get("lembretes_dias", [10, 1])
     ativos = set()
@@ -157,9 +178,11 @@ def main(argv):
           f"Google Agenda: {'ativo' if agenda_ativo else 'simulado'}")
 
     enviados, pulados = _passo_email(cfg, forcar, seco)
+    a_enviar = _passo_envio(cfg, seco)
     _passo_agenda(cfg, seco)
 
-    print(f"Concluído: {enviados} e-mail(s) enviado(s), {pulados} já enviado(s) antes.")
+    print(f"Concluído: {enviados} e-mail(s) de vencimento, {pulados} já enviado(s) antes, "
+          f"{a_enviar} boleto(s) a enviar ao cliente.")
     return 0
 
 

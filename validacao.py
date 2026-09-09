@@ -169,14 +169,15 @@ def _sim(v):
     return 1 if str(v).strip().lower() in ("1", "sim", "on", "true") else 0
 
 
-def preparar_parcelas(identificacoes, datas, valores, pagas=None, avisos=None):
+def preparar_parcelas(identificacoes, datas, valores, pagas=None, avisos=None, enviados=None):
     """Recebe listas paralelas (request.form.getlist). Ignora linhas totalmente vazias.
-    Devolve (parcelas, erros) — dict {identificacao, data, valor(float|None), paga, aviso_ok}."""
+    Devolve (parcelas, erros) — dict {identificacao, data, valor(float|None), paga, aviso_ok,
+    enviado}."""
     parcelas, erros = [], []
     linhas = zip_longest(identificacoes or [], datas or [], valores or [],
-                         pagas or [], avisos or [], fillvalue="")
+                         pagas or [], avisos or [], enviados or [], fillvalue="")
     n = 0
-    for ident, data, valor, paga, aviso in linhas:
+    for ident, data, valor, paga, aviso, enviado in linhas:
         ident = (ident or "").strip()
         data = (data or "").strip()
         valor_txt = (valor or "").strip()
@@ -188,7 +189,7 @@ def preparar_parcelas(identificacoes, datas, valores, pagas=None, avisos=None):
             erros.append(f"Parcela {n}: valor numérico inválido.")
         parcelas.append({
             "identificacao": ident or None, "data": data or None, "valor": v,
-            "paga": _sim(paga), "aviso_ok": _sim(aviso),
+            "paga": _sim(paga), "aviso_ok": _sim(aviso), "enviado": _sim(enviado),
         })
     return parcelas, erros
 

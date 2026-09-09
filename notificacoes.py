@@ -242,6 +242,34 @@ def texto_boleto(p, dias):
     return assunto, corpo
 
 
+def _ref_boleto(p):
+    """Rótulo curto da origem de um boleto a enviar (apólice / endosso / consórcio)."""
+    if p.get("origem") == "consorcio":
+        grupo = p.get("numero_grupo") or "—"
+        cota = f" / cota {p.get('numero_cota')}" if p.get("numero_cota") else ""
+        return f"consórcio grupo {grupo}{cota}"
+    num = p.get("numero_apolice") or "(sem número)"
+    if p.get("origem") == "endosso":
+        return f"apólice {num} (endosso {p.get('endosso_numero') or ''})".replace(" )", ")")
+    return f"apólice {num}"
+
+
+def texto_boletos_a_enviar(itens):
+    """(assunto, corpo) do lembrete diário dos boletos que a corretora precisa
+    repassar aos clientes. `itens` = lista de repo.boletos_a_enviar(...)."""
+    n = len(itens)
+    assunto = f"[Plenus] {n} boleto(s) para enviar ao cliente"
+    linhas = [f"{n} boleto(s) aguardando envio ao cliente:", ""]
+    for p in itens:
+        venc = _data_br(p.get("data"))
+        linhas.append(
+            f"- {p.get('cliente_nome') or '—'} — {_ref_boleto(p)} — "
+            f"parcela {p.get('identificacao') or '?'} — vence {venc} — {_moeda(p.get('valor'))}"
+        )
+    linhas += ["", "Marque cada um como enviado no painel do Plenus depois de mandar o boleto."]
+    return assunto, "\n".join(linhas)
+
+
 # compatibilidade com chamadas antigas (WhatsApp usa só o corpo)
 def montar_texto_vencimento(ap, dias):
     return texto_vencimento(ap, dias)[1]

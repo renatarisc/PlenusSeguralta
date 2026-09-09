@@ -121,28 +121,43 @@
 </div>
 {% endif %}
 
-{% if boletos_consorcio %}
+{% if boletos_enviar %}
 <div class="cartao cartao--titulo">
-  <h2>Boletos de Consórcio a enviar ({{ boletos_consorcio|length }})</h2>
+  <h2>Boletos de Clientes a enviar ({{ boletos_enviar|length }})</h2>
   <div class="tabela-wrap">
     <table class="lista">
       <thead>
-        <tr><th>Cliente</th><th>Consórcio</th><th>Parcela</th><th>Emissão</th><th>Vencimento</th><th></th></tr>
+        <tr><th>Cliente</th><th>Referência</th><th>Parcela</th><th>Vencimento</th><th></th></tr>
       </thead>
       <tbody>
-        {% for b in boletos_consorcio %}
+        {% for p in boletos_enviar %}
         <tr>
-          <td><strong>{{ b.cliente_nome or '—' }}</strong></td>
+          <td><strong>{{ p.cliente_nome or '—' }}</strong></td>
           <td>
-            <a class="cel-link" href="{{ url_for('consorcio_form', consorcio_id=b.consorcio_id) }}">{{ b.tipo_consorcio_nome or 'Consórcio' }}{% if b.seguradora_nome %} · {{ b.seguradora_nome }}{% endif %}</a>
+            {% if p.origem == 'consorcio' %}
+              <a class="cel-link" href="{{ url_for('consorcio_form', consorcio_id=p.consorcio_id) }}">{{ p.tipo_consorcio_nome or 'Consórcio' }}{% if p.seguradora_nome %} · {{ p.seguradora_nome }}{% endif %}</a>
+              <span class="tag-endosso">consórcio</span>
+            {% else %}
+              <a class="cel-link" href="{{ url_for('apolice_form', apolice_id=p.apolice_id) }}">{{ p.numero_apolice or '—' }}</a>
+              {% if p.origem == 'endosso' %}<span class="tag-endosso">endosso {{ p.endosso_numero or '' }}</span>{% endif %}
+            {% endif %}
           </td>
-          <td>{{ b.identificacao or '—' }}</td>
-          <td>{{ b.data_emissao|data_br if b.data_emissao else '—' }}</td>
-          <td>{{ b.data_vencimento|data_br if b.data_vencimento else '—' }}</td>
+          <td>{{ p.identificacao or '—' }}</td>
+          <td>
+            {{ p.data|data_br if p.data else '—' }}
+            {% if p.dias_restantes is not none %}
+              {% if p.dias_restantes < 0 %}
+              <span class="tag-venc tag-venc--fim">vencido há {{ -p.dias_restantes }}d</span>
+              {% else %}
+              <span class="tag-venc">{{ 'vence hoje' if p.dias_restantes == 0 else 'vence em ' ~ p.dias_restantes ~ 'd' }}</span>
+              {% endif %}
+            {% endif %}
+          </td>
           <td class="acoes">
-            <form method="post" action="{{ url_for('consorcio_boleto_enviado', boleto_id=b.boleto_id) }}">
+            <form method="post" action="{{ url_for('parcela_enviado', parcela_id=p.parcela_id) }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="enviado" value="1">
+              <input type="hidden" name="origem" value="{{ p.origem }}">
               <input type="hidden" name="voltar" value="{{ url_for('dashboard') }}">
               <button class="btn btn--linha btn--mini" type="submit" title="Marcar boleto como enviado ao cliente">✓ enviei</button>
             </form>
@@ -153,8 +168,10 @@
     </table>
   </div>
   <p style="margin:12px 0 0;font-size:12px;color:var(--texto-suave)">
-    Boletos de consórcio já disponíveis para envio (status = <strong>A enviar</strong>).
-    Clique em <strong>✓ enviei</strong> somente depois que mandar o boleto para o cliente.
+    Boletos que a corretora precisa repassar ao cliente: de apólices e endossos com pagamento
+    em boleto vencendo nos próximos {{ DIAS_ALERTA_BOLETO }} dias (ou já vencidos), e de consórcios
+    (status <strong>A enviar</strong>). Clique em <strong>✓ enviei</strong> só depois de mandar
+    o boleto para o cliente.
   </p>
 </div>
 {% endif %}

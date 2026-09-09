@@ -148,6 +148,7 @@
                 <option value="1" {{ 'selected' if p.paga }}>Paga</option>
               </select>
               <input type="hidden" name="parcela_aviso" value="{{ '1' if p.aviso_ok else '0' }}">
+              <input type="hidden" name="parcela_enviado" value="{{ '1' if p.enviado else '0' }}">
             </td>
             <td class="acoes">
               <button type="button" class="btn btn--linha btn--mini" data-editar-parcela title="Liberar edição">{{ icone('lapis') }}</button>
@@ -412,6 +413,7 @@
     <td>
       <select name="parcela_paga" data-parcela-status><option value="0">A pagar</option><option value="1">Paga</option></select>
       <input type="hidden" name="parcela_aviso" value="0">
+      <input type="hidden" name="parcela_enviado" value="0">
     </td>
     <td class="acoes">
       <button type="button" class="btn btn--linha btn--mini" data-editar-parcela title="Liberar edição">{{ icone('lapis') }}</button>

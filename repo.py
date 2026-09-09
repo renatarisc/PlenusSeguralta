@@ -486,12 +486,15 @@ def _inserir_parcelas(con, apolice_id, parcelas):
         pago_em = (p.get("pago_em") or "").strip() or (hoje if paga else None)
         aviso = 1 if p.get("aviso_ok") in (1, "1", True, "sim", "on") else 0
         aviso_em = (p.get("aviso_ok_em") or "").strip() or (hoje if aviso else None)
+        enviado = 1 if p.get("enviado") in (1, "1", True, "sim", "on") else 0
+        enviado_em = (p.get("enviado_em") or "").strip() or (hoje if enviado else None)
         con.execute(
             "INSERT INTO apolice_parcela "
-            "(apolice_id, identificacao, data, valor, paga, pago_em, aviso_ok, aviso_ok_em) "
-            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+            "(apolice_id, identificacao, data, valor, paga, pago_em, aviso_ok, aviso_ok_em, "
+            " enviado, enviado_em) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
             (apolice_id, p.get("identificacao"), p.get("data"), p.get("valor"),
-             paga, pago_em, aviso, aviso_em),
+             paga, pago_em, aviso, aviso_em, enviado, enviado_em),
         )
 
 
@@ -656,7 +659,8 @@ def obter_apolice(apolice_id):
             return None
         ap = dict(l)
         ap["parcelas"] = [dict(p) for p in con.execute(
-            "SELECT id, identificacao, data, valor, paga, pago_em, aviso_ok, aviso_ok_em "
+            "SELECT id, identificacao, data, valor, paga, pago_em, aviso_ok, aviso_ok_em, "
+            "       enviado, enviado_em "
             "FROM apolice_parcela WHERE apolice_id = %s ORDER BY COALESCE(data, ''), id",
             (apolice_id,),
         ).fetchall()]
@@ -822,12 +826,15 @@ def _inserir_endosso_parcelas(con, endosso_id, parcelas):
         pago_em = (p.get("pago_em") or "").strip() or (hoje if paga else None)
         aviso = 1 if p.get("aviso_ok") in (1, "1", True, "sim", "on") else 0
         aviso_em = (p.get("aviso_ok_em") or "").strip() or (hoje if aviso else None)
+        enviado = 1 if p.get("enviado") in (1, "1", True, "sim", "on") else 0
+        enviado_em = (p.get("enviado_em") or "").strip() or (hoje if enviado else None)
         con.execute(
             "INSERT INTO apolice_endosso_parcela "
-            "(endosso_id, identificacao, data, valor, paga, pago_em, aviso_ok, aviso_ok_em) "
-            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+            "(endosso_id, identificacao, data, valor, paga, pago_em, aviso_ok, aviso_ok_em, "
+            " enviado, enviado_em) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
             (endosso_id, p.get("identificacao"), p.get("data"), p.get("valor"),
-             paga, pago_em, aviso, aviso_em),
+             paga, pago_em, aviso, aviso_em, enviado, enviado_em),
         )
 
 
@@ -873,7 +880,8 @@ def obter_endosso(endosso_id):
             return None
         e = dict(l)
         e["parcelas"] = [dict(p) for p in con.execute(
-            "SELECT id, identificacao, data, valor, paga, pago_em, aviso_ok, aviso_ok_em "
+            "SELECT id, identificacao, data, valor, paga, pago_em, aviso_ok, aviso_ok_em, "
+            "       enviado, enviado_em "
             "FROM apolice_endosso_parcela WHERE endosso_id = %s ORDER BY COALESCE(data, ''), id",
             (endosso_id,)).fetchall()]
         e["comissoes"] = [dict(x) for x in con.execute(
@@ -1315,7 +1323,7 @@ def email_boleto_enviado_hoje(parcela_id, origem="apolice"):
 _SQL_PARCELAS_BOLETO = """
 SELECT 'apolice' AS origem, p.id AS parcela_id, NULL AS endosso_id, NULL AS endosso_numero,
        NULL AS consorcio_id, NULL AS consorcio_grupo, NULL AS consorcio_cota, NULL AS boleto_status,
-       p.identificacao, p.data, p.valor, p.aviso_ok,
+       p.identificacao, p.data, p.valor, p.aviso_ok, p.enviado, p.enviado_em,
        a.id AS apolice_id, a.numero_apolice, a.vigencia_inicio, a.vigencia_fim,
        c.nome AS cliente_nome, s.nome AS seguradora_nome, t.nome AS tipo_seguro_nome,
        f.nome AS forma_pagamento_nome
@@ -1333,7 +1341,7 @@ SELECT 'apolice' AS origem, p.id AS parcela_id, NULL AS endosso_id, NULL AS endo
 _SQL_PARCELAS_BOLETO_END = """
 SELECT 'endosso' AS origem, p.id AS parcela_id, e.id AS endosso_id, e.numero AS endosso_numero,
        NULL AS consorcio_id, NULL AS consorcio_grupo, NULL AS consorcio_cota, NULL AS boleto_status,
-       p.identificacao, p.data, p.valor, p.aviso_ok,
+       p.identificacao, p.data, p.valor, p.aviso_ok, p.enviado, p.enviado_em,
        a.id AS apolice_id, a.numero_apolice, a.vigencia_inicio, a.vigencia_fim,
        c.nome AS cliente_nome, s.nome AS seguradora_nome, t.nome AS tipo_seguro_nome,
        f.nome AS forma_pagamento_nome
@@ -1429,6 +1437,50 @@ def marcar_boleto_consorcio_enviado(boleto_id, enviado=True):
             "UPDATE consorcio_boleto SET status = %s "
             "WHERE id = %s AND COALESCE(status, '') <> 'pago'",
             ("enviado" if enviado else "a_enviar", boleto_id))
+    fazer_backup()
+
+
+def boletos_a_enviar(limite_dias):
+    """Boletos que a corretora ainda precisa repassar ao cliente — de apólices,
+    endossos E consórcios — mais antigo primeiro.
+
+    * consórcio: reaproveita `boletos_consorcio_a_enviar()` (status 'a_enviar' + emissão
+      já alcançada; sem janela de vencimento);
+    * apólice/endosso: parcela de boleto não paga, ainda não enviada, com vencimento
+      em <= `limite_dias` dias (inclui as já vencidas)."""
+    itens = []
+    for b in boletos_consorcio_a_enviar():
+        b["origem"] = "consorcio"
+        b["parcela_id"] = b["boleto_id"]
+        b["data"] = b.get("data_vencimento")
+        b["dias_restantes"] = dias_ate_data(b.get("data_vencimento"))
+        itens.append(b)
+    for p in parcelas_boleto_pendentes():
+        if p.get("origem") == "consorcio" or p.get("enviado"):
+            continue
+        d = dias_ate_data(p.get("data"))
+        if d is None or d > limite_dias:
+            continue
+        p["dias_restantes"] = d
+        itens.append(p)
+    itens.sort(key=lambda x: x.get("data") or "")
+    return itens
+
+
+def contar_boletos_a_enviar(limite_dias):
+    return len(boletos_a_enviar(limite_dias))
+
+
+def marcar_parcela_enviada(parcela_id, enviado, origem="apolice"):
+    """Marca/desmarca uma parcela de boleto como já repassada ao cliente.
+    Consórcio usa o `status` do próprio boleto; apólice/endosso usam `enviado`/`enviado_em`."""
+    if origem == "consorcio":
+        marcar_boleto_consorcio_enviado(parcela_id, enviado)
+        return
+    with conexao() as con:
+        con.execute(
+            f"UPDATE {_tabela_parcela(origem)} SET enviado = %s, enviado_em = %s WHERE id = %s",
+            (1 if enviado else 0, date.today().isoformat() if enviado else None, parcela_id))
     fazer_backup()
 
 

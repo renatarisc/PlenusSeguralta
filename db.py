@@ -191,6 +191,8 @@ CREATE TABLE IF NOT EXISTS apolice_parcela (
     pago_em TEXT,                       -- data ISO em que foi marcada como paga
     aviso_ok INT NOT NULL DEFAULT 0,   -- 1 = cliente ja foi avisado desse boleto
     aviso_ok_em TEXT,
+    enviado INT NOT NULL DEFAULT 0,    -- 1 = boleto ja repassado ao cliente (card "a enviar")
+    enviado_em TEXT,
     KEY ix_apolice_parcela_apolice (apolice_id),
     CONSTRAINT fk_apolice_parcela_apolice FOREIGN KEY (apolice_id)
         REFERENCES apolice(id) ON DELETE CASCADE
@@ -292,6 +294,8 @@ CREATE TABLE IF NOT EXISTS apolice_endosso_parcela (
     pago_em TEXT,
     aviso_ok INT NOT NULL DEFAULT 0,
     aviso_ok_em TEXT,
+    enviado INT NOT NULL DEFAULT 0,
+    enviado_em TEXT,
     KEY ix_end_parcela_endosso (endosso_id),
     CONSTRAINT fk_end_parcela_endosso FOREIGN KEY (endosso_id)
         REFERENCES apolice_endosso(id) ON DELETE CASCADE
@@ -531,6 +535,7 @@ _COLUNAS_ESPERADAS = {
         "apolice_id": "INT", "identificacao": "TEXT", "data": "TEXT", "valor": "REAL",
         "paga": "INT NOT NULL DEFAULT 0", "pago_em": "TEXT",
         "aviso_ok": "INT NOT NULL DEFAULT 0", "aviso_ok_em": "TEXT",
+        "enviado": "INT NOT NULL DEFAULT 0", "enviado_em": "TEXT",
     },
     "apolice_comissao": {
         "apolice_id": "INT", "parcela": "TEXT", "valor_previsto": "REAL",
@@ -563,6 +568,7 @@ _COLUNAS_ESPERADAS = {
         "endosso_id": "INT", "identificacao": "TEXT", "data": "TEXT", "valor": "REAL",
         "paga": "INT NOT NULL DEFAULT 0", "pago_em": "TEXT",
         "aviso_ok": "INT NOT NULL DEFAULT 0", "aviso_ok_em": "TEXT",
+        "enviado": "INT NOT NULL DEFAULT 0", "enviado_em": "TEXT",
     },
     "apolice_endosso_comissao": {
         "endosso_id": "INT", "parcela": "TEXT", "valor_previsto": "REAL",

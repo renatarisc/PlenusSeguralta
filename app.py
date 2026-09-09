@@ -294,7 +294,7 @@ def dashboard():
                            por_tipo=repo.apolices_por_tipo(),
                            vencendo=repo.apolices_por_vencer(DIAS_ALERTA_VIGENCIA),
                            boletos=repo.parcelas_boleto_a_vencer(DIAS_ALERTA_BOLETO),
-                           boletos_consorcio=repo.boletos_consorcio_a_enviar(),
+                           boletos_enviar=repo.boletos_a_enviar(DIAS_ALERTA_BOLETO),
                            contas_pagar=repo.saidas_a_pagar(DIAS_ALERTA_SAIDA))
 
 
@@ -589,6 +589,7 @@ def apolice_form(apolice_id=None):
             request.form.getlist("parcela_valor"),
             request.form.getlist("parcela_paga"),
             request.form.getlist("parcela_aviso"),
+            request.form.getlist("parcela_enviado"),
         )
         comissoes, erros_com = preparar_comissoes(
             request.form.getlist("comissao_parcela"),
@@ -733,7 +734,8 @@ def endosso_form(endosso_id=None):
             request.form.getlist("parcela_data"),
             request.form.getlist("parcela_valor"),
             request.form.getlist("parcela_paga"),
-            request.form.getlist("parcela_aviso"))
+            request.form.getlist("parcela_aviso"),
+            request.form.getlist("parcela_enviado"))
         comissoes, erros_com = preparar_comissoes(
             request.form.getlist("comissao_parcela"),
             request.form.getlist("comissao_previsto"),
@@ -978,6 +980,13 @@ def parcela_pagamento(parcela_id):
 def parcela_aviso(parcela_id):
     repo.marcar_aviso_parcela(parcela_id, request.form.get("aviso") == "1", _origem_parcela())
     flash("Aviso do boleto atualizado.", "ok")
+    return _voltar_seguro()
+
+
+@app.route("/parcelas/<int:parcela_id>/enviado", methods=["POST"])
+def parcela_enviado(parcela_id):
+    repo.marcar_parcela_enviada(parcela_id, request.form.get("enviado") == "1", _origem_parcela())
+    flash("Status de envio do boleto atualizado.", "ok")
     return _voltar_seguro()
 
 

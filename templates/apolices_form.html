@@ -222,6 +222,7 @@
                 <option value="0" {{ 'selected' if not p.aviso_ok }}>Não</option>
                 <option value="1" {{ 'selected' if p.aviso_ok }}>Sim</option>
               </select>
+              <input type="hidden" name="parcela_enviado" value="{{ '1' if p.enviado else '0' }}">
             </td>
             <td class="acoes">
               <button type="button" class="btn btn--linha btn--mini" data-editar-parcela title="Liberar edição">{{ icone('lapis') }}</button>
@@ -542,6 +543,7 @@
         <option value="0" selected>Não</option>
         <option value="1">Sim</option>
       </select>
+      <input type="hidden" name="parcela_enviado" value="0">
     </td>
     <td class="acoes">
       <button type="button" class="btn btn--linha btn--mini" data-editar-parcela title="Liberar edição">{{ icone('lapis') }}</button>
