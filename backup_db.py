@@ -1,20 +1,21 @@
-"""Cópia consistente do banco para um arquivo único (mesmo com o sistema em uso).
+"""Copia consistente do banco `plenus` (MySQL) para um arquivo .sql unico.
 
-Usa a API de backup online do SQLite — seguro mesmo com gravações acontecendo.
-Serve para o backup que sai da máquina (cron + rclone/restic, ou snapshot do provedor).
+Usa `mysqldump --single-transaction` (snapshot consistente do InnoDB mesmo com o sistema
+em uso). Serve para o backup que sai da maquina (cron/Agendador + rclone/restic, ou
+snapshot do provedor).
 
-    python backup_db.py [destino]
+    python backup_db.py [destino.sql]
 
-Sem argumento, grava em  backups_externos/plenus_AAAAMMDD_HHMMSS.db  e mantém os 30 mais
-recentes. Com argumento, grava exatamente nesse caminho (sem rotação).
+Sem argumento, grava em  backups_externos/plenus_AAAAMMDD_HHMMSS.sql  e mantem os 30 mais
+recentes. Com argumento, grava exatamente nesse caminho (sem rotacao).
 """
 
 import os
-import sqlite3
+import subprocess
 import sys
 from datetime import datetime
 
-from db import CAMINHO_DB
+from db import config_db, _mysqldump_bin
 
 _RAIZ = os.path.dirname(os.path.abspath(__file__))
 _PASTA = os.path.join(_RAIZ, "backups_externos")
@@ -23,21 +24,23 @@ _MANTER = 30
 
 def copiar(destino):
     os.makedirs(os.path.dirname(destino) or ".", exist_ok=True)
-    origem = sqlite3.connect(CAMINHO_DB)
-    try:
-        alvo = sqlite3.connect(destino)
-        with alvo:
-            origem.backup(alvo)
-        alvo.close()
-    finally:
-        origem.close()
+    dump = _mysqldump_bin()
+    if not dump:
+        raise RuntimeError("mysqldump nao encontrado no PATH nem em 'C:\\Program Files\\MySQL\\...'")
+    cfg = config_db()
+    cmd = [dump, "--host", str(cfg["host"]), "--port", str(cfg["port"]),
+           "--user", str(cfg["user"]), "--no-tablespaces", "--lock-tables=false",
+           "--set-gtid-purged=OFF", str(cfg["database"])]
+    env = {**os.environ, "MYSQL_PWD": str(cfg.get("password") or "")}
+    with open(destino, "w", encoding="utf-8", newline="\n") as f:
+        subprocess.run(cmd, stdout=f, stderr=subprocess.PIPE, env=env, check=True, timeout=300)
     return destino
 
 
 def _rotacionar():
     if not os.path.isdir(_PASTA):
         return
-    arqs = sorted(f for f in os.listdir(_PASTA) if f.endswith(".db"))
+    arqs = sorted(f for f in os.listdir(_PASTA) if f.endswith(".sql"))
     for f in arqs[:-_MANTER]:
         try:
             os.remove(os.path.join(_PASTA, f))
@@ -49,6 +52,6 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         print("Backup gravado em:", copiar(sys.argv[1]))
     else:
-        nome = f"plenus_{datetime.now():%Y%m%d_%H%M%S}.db"
+        nome = f"plenus_{datetime.now():%Y%m%d_%H%M%S}.sql"
         print("Backup gravado em:", copiar(os.path.join(_PASTA, nome)))
         _rotacionar()

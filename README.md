@@ -40,14 +40,17 @@ suba com a variável `PLENUS_HTTPS=1` para o cookie de sessão virar `Secure`.
 5. (Opcional, HTTPS) no servidor: `tailscale serve --bg 5000` → dá uma URL `https://…ts.net`.
    Nesse caso rode o Plenus com `set PLENUS_HTTPS=1 && venv\Scripts\python.exe servir.py`.
 
-**Regra do SQLite:** só o PC servidor roda o app e é dono do `plenus.db`. As outras máquinas
-**não** rodam o `servir.py` nem abrem o `.db` — só acessam pelo navegador.
+**Regra do banco:** o MySQL (`plenus`) é o dono dos dados. As outras máquinas **não** rodam
+o `servir.py` nem conectam direto no banco — só acessam o Plenus pelo navegador.
 
 ## Stack
 
 - **Flask** + templates Jinja2, HTML/CSS/JS puro (responsivo — menu lateral colapsável no celular)
-- **SQLite** (`plenus.db`) com migração em `db.py` (`CREATE TABLE IF NOT EXISTS` + `ALTER TABLE`);
-  snapshot de backup em `backups/` antes de toda gravação
+- **MySQL 8** (schema `plenus`, via PyMySQL) com migração aditiva em `db.py`
+  (`CREATE TABLE IF NOT EXISTS` + `ALTER TABLE ADD COLUMN`); conexão no bloco `db` do
+  `plenus_config.json`. Backup = `mysqldump` em `backups/` (com intervalo mínimo) e
+  `backup_db.py` para o backup externo. `plenus.db` (SQLite) ficou como legado — só o
+  `migrar_para_mysql.py` lê, em modo leitura
 - UF × Cidade: dataset do IBGE embutido em `static/dados/municipios.json`
 - CEP: validação + autofill via ViaCEP; CPF: validação mód. 11
 - **Ler apólice**: `leitura_pdf.py` extrai campos de um PDF (PyMuPDF; cai para OCR com

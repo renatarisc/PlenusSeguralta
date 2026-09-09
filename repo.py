@@ -7,7 +7,7 @@ import secrets
 import unicodedata
 from datetime import date
 
-from db import conexao, fazer_backup
+from db import conexao, fazer_backup, _um
 from validacao import so_digitos, para_decimal, dias_ate_data
 from seguranca import hash_senha, senha_confere
 
@@ -19,19 +19,19 @@ _COLS_USUARIO_PUB = "id, nome, login, ativo, criado_em, ultimo_acesso"
 
 def contar_usuarios():
     with conexao() as con:
-        return con.execute("SELECT COUNT(*) FROM usuario").fetchone()[0]
+        return _um(con.execute("SELECT COUNT(*) FROM usuario"))
 
 
 def listar_usuarios():
     with conexao() as con:
         return [dict(l) for l in con.execute(
-            f"SELECT {_COLS_USUARIO_PUB} FROM usuario ORDER BY nome COLLATE NOCASE"
+            f"SELECT {_COLS_USUARIO_PUB} FROM usuario ORDER BY nome"
         ).fetchall()]
 
 
 def obter_usuario(uid):
     with conexao() as con:
-        l = con.execute(f"SELECT {_COLS_USUARIO_PUB} FROM usuario WHERE id = ?", (uid,)).fetchone()
+        l = con.execute(f"SELECT {_COLS_USUARIO_PUB} FROM usuario WHERE id = %s", (uid,)).fetchone()
         return dict(l) if l else None
 
 
@@ -39,17 +39,17 @@ def autenticar(login, senha):
     """Devolve {id, nome, login} se ok e ativo; senão None. Marca ultimo_acesso."""
     login = (login or "").strip()
     with conexao() as con:
-        u = con.execute("SELECT * FROM usuario WHERE login = ? COLLATE NOCASE", (login,)).fetchone()
+        u = con.execute("SELECT * FROM usuario WHERE login = %s", (login,)).fetchone()
         if not u or not u["ativo"] or not senha_confere(senha, u["senha_hash"]):
             return None
-        con.execute("UPDATE usuario SET ultimo_acesso = datetime('now') WHERE id = ?", (u["id"],))
+        con.execute("UPDATE usuario SET ultimo_acesso = NOW() WHERE id = %s", (u["id"],))
     return {"id": u["id"], "nome": u["nome"], "login": u["login"]}
 
 
 def login_em_uso(login, ignorar_id=None):
     with conexao() as con:
         r = con.execute(
-            "SELECT id FROM usuario WHERE login = ? COLLATE NOCASE AND id IS NOT ?",
+            "SELECT id FROM usuario WHERE login = %s AND NOT (id <=> %s)",
             ((login or "").strip(), ignorar_id),
         ).fetchone()
         return r is not None
@@ -58,7 +58,7 @@ def login_em_uso(login, ignorar_id=None):
 def criar_usuario(nome, login, senha):
     with conexao() as con:
         cur = con.execute(
-            "INSERT INTO usuario (nome, login, senha_hash) VALUES (?, ?, ?)",
+            "INSERT INTO usuario (nome, login, senha_hash) VALUES (%s, %s, %s)",
             ((nome or "").strip(), (login or "").strip(), hash_senha(senha)),
         )
         novo = cur.lastrowid
@@ -67,20 +67,20 @@ def criar_usuario(nome, login, senha):
 
 
 def atualizar_usuario(uid, nome, login, ativo, senha=None):
-    campos = "nome = ?, login = ?, ativo = ?"
+    campos = "nome = %s, login = %s, ativo = %s"
     valores = [(nome or "").strip(), (login or "").strip(), 1 if ativo else 0]
     if senha:
-        campos += ", senha_hash = ?"
+        campos += ", senha_hash = %s"
         valores.append(hash_senha(senha))
     valores.append(uid)
     with conexao() as con:
-        con.execute(f"UPDATE usuario SET {campos} WHERE id = ?", valores)
+        con.execute(f"UPDATE usuario SET {campos} WHERE id = %s", valores)
     fazer_backup()
 
 
 def excluir_usuario(uid):
     with conexao() as con:
-        con.execute("DELETE FROM usuario WHERE id = ?", (uid,))
+        con.execute("DELETE FROM usuario WHERE id = %s", (uid,))
     fazer_backup()
 
 
@@ -122,7 +122,7 @@ def listar_clientes(busca=None, uf=None, cidade=None):
     with conexao() as con:
         linhas = [dict(l) for l in con.execute(
             "SELECT id, nome, tipo_pessoa, cpf, end_cidade, end_estado, tel_ddd, tel_numero, email "
-            "FROM cliente ORDER BY nome COLLATE NOCASE"
+            "FROM cliente ORDER BY nome"
         ).fetchall()]
 
     if uf:
@@ -163,14 +163,14 @@ def tipos_seguro_por_cliente():
 def clientes_com_consorcio():
     """Conjunto de cliente_id que têm ao menos um consórcio."""
     with conexao() as con:
-        return {r[0] for r in con.execute(
+        return {r["cliente_id"] for r in con.execute(
             "SELECT DISTINCT cliente_id FROM consorcio WHERE cliente_id IS NOT NULL"
         ).fetchall()}
 
 
 def ufs_dos_clientes():
     with conexao() as con:
-        return [r[0] for r in con.execute(
+        return [r["end_estado"] for r in con.execute(
             "SELECT DISTINCT end_estado FROM cliente "
             "WHERE end_estado IS NOT NULL AND end_estado <> '' ORDER BY end_estado"
         ).fetchall()]
@@ -181,16 +181,16 @@ def cidades_dos_clientes(uf=None):
            "WHERE end_cidade IS NOT NULL AND end_cidade <> ''")
     params = []
     if uf:
-        sql += " AND end_estado = ?"
+        sql += " AND end_estado = %s"
         params.append(uf)
-    sql += " ORDER BY end_cidade COLLATE NOCASE"
+    sql += " ORDER BY end_cidade"
     with conexao() as con:
-        return [r[0] for r in con.execute(sql, params).fetchall()]
+        return [r["end_cidade"] for r in con.execute(sql, params).fetchall()]
 
 
 def obter_cliente(cliente_id):
     with conexao() as con:
-        l = con.execute("SELECT * FROM cliente WHERE id = ?", (cliente_id,)).fetchone()
+        l = con.execute("SELECT * FROM cliente WHERE id = %s", (cliente_id,)).fetchone()
         return dict(l) if l else None
 
 
@@ -200,10 +200,10 @@ def cliente_por_documento(doc, ignorar_id=None):
     digitos = so_digitos(doc)
     if not digitos:
         return None
-    sql = "SELECT id, nome FROM cliente WHERE cpf = ?"
+    sql = "SELECT id, nome FROM cliente WHERE cpf = %s"
     params = [digitos]
     if ignorar_id:
-        sql += " AND id <> ?"
+        sql += " AND id <> %s"
         params.append(ignorar_id)
     with conexao() as con:
         l = con.execute(sql, params).fetchone()
@@ -212,7 +212,7 @@ def cliente_por_documento(doc, ignorar_id=None):
 
 def criar_cliente(dados):
     with conexao() as con:
-        marc = ", ".join("?" for _ in _COLS_CLIENTE)
+        marc = ", ".join("%s" for _ in _COLS_CLIENTE)
         cur = con.execute(
             f"INSERT INTO cliente ({', '.join(_COLS_CLIENTE)}) VALUES ({marc})",
             _valores_cliente(dados),
@@ -224,9 +224,9 @@ def criar_cliente(dados):
 
 def atualizar_cliente(cliente_id, dados):
     with conexao() as con:
-        atrib = ", ".join(f"{c} = ?" for c in _COLS_CLIENTE)
+        atrib = ", ".join(f"{c} = %s" for c in _COLS_CLIENTE)
         con.execute(
-            f"UPDATE cliente SET {atrib}, atualizado_em = datetime('now') WHERE id = ?",
+            f"UPDATE cliente SET {atrib}, atualizado_em = NOW() WHERE id = %s",
             _valores_cliente(dados) + [cliente_id],
         )
     fazer_backup()
@@ -234,7 +234,7 @@ def atualizar_cliente(cliente_id, dados):
 
 def excluir_cliente(cliente_id):
     with conexao() as con:
-        con.execute("DELETE FROM cliente WHERE id = ?", (cliente_id,))
+        con.execute("DELETE FROM cliente WHERE id = %s", (cliente_id,))
     fazer_backup()
 
 
@@ -247,7 +247,7 @@ def listar_simples(tabela, busca=None):
     assert tabela in _TABELAS_SIMPLES
     with conexao() as con:
         linhas = [dict(l) for l in con.execute(
-            f"SELECT id, nome FROM {tabela} ORDER BY nome COLLATE NOCASE"
+            f"SELECT id, nome FROM {tabela} ORDER BY nome"
         ).fetchall()]
     termo = (busca or "").strip()
     if termo:
@@ -259,7 +259,7 @@ def listar_simples(tabela, busca=None):
 def obter_simples(tabela, item_id):
     assert tabela in _TABELAS_SIMPLES
     with conexao() as con:
-        l = con.execute(f"SELECT id, nome FROM {tabela} WHERE id = ?", (item_id,)).fetchone()
+        l = con.execute(f"SELECT id, nome FROM {tabela} WHERE id = %s", (item_id,)).fetchone()
         return dict(l) if l else None
 
 
@@ -269,10 +269,10 @@ def nome_simples_existe(tabela, nome, ignorar_id=None):
     nome = (nome or "").strip()
     if not nome:
         return False
-    sql = f"SELECT 1 FROM {tabela} WHERE nome = ? COLLATE NOCASE"
+    sql = f"SELECT 1 FROM {tabela} WHERE nome = %s"
     params = [nome]
     if ignorar_id:
-        sql += " AND id <> ?"
+        sql += " AND id <> %s"
         params.append(ignorar_id)
     with conexao() as con:
         return con.execute(sql, params).fetchone() is not None
@@ -284,7 +284,7 @@ def criar_simples(tabela, nome):
     if not nome or nome_simples_existe(tabela, nome):
         return None
     with conexao() as con:
-        cur = con.execute(f"INSERT INTO {tabela} (nome) VALUES (?)", (nome,))
+        cur = con.execute(f"INSERT INTO {tabela} (nome) VALUES (%s)", (nome,))
         novo_id = cur.lastrowid
     fazer_backup()
     return novo_id
@@ -296,7 +296,7 @@ def renomear_simples(tabela, item_id, nome):
     if not nome or nome_simples_existe(tabela, nome, ignorar_id=item_id):
         return False
     with conexao() as con:
-        con.execute(f"UPDATE {tabela} SET nome = ? WHERE id = ?", (nome, item_id))
+        con.execute(f"UPDATE {tabela} SET nome = %s WHERE id = %s", (nome, item_id))
     fazer_backup()
     return True
 
@@ -304,7 +304,7 @@ def renomear_simples(tabela, item_id, nome):
 def excluir_simples(tabela, item_id):
     assert tabela in _TABELAS_SIMPLES
     with conexao() as con:
-        con.execute(f"DELETE FROM {tabela} WHERE id = ?", (item_id,))
+        con.execute(f"DELETE FROM {tabela} WHERE id = %s", (item_id,))
     fazer_backup()
 
 
@@ -318,7 +318,7 @@ def listar_campos_cotacao(busca=None):
     with conexao() as con:
         linhas = [dict(l) for l in con.execute(
             "SELECT id, nome, tipo, ordem, papel, opcoes FROM cotacao_campo "
-            "ORDER BY ordem, nome COLLATE NOCASE"
+            "ORDER BY ordem, nome"
         ).fetchall()]
     termo = (busca or "").strip()
     if termo:
@@ -329,7 +329,7 @@ def listar_campos_cotacao(busca=None):
 
 def obter_campo_cotacao(campo_id):
     with conexao() as con:
-        l = con.execute("SELECT id, nome, tipo, ordem, papel, opcoes FROM cotacao_campo WHERE id = ?",
+        l = con.execute("SELECT id, nome, tipo, ordem, papel, opcoes FROM cotacao_campo WHERE id = %s",
                         (campo_id,)).fetchone()
         return dict(l) if l else None
 
@@ -339,20 +339,20 @@ def _aplicar_papel(con, campo_id, papel):
     (ou limpa, se papel vazio)."""
     papel = (papel or "").strip()
     if papel not in PAPEIS_CAMPO_COTACAO:
-        con.execute("UPDATE cotacao_campo SET papel = '' WHERE id = ?", (campo_id,))
+        con.execute("UPDATE cotacao_campo SET papel = '' WHERE id = %s", (campo_id,))
         return
-    con.execute("UPDATE cotacao_campo SET papel = '' WHERE papel = ? AND id <> ?", (papel, campo_id))
-    con.execute("UPDATE cotacao_campo SET papel = ? WHERE id = ?", (papel, campo_id))
+    con.execute("UPDATE cotacao_campo SET papel = '' WHERE papel = %s AND id <> %s", (papel, campo_id))
+    con.execute("UPDATE cotacao_campo SET papel = %s WHERE id = %s", (papel, campo_id))
 
 
 def campo_cotacao_nome_existe(nome, ignorar_id=None):
     nome = (nome or "").strip()
     if not nome:
         return False
-    sql = "SELECT 1 FROM cotacao_campo WHERE nome = ? COLLATE NOCASE"
+    sql = "SELECT 1 FROM cotacao_campo WHERE nome = %s"
     params = [nome]
     if ignorar_id:
-        sql += " AND id <> ?"
+        sql += " AND id <> %s"
         params.append(ignorar_id)
     with conexao() as con:
         return con.execute(sql, params).fetchone() is not None
@@ -363,10 +363,10 @@ def campo_cotacao_ordem_existe(ordem, ignorar_id=None):
         ordem = int(ordem)
     except (TypeError, ValueError):
         return False
-    sql = "SELECT 1 FROM cotacao_campo WHERE ordem = ?"
+    sql = "SELECT 1 FROM cotacao_campo WHERE ordem = %s"
     params = [ordem]
     if ignorar_id:
-        sql += " AND id <> ?"
+        sql += " AND id <> %s"
         params.append(ignorar_id)
     with conexao() as con:
         return con.execute(sql, params).fetchone() is not None
@@ -375,9 +375,9 @@ def campo_cotacao_ordem_existe(ordem, ignorar_id=None):
 def criar_campo_cotacao(nome, tipo, ordem=None, papel="", opcoes=""):
     with conexao() as con:
         if ordem is None:
-            ordem = con.execute("SELECT COALESCE(MAX(ordem), 0) + 1 FROM cotacao_campo").fetchone()[0]
+            ordem = _um(con.execute("SELECT COALESCE(MAX(ordem), 0) + 1 FROM cotacao_campo"))
         cur = con.execute(
-            "INSERT INTO cotacao_campo (nome, tipo, ordem, opcoes) VALUES (?, ?, ?, ?)",
+            "INSERT INTO cotacao_campo (nome, tipo, ordem, opcoes) VALUES (%s, %s, %s, %s)",
             ((nome or "").strip(), (tipo or "").strip(), int(ordem), (opcoes or "").strip()))
         novo_id = cur.lastrowid
         _aplicar_papel(con, novo_id, papel)
@@ -386,17 +386,17 @@ def criar_campo_cotacao(nome, tipo, ordem=None, papel="", opcoes=""):
 
 
 def atualizar_campo_cotacao(campo_id, nome, tipo, ordem=None, papel=None, opcoes=None):
-    sets = ["nome = ?", "tipo = ?"]
+    sets = ["nome = %s", "tipo = %s"]
     vals = [(nome or "").strip(), (tipo or "").strip()]
     if ordem is not None:
-        sets.append("ordem = ?")
+        sets.append("ordem = %s")
         vals.append(int(ordem))
     if opcoes is not None:
-        sets.append("opcoes = ?")
+        sets.append("opcoes = %s")
         vals.append((opcoes or "").strip())
     vals.append(campo_id)
     with conexao() as con:
-        con.execute(f"UPDATE cotacao_campo SET {', '.join(sets)} WHERE id = ?", vals)
+        con.execute(f"UPDATE cotacao_campo SET {', '.join(sets)} WHERE id = %s", vals)
         if papel is not None:
             _aplicar_papel(con, campo_id, papel)
     fazer_backup()
@@ -404,13 +404,13 @@ def atualizar_campo_cotacao(campo_id, nome, tipo, ordem=None, papel=None, opcoes
 
 def atualizar_campo_cotacao_ordem(campo_id, ordem):
     with conexao() as con:
-        con.execute("UPDATE cotacao_campo SET ordem = ? WHERE id = ?", (int(ordem), campo_id))
+        con.execute("UPDATE cotacao_campo SET ordem = %s WHERE id = %s", (int(ordem), campo_id))
     fazer_backup()
 
 
 def excluir_campo_cotacao(campo_id):
     with conexao() as con:
-        con.execute("DELETE FROM cotacao_campo WHERE id = ?", (campo_id,))
+        con.execute("DELETE FROM cotacao_campo WHERE id = %s", (campo_id,))
     fazer_backup()
 
 
@@ -489,7 +489,7 @@ def _inserir_parcelas(con, apolice_id, parcelas):
         con.execute(
             "INSERT INTO apolice_parcela "
             "(apolice_id, identificacao, data, valor, paga, pago_em, aviso_ok, aviso_ok_em) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
             (apolice_id, p.get("identificacao"), p.get("data"), p.get("valor"),
              paga, pago_em, aviso, aviso_em),
         )
@@ -500,7 +500,7 @@ def _inserir_comissoes(con, apolice_id, linhas):
         con.execute(
             "INSERT INTO apolice_comissao "
             "(apolice_id, parcela, valor_previsto, valor_recebido, data, ordem) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
+            "VALUES (%s, %s, %s, %s, %s, %s)",
             (apolice_id, c.get("parcela"), c.get("valor_previsto"),
              c.get("valor_recebido"), c.get("data"), i),
         )
@@ -512,7 +512,7 @@ def _inserir_repasses(con, apolice_id, linhas):
         con.execute(
             "INSERT INTO apolice_repasse "
             "(apolice_id, parcela, valor_previsto, valor_recebido, data, conferido_banco, ordem) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "VALUES (%s, %s, %s, %s, %s, %s, %s)",
             (apolice_id, r.get("parcela"), r.get("valor_previsto"),
              r.get("valor_recebido"), r.get("data"), conf, i),
         )
@@ -540,29 +540,29 @@ def listar_apolices(cliente_id=None, tipo_seguro_id=None, mes_inicio=None, quive
                LEFT JOIN seguradora s  ON s.id = a.seguradora_id"""
     filtros, params = [], []
     if cliente_id:
-        filtros.append("a.cliente_id = ?")
+        filtros.append("a.cliente_id = %s")
         params.append(cliente_id)
     if tipo_seguro_id:
-        filtros.append("a.tipo_seguro_id = ?")
+        filtros.append("a.tipo_seguro_id = %s")
         params.append(tipo_seguro_id)
     if forma_pagamento_id:
-        filtros.append("a.forma_pagamento_id = ?")
+        filtros.append("a.forma_pagamento_id = %s")
         params.append(forma_pagamento_id)
     if mes_inicio:
-        filtros.append("substr(a.vigencia_inicio, 6, 2) = ?")
+        filtros.append("substr(a.vigencia_inicio, 6, 2) = %s")
         params.append(f"{int(mes_inicio):02d}")
     if mes_fim:
-        filtros.append("substr(a.vigencia_fim, 6, 2) = ?")
+        filtros.append("substr(a.vigencia_fim, 6, 2) = %s")
         params.append(f"{int(mes_fim):02d}")
     if quiver in (0, 1, True, False):
-        filtros.append("COALESCE(a.lancado_quiver, 0) = ?")
+        filtros.append("COALESCE(a.lancado_quiver, 0) = %s")
         params.append(1 if quiver in (1, True) else 0)
     if filtros:
         sql += " WHERE " + " AND ".join(filtros)
     if ordem == "cliente":
-        sql += " ORDER BY c.nome COLLATE NOCASE, a.criado_em DESC, a.id DESC"
+        sql += " ORDER BY c.nome, a.criado_em DESC, a.id DESC"
     elif ordem == "cliente_desc":
-        sql += " ORDER BY c.nome COLLATE NOCASE DESC, a.criado_em DESC, a.id DESC"
+        sql += " ORDER BY c.nome DESC, a.criado_em DESC, a.id DESC"
     else:
         sql += " ORDER BY a.criado_em DESC, a.id DESC"
     with conexao() as con:
@@ -594,14 +594,14 @@ def listar_apolices(cliente_id=None, tipo_seguro_id=None, mes_inicio=None, quive
 
 def contar_apolices_do_cliente(cliente_id):
     with conexao() as con:
-        return con.execute("SELECT COUNT(*) FROM apolice WHERE cliente_id = ?", (cliente_id,)).fetchone()[0]
+        return _um(con.execute("SELECT COUNT(*) FROM apolice WHERE cliente_id = %s", (cliente_id,)))
 
 
 # ---------- números do painel ----------
 
 def resumo_painel():
     with conexao() as con:
-        um = lambda sql: con.execute(sql).fetchone()[0]
+        um = lambda sql: _um(con.execute(sql))
         return {
             "clientes": um("SELECT COUNT(*) FROM cliente"),
             "apolices": um("SELECT COUNT(*) FROM apolice"),
@@ -618,7 +618,7 @@ def apolices_por_tipo():
             "SELECT COALESCE(t.nome, '(sem tipo)') AS nome, COUNT(*) AS qtd "
             "  FROM apolice a LEFT JOIN tipo_seguro t ON t.id = a.tipo_seguro_id "
             " GROUP BY COALESCE(t.nome, '(sem tipo)') "
-            " ORDER BY qtd DESC, nome COLLATE NOCASE"
+            " ORDER BY qtd DESC, nome"
         ).fetchall()
         return [dict(l) for l in linhas]
 
@@ -641,33 +641,33 @@ def apolices_por_vencer(limite_dias, incluir_avisadas=False):
 
 def contar_apolices_por_vencer(limite_dias):
     with conexao() as con:
-        return con.execute(
+        return _um(con.execute(
             "SELECT COUNT(*) FROM apolice "
             "WHERE vigencia_fim IS NOT NULL AND vigencia_fim <> '' "
-            "  AND vigencia_fim <= date('now', 'localtime', ?)",
-            (f"+{int(limite_dias)} days",),
-        ).fetchone()[0]
+            "  AND vigencia_fim <= (CURDATE() + INTERVAL %s DAY)",
+            (int(limite_dias),),
+        ))
 
 
 def obter_apolice(apolice_id):
     with conexao() as con:
-        l = con.execute("SELECT * FROM apolice WHERE id = ?", (apolice_id,)).fetchone()
+        l = con.execute("SELECT * FROM apolice WHERE id = %s", (apolice_id,)).fetchone()
         if not l:
             return None
         ap = dict(l)
         ap["parcelas"] = [dict(p) for p in con.execute(
             "SELECT id, identificacao, data, valor, paga, pago_em, aviso_ok, aviso_ok_em "
-            "FROM apolice_parcela WHERE apolice_id = ? ORDER BY COALESCE(data, ''), id",
+            "FROM apolice_parcela WHERE apolice_id = %s ORDER BY COALESCE(data, ''), id",
             (apolice_id,),
         ).fetchall()]
         ap["comissoes"] = [dict(x) for x in con.execute(
             "SELECT id, parcela, valor_previsto, valor_recebido, data "
-            "FROM apolice_comissao WHERE apolice_id = ? ORDER BY ordem, id",
+            "FROM apolice_comissao WHERE apolice_id = %s ORDER BY ordem, id",
             (apolice_id,),
         ).fetchall()]
         ap["repasses"] = [dict(x) for x in con.execute(
             "SELECT id, parcela, valor_previsto, valor_recebido, data, conferido_banco "
-            "FROM apolice_repasse WHERE apolice_id = ? ORDER BY ordem, id",
+            "FROM apolice_repasse WHERE apolice_id = %s ORDER BY ordem, id",
             (apolice_id,),
         ).fetchall()]
         return ap
@@ -683,11 +683,11 @@ def marcar_parcela_paga(parcela_id, paga, origem="apolice"):
     with conexao() as con:
         if origem == "consorcio":
             con.execute(
-                "UPDATE consorcio_boleto SET status = ?, data_pagamento = ? WHERE id = ?",
+                "UPDATE consorcio_boleto SET status = %s, data_pagamento = %s WHERE id = %s",
                 ("pago" if paga else "enviado", hoje, parcela_id))
         else:
             con.execute(
-                f"UPDATE {_tabela_parcela(origem)} SET paga = ?, pago_em = ? WHERE id = ?",
+                f"UPDATE {_tabela_parcela(origem)} SET paga = %s, pago_em = %s WHERE id = %s",
                 (1 if paga else 0, hoje, parcela_id))
     fazer_backup()
 
@@ -695,7 +695,7 @@ def marcar_parcela_paga(parcela_id, paga, origem="apolice"):
 def marcar_aviso_parcela(parcela_id, ok, origem="apolice"):
     with conexao() as con:
         con.execute(
-            f"UPDATE {_tabela_parcela(origem)} SET aviso_ok = ?, aviso_ok_em = ? WHERE id = ?",
+            f"UPDATE {_tabela_parcela(origem)} SET aviso_ok = %s, aviso_ok_em = %s WHERE id = %s",
             (1 if ok else 0, date.today().isoformat() if ok else None, parcela_id),
         )
     fazer_backup()
@@ -704,7 +704,7 @@ def marcar_aviso_parcela(parcela_id, ok, origem="apolice"):
 def marcar_aviso_vigencia(apolice_id, ok):
     with conexao() as con:
         con.execute(
-            "UPDATE apolice SET aviso_vigencia_ok = ?, aviso_vigencia_ok_em = ? WHERE id = ?",
+            "UPDATE apolice SET aviso_vigencia_ok = %s, aviso_vigencia_ok_em = %s WHERE id = %s",
             (1 if ok else 0, date.today().isoformat() if ok else None, apolice_id),
         )
     fazer_backup()
@@ -712,7 +712,7 @@ def marcar_aviso_vigencia(apolice_id, ok):
 
 def criar_apolice(dados, parcelas, comissoes=None, repasses=None):
     with conexao() as con:
-        marcadores = ", ".join("?" for _ in _COLS_APOLICE)
+        marcadores = ", ".join("%s" for _ in _COLS_APOLICE)
         cur = con.execute(
             f"INSERT INTO apolice ({', '.join(_COLS_APOLICE)}) VALUES ({marcadores})",
             _valores_apolice(dados),
@@ -727,23 +727,23 @@ def criar_apolice(dados, parcelas, comissoes=None, repasses=None):
 
 def atualizar_apolice(apolice_id, dados, parcelas, comissoes=None, repasses=None):
     with conexao() as con:
-        atrib = ", ".join(f"{c} = ?" for c in _COLS_APOLICE)
+        atrib = ", ".join(f"{c} = %s" for c in _COLS_APOLICE)
         con.execute(
-            f"UPDATE apolice SET {atrib}, atualizado_em = datetime('now') WHERE id = ?",
+            f"UPDATE apolice SET {atrib}, atualizado_em = NOW() WHERE id = %s",
             _valores_apolice(dados) + [apolice_id],
         )
-        con.execute("DELETE FROM apolice_parcela WHERE apolice_id = ?", (apolice_id,))
+        con.execute("DELETE FROM apolice_parcela WHERE apolice_id = %s", (apolice_id,))
         _inserir_parcelas(con, apolice_id, parcelas)
-        con.execute("DELETE FROM apolice_comissao WHERE apolice_id = ?", (apolice_id,))
+        con.execute("DELETE FROM apolice_comissao WHERE apolice_id = %s", (apolice_id,))
         _inserir_comissoes(con, apolice_id, comissoes)
-        con.execute("DELETE FROM apolice_repasse WHERE apolice_id = ?", (apolice_id,))
+        con.execute("DELETE FROM apolice_repasse WHERE apolice_id = %s", (apolice_id,))
         _inserir_repasses(con, apolice_id, repasses)
     fazer_backup()
 
 
 def excluir_apolice(apolice_id):
     with conexao() as con:
-        con.execute("DELETE FROM apolice WHERE id = ?", (apolice_id,))
+        con.execute("DELETE FROM apolice WHERE id = %s", (apolice_id,))
     fazer_backup()
 
 
@@ -799,7 +799,7 @@ def _inserir_endosso_comissoes(con, endosso_id, linhas):
         con.execute(
             "INSERT INTO apolice_endosso_comissao "
             "(endosso_id, parcela, valor_previsto, valor_recebido, data, ordem) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
+            "VALUES (%s, %s, %s, %s, %s, %s)",
             (endosso_id, c.get("parcela"), c.get("valor_previsto"),
              c.get("valor_recebido"), c.get("data"), i))
 
@@ -810,7 +810,7 @@ def _inserir_endosso_repasses(con, endosso_id, linhas):
         con.execute(
             "INSERT INTO apolice_endosso_repasse "
             "(endosso_id, parcela, valor_previsto, valor_recebido, data, conferido_banco, ordem) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "VALUES (%s, %s, %s, %s, %s, %s, %s)",
             (endosso_id, r.get("parcela"), r.get("valor_previsto"),
              r.get("valor_recebido"), r.get("data"), conf, i))
 
@@ -825,7 +825,7 @@ def _inserir_endosso_parcelas(con, endosso_id, parcelas):
         con.execute(
             "INSERT INTO apolice_endosso_parcela "
             "(endosso_id, identificacao, data, valor, paga, pago_em, aviso_ok, aviso_ok_em) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
             (endosso_id, p.get("identificacao"), p.get("data"), p.get("valor"),
              paga, pago_em, aviso, aviso_em),
         )
@@ -851,7 +851,7 @@ SELECT e.*, a.numero_apolice, a.cliente_id,
 def listar_endossos(apolice_id=None, busca=None):
     sql, params = _SQL_ENDOSSO_SEL, []
     if apolice_id:
-        sql += " WHERE e.apolice_id = ?"
+        sql += " WHERE e.apolice_id = %s"
         params.append(apolice_id)
     sql += " ORDER BY e.criado_em DESC, e.id DESC"
     with conexao() as con:
@@ -868,28 +868,28 @@ def listar_endossos(apolice_id=None, busca=None):
 
 def obter_endosso(endosso_id):
     with conexao() as con:
-        l = con.execute(_SQL_ENDOSSO_SEL + " WHERE e.id = ?", (endosso_id,)).fetchone()
+        l = con.execute(_SQL_ENDOSSO_SEL + " WHERE e.id = %s", (endosso_id,)).fetchone()
         if not l:
             return None
         e = dict(l)
         e["parcelas"] = [dict(p) for p in con.execute(
             "SELECT id, identificacao, data, valor, paga, pago_em, aviso_ok, aviso_ok_em "
-            "FROM apolice_endosso_parcela WHERE endosso_id = ? ORDER BY COALESCE(data, ''), id",
+            "FROM apolice_endosso_parcela WHERE endosso_id = %s ORDER BY COALESCE(data, ''), id",
             (endosso_id,)).fetchall()]
         e["comissoes"] = [dict(x) for x in con.execute(
             "SELECT id, parcela, valor_previsto, valor_recebido, data "
-            "FROM apolice_endosso_comissao WHERE endosso_id = ? ORDER BY ordem, id",
+            "FROM apolice_endosso_comissao WHERE endosso_id = %s ORDER BY ordem, id",
             (endosso_id,)).fetchall()]
         e["repasses"] = [dict(x) for x in con.execute(
             "SELECT id, parcela, valor_previsto, valor_recebido, data, conferido_banco "
-            "FROM apolice_endosso_repasse WHERE endosso_id = ? ORDER BY ordem, id",
+            "FROM apolice_endosso_repasse WHERE endosso_id = %s ORDER BY ordem, id",
             (endosso_id,)).fetchall()]
         return e
 
 
 def criar_endosso(dados, parcelas=None, comissoes=None, repasses=None):
     with conexao() as con:
-        marc = ", ".join("?" for _ in _COLS_ENDOSSO)
+        marc = ", ".join("%s" for _ in _COLS_ENDOSSO)
         cur = con.execute(
             f"INSERT INTO apolice_endosso ({', '.join(_COLS_ENDOSSO)}) VALUES ({marc})",
             _valores_endosso(dados))
@@ -903,12 +903,12 @@ def criar_endosso(dados, parcelas=None, comissoes=None, repasses=None):
 
 def atualizar_endosso(endosso_id, dados, parcelas=None, comissoes=None, repasses=None):
     with conexao() as con:
-        atrib = ", ".join(f"{c} = ?" for c in _COLS_ENDOSSO)
+        atrib = ", ".join(f"{c} = %s" for c in _COLS_ENDOSSO)
         con.execute(
-            f"UPDATE apolice_endosso SET {atrib}, atualizado_em = datetime('now') WHERE id = ?",
+            f"UPDATE apolice_endosso SET {atrib}, atualizado_em = NOW() WHERE id = %s",
             _valores_endosso(dados) + [endosso_id])
         for tab in ("apolice_endosso_parcela", "apolice_endosso_comissao", "apolice_endosso_repasse"):
-            con.execute(f"DELETE FROM {tab} WHERE endosso_id = ?", (endosso_id,))
+            con.execute(f"DELETE FROM {tab} WHERE endosso_id = %s", (endosso_id,))
         _inserir_endosso_parcelas(con, endosso_id, parcelas)
         _inserir_endosso_comissoes(con, endosso_id, comissoes)
         _inserir_endosso_repasses(con, endosso_id, repasses)
@@ -917,14 +917,14 @@ def atualizar_endosso(endosso_id, dados, parcelas=None, comissoes=None, repasses
 
 def excluir_endosso(endosso_id):
     with conexao() as con:
-        con.execute("DELETE FROM apolice_endosso WHERE id = ?", (endosso_id,))
+        con.execute("DELETE FROM apolice_endosso WHERE id = %s", (endosso_id,))
     fazer_backup()
 
 
 def contar_endossos_por_apolice(apolice_id):
     with conexao() as con:
-        return con.execute("SELECT COUNT(*) FROM apolice_endosso WHERE apolice_id = ?",
-                           (apolice_id,)).fetchone()[0]
+        return _um(con.execute("SELECT COUNT(*) FROM apolice_endosso WHERE apolice_id = %s",
+                               (apolice_id,)))
 
 
 # ---------- consórcios ----------
@@ -985,7 +985,7 @@ def _inserir_consorcio_parcela_valores(con, consorcio_id, linhas):
     for i, v in enumerate(linhas or []):
         con.execute(
             "INSERT INTO consorcio_parcela_valor (consorcio_id, valor, data, ordem) "
-            "VALUES (?, ?, ?, ?)",
+            "VALUES (%s, %s, %s, %s)",
             (consorcio_id, v.get("valor"), v.get("data"), i))
 
 
@@ -994,7 +994,7 @@ def _inserir_consorcio_comissoes(con, consorcio_id, linhas):
         con.execute(
             "INSERT INTO consorcio_comissao "
             "(consorcio_id, parcela, valor_previsto, valor_recebido, data, ordem) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
+            "VALUES (%s, %s, %s, %s, %s, %s)",
             (consorcio_id, c.get("parcela"), c.get("valor_previsto"),
              c.get("valor_recebido"), c.get("data"), i))
 
@@ -1005,7 +1005,7 @@ def _inserir_consorcio_repasses(con, consorcio_id, linhas):
         con.execute(
             "INSERT INTO consorcio_repasse "
             "(consorcio_id, parcela, valor_previsto, valor_recebido, data, conferido_banco, ordem) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "VALUES (%s, %s, %s, %s, %s, %s, %s)",
             (consorcio_id, r.get("parcela"), r.get("valor_previsto"),
              r.get("valor_recebido"), r.get("data"), conf, i))
 
@@ -1022,7 +1022,7 @@ def _inserir_consorcio_boletos(con, consorcio_id, boletos):
             "INSERT INTO consorcio_boleto "
             "(consorcio_id, identificacao, valor, data_emissao, data_vencimento, "
             " data_pagamento, status, aviso_ok, aviso_ok_em, ordem) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
             (consorcio_id, b.get("identificacao"), b.get("valor"),
              (b.get("data_emissao") or "").strip() or None,
              (b.get("data_vencimento") or "").strip() or None,
@@ -1065,32 +1065,32 @@ def listar_consorcios(busca=None):
 
 def obter_consorcio(consorcio_id):
     with conexao() as con:
-        l = con.execute(_SQL_CONSORCIO_SEL + " WHERE co.id = ?", (consorcio_id,)).fetchone()
+        l = con.execute(_SQL_CONSORCIO_SEL + " WHERE co.id = %s", (consorcio_id,)).fetchone()
         if not l:
             return None
         co = dict(l)
         co["parcela_valores"] = [dict(x) for x in con.execute(
             "SELECT id, valor, data FROM consorcio_parcela_valor "
-            "WHERE consorcio_id = ? ORDER BY ordem, id", (consorcio_id,)).fetchall()]
+            "WHERE consorcio_id = %s ORDER BY ordem, id", (consorcio_id,)).fetchall()]
         co["comissoes"] = [dict(x) for x in con.execute(
             "SELECT id, parcela, valor_previsto, valor_recebido, data "
-            "FROM consorcio_comissao WHERE consorcio_id = ? ORDER BY ordem, id",
+            "FROM consorcio_comissao WHERE consorcio_id = %s ORDER BY ordem, id",
             (consorcio_id,)).fetchall()]
         co["repasses"] = [dict(x) for x in con.execute(
             "SELECT id, parcela, valor_previsto, valor_recebido, data, conferido_banco "
-            "FROM consorcio_repasse WHERE consorcio_id = ? ORDER BY ordem, id",
+            "FROM consorcio_repasse WHERE consorcio_id = %s ORDER BY ordem, id",
             (consorcio_id,)).fetchall()]
         co["boletos"] = [dict(x) for x in con.execute(
             "SELECT id, identificacao, valor, data_emissao, data_vencimento, "
             "       data_pagamento, status, aviso_ok, aviso_ok_em "
-            "FROM consorcio_boleto WHERE consorcio_id = ? ORDER BY ordem, id",
+            "FROM consorcio_boleto WHERE consorcio_id = %s ORDER BY ordem, id",
             (consorcio_id,)).fetchall()]
         return co
 
 
 def criar_consorcio(dados, parcela_valores=None, comissoes=None, repasses=None, boletos=None):
     with conexao() as con:
-        marc = ", ".join("?" for _ in _COLS_CONSORCIO)
+        marc = ", ".join("%s" for _ in _COLS_CONSORCIO)
         cur = con.execute(
             f"INSERT INTO consorcio ({', '.join(_COLS_CONSORCIO)}) VALUES ({marc})",
             _valores_consorcio(dados))
@@ -1106,13 +1106,13 @@ def criar_consorcio(dados, parcela_valores=None, comissoes=None, repasses=None, 
 def atualizar_consorcio(consorcio_id, dados, parcela_valores=None, comissoes=None,
                         repasses=None, boletos=None):
     with conexao() as con:
-        atrib = ", ".join(f"{c} = ?" for c in _COLS_CONSORCIO)
+        atrib = ", ".join(f"{c} = %s" for c in _COLS_CONSORCIO)
         con.execute(
-            f"UPDATE consorcio SET {atrib}, atualizado_em = datetime('now') WHERE id = ?",
+            f"UPDATE consorcio SET {atrib}, atualizado_em = NOW() WHERE id = %s",
             _valores_consorcio(dados) + [consorcio_id])
         for tab in ("consorcio_parcela_valor", "consorcio_comissao",
                     "consorcio_repasse", "consorcio_boleto"):
-            con.execute(f"DELETE FROM {tab} WHERE consorcio_id = ?", (consorcio_id,))
+            con.execute(f"DELETE FROM {tab} WHERE consorcio_id = %s", (consorcio_id,))
         _inserir_consorcio_parcela_valores(con, consorcio_id, parcela_valores)
         _inserir_consorcio_comissoes(con, consorcio_id, comissoes)
         _inserir_consorcio_repasses(con, consorcio_id, repasses)
@@ -1122,7 +1122,7 @@ def atualizar_consorcio(consorcio_id, dados, parcela_valores=None, comissoes=Non
 
 def excluir_consorcio(consorcio_id):
     with conexao() as con:
-        con.execute("DELETE FROM consorcio WHERE id = ?", (consorcio_id,))
+        con.execute("DELETE FROM consorcio WHERE id = %s", (consorcio_id,))
     fazer_backup()
 
 
@@ -1134,7 +1134,7 @@ def obter_apolice_basico(apolice_id):
             "  FROM apolice a "
             "  LEFT JOIN cliente c    ON c.id = a.cliente_id "
             "  LEFT JOIN seguradora s ON s.id = a.seguradora_id "
-            " WHERE a.id = ?", (apolice_id,)).fetchone()
+            " WHERE a.id = %s", (apolice_id,)).fetchone()
         return dict(l) if l else None
 
 
@@ -1146,7 +1146,7 @@ def listar_apolices_select():
             "  FROM apolice a "
             "  LEFT JOIN cliente c     ON c.id = a.cliente_id "
             "  LEFT JOIN tipo_seguro t ON t.id = a.tipo_seguro_id "
-            " ORDER BY c.nome COLLATE NOCASE, a.criado_em DESC, a.id DESC").fetchall()]
+            " ORDER BY c.nome, a.criado_em DESC, a.id DESC").fetchall()]
 
 
 def salvar_comissoes_repasses(apolice_id, comissoes, repasses):
@@ -1154,11 +1154,11 @@ def salvar_comissoes_repasses(apolice_id, comissoes, repasses):
     wipe+reinsert de `atualizar_apolice`), sem tocar em nenhuma coluna da
     `apolice` nem em outras apólices. Usado pela grade editável de Entradas."""
     with conexao() as con:
-        con.execute("DELETE FROM apolice_comissao WHERE apolice_id = ?", (apolice_id,))
+        con.execute("DELETE FROM apolice_comissao WHERE apolice_id = %s", (apolice_id,))
         _inserir_comissoes(con, apolice_id, comissoes)
-        con.execute("DELETE FROM apolice_repasse WHERE apolice_id = ?", (apolice_id,))
+        con.execute("DELETE FROM apolice_repasse WHERE apolice_id = %s", (apolice_id,))
         _inserir_repasses(con, apolice_id, repasses)
-        con.execute("UPDATE apolice SET atualizado_em = datetime('now') WHERE id = ?",
+        con.execute("UPDATE apolice SET atualizado_em = NOW() WHERE id = %s",
                     (apolice_id,))
     fazer_backup()
 
@@ -1169,15 +1169,15 @@ def salvar_comissao_unica(apolice_id, valores):
     with conexao() as con:
         con.execute(
             "UPDATE apolice SET "
-            "  comissao_valor_seguralta_receber = ?, "
-            "  comissao_valor_seguralta_recebido = ?, "
-            "  comissao_valor_plenus_receber = ?, "
-            "  comissao_valor_plenus_recebido = ?, "
-            "  data_seguralta_recebido = ?, "
-            "  data_plenus_recebido = ?, "
-            "  plenus_conferido_banco = ?, "
-            "  atualizado_em = datetime('now') "
-            "WHERE id = ?",
+            "  comissao_valor_seguralta_receber = %s, "
+            "  comissao_valor_seguralta_recebido = %s, "
+            "  comissao_valor_plenus_receber = %s, "
+            "  comissao_valor_plenus_recebido = %s, "
+            "  data_seguralta_recebido = %s, "
+            "  data_plenus_recebido = %s, "
+            "  plenus_conferido_banco = %s, "
+            "  atualizado_em = NOW() "
+            "WHERE id = %s",
             (valores.get("comissao_valor_seguralta_receber"),
              valores.get("comissao_valor_seguralta_recebido"),
              valores.get("comissao_valor_plenus_receber"),
@@ -1193,11 +1193,11 @@ def salvar_comissao_unica(apolice_id, valores):
 def salvar_comissoes_repasses_endosso(endosso_id, comissoes, repasses):
     """Regrava só as tabelas-filhas de comissão parcelada de UM endosso (grade de Entradas)."""
     with conexao() as con:
-        con.execute("DELETE FROM apolice_endosso_comissao WHERE endosso_id = ?", (endosso_id,))
+        con.execute("DELETE FROM apolice_endosso_comissao WHERE endosso_id = %s", (endosso_id,))
         _inserir_endosso_comissoes(con, endosso_id, comissoes)
-        con.execute("DELETE FROM apolice_endosso_repasse WHERE endosso_id = ?", (endosso_id,))
+        con.execute("DELETE FROM apolice_endosso_repasse WHERE endosso_id = %s", (endosso_id,))
         _inserir_endosso_repasses(con, endosso_id, repasses)
-        con.execute("UPDATE apolice_endosso SET atualizado_em = datetime('now') WHERE id = ?", (endosso_id,))
+        con.execute("UPDATE apolice_endosso SET atualizado_em = NOW() WHERE id = %s", (endosso_id,))
     fazer_backup()
 
 
@@ -1207,11 +1207,11 @@ def salvar_comissao_endosso(endosso_id, valores):
     with conexao() as con:
         con.execute(
             "UPDATE apolice_endosso SET "
-            "  comissao_valor_seguralta_receber = ?, comissao_valor_seguralta_recebido = ?, "
-            "  comissao_valor_plenus_receber = ?, comissao_valor_plenus_recebido = ?, "
-            "  data_seguralta_recebido = ?, data_plenus_recebido = ?, "
-            "  plenus_conferido_banco = ?, atualizado_em = datetime('now') "
-            "WHERE id = ?",
+            "  comissao_valor_seguralta_receber = %s, comissao_valor_seguralta_recebido = %s, "
+            "  comissao_valor_plenus_receber = %s, comissao_valor_plenus_recebido = %s, "
+            "  data_seguralta_recebido = %s, data_plenus_recebido = %s, "
+            "  plenus_conferido_banco = %s, atualizado_em = NOW() "
+            "WHERE id = %s",
             (valores.get("comissao_valor_seguralta_receber"),
              valores.get("comissao_valor_seguralta_recebido"),
              valores.get("comissao_valor_plenus_receber"),
@@ -1227,11 +1227,11 @@ def salvar_comissao_endosso(endosso_id, valores):
 def salvar_comissoes_repasses_consorcio(consorcio_id, comissoes, repasses):
     """Regrava só as tabelas-filhas de comissão parcelada de UM consórcio (grade de Entradas)."""
     with conexao() as con:
-        con.execute("DELETE FROM consorcio_comissao WHERE consorcio_id = ?", (consorcio_id,))
+        con.execute("DELETE FROM consorcio_comissao WHERE consorcio_id = %s", (consorcio_id,))
         _inserir_consorcio_comissoes(con, consorcio_id, comissoes)
-        con.execute("DELETE FROM consorcio_repasse WHERE consorcio_id = ?", (consorcio_id,))
+        con.execute("DELETE FROM consorcio_repasse WHERE consorcio_id = %s", (consorcio_id,))
         _inserir_consorcio_repasses(con, consorcio_id, repasses)
-        con.execute("UPDATE consorcio SET atualizado_em = datetime('now') WHERE id = ?", (consorcio_id,))
+        con.execute("UPDATE consorcio SET atualizado_em = NOW() WHERE id = %s", (consorcio_id,))
     fazer_backup()
 
 
@@ -1241,11 +1241,11 @@ def salvar_comissao_consorcio(consorcio_id, valores):
     with conexao() as con:
         con.execute(
             "UPDATE consorcio SET "
-            "  comissao_valor_seguralta_receber = ?, comissao_valor_seguralta_recebido = ?, "
-            "  comissao_valor_plenus_receber = ?, comissao_valor_plenus_recebido = ?, "
-            "  data_seguralta_recebido = ?, data_plenus_recebido = ?, "
-            "  plenus_conferido_banco = ?, atualizado_em = datetime('now') "
-            "WHERE id = ?",
+            "  comissao_valor_seguralta_receber = %s, comissao_valor_seguralta_recebido = %s, "
+            "  comissao_valor_plenus_receber = %s, comissao_valor_plenus_recebido = %s, "
+            "  data_seguralta_recebido = %s, data_plenus_recebido = %s, "
+            "  plenus_conferido_banco = %s, atualizado_em = NOW() "
+            "WHERE id = %s",
             (valores.get("comissao_valor_seguralta_receber"),
              valores.get("comissao_valor_seguralta_recebido"),
              valores.get("comissao_valor_plenus_receber"),
@@ -1263,7 +1263,7 @@ def salvar_comissao_consorcio(consorcio_id, valores):
 def notificacao_ja_enviada(apolice_id, marco, vigencia_fim):
     with conexao() as con:
         r = con.execute(
-            "SELECT 1 FROM notificacao_vencimento WHERE apolice_id = ? AND marco = ? AND vigencia_fim IS ?",
+            "SELECT 1 FROM notificacao_vencimento WHERE apolice_id = %s AND marco = %s AND vigencia_fim <=> %s",
             (apolice_id, marco, vigencia_fim),
         ).fetchone()
         return r is not None
@@ -1272,9 +1272,12 @@ def notificacao_ja_enviada(apolice_id, marco, vigencia_fim):
 def registrar_notificacao(apolice_id, marco, vigencia_fim, canal, destino, resultado):
     with conexao() as con:
         con.execute(
-            """INSERT OR REPLACE INTO notificacao_vencimento
+            """INSERT INTO notificacao_vencimento
                    (apolice_id, marco, vigencia_fim, canal, destino, resultado, enviado_em)
-               VALUES (?, ?, ?, ?, ?, ?, datetime('now'))""",
+               VALUES (%s, %s, %s, %s, %s, %s, NOW())
+               ON DUPLICATE KEY UPDATE
+                   canal = VALUES(canal), destino = VALUES(destino),
+                   resultado = VALUES(resultado), enviado_em = NOW()""",
             (apolice_id, marco, vigencia_fim, canal, destino, resultado),
         )
     fazer_backup()
@@ -1286,7 +1289,7 @@ def email_vigencia_enviado_hoje(apolice_id):
     with conexao() as con:
         r = con.execute(
             "SELECT 1 FROM notificacao_vencimento "
-            "WHERE apolice_id = ? AND marco = 0 AND date(enviado_em) = date('now', 'localtime')",
+            "WHERE apolice_id = %s AND marco = 0 AND DATE(enviado_em) = CURDATE()",
             (apolice_id,),
         ).fetchone()
         return r is not None
@@ -1301,7 +1304,7 @@ def email_boleto_enviado_hoje(parcela_id, origem="apolice"):
     with conexao() as con:
         r = con.execute(
             f"SELECT 1 FROM {_tabela_notif_parcela(origem)} "
-            "WHERE parcela_id = ? AND marco = 0 AND date(enviado_em) = date('now', 'localtime')",
+            "WHERE parcela_id = %s AND marco = 0 AND DATE(enviado_em) = CURDATE()",
             (parcela_id,),
         ).fetchone()
         return r is not None
@@ -1412,7 +1415,7 @@ def boletos_consorcio_a_enviar():
             "  LEFT JOIN tipo_consorcio tc ON tc.id = co.tipo_consorcio_id "
             " WHERE COALESCE(b.status, '') = 'a_enviar' "
             "   AND (b.data_emissao IS NULL OR b.data_emissao = '' "
-            "        OR b.data_emissao <= date('now', 'localtime')) "
+            "        OR b.data_emissao <= CURDATE()) "
             " ORDER BY COALESCE(b.data_emissao, ''), COALESCE(b.data_vencimento, ''), b.id"
         ).fetchall()]
     return linhas
@@ -1423,8 +1426,8 @@ def marcar_boleto_consorcio_enviado(boleto_id, enviado=True):
     (não mexe em boleto já 'pago')."""
     with conexao() as con:
         con.execute(
-            "UPDATE consorcio_boleto SET status = ? "
-            "WHERE id = ? AND COALESCE(status, '') <> 'pago'",
+            "UPDATE consorcio_boleto SET status = %s "
+            "WHERE id = %s AND COALESCE(status, '') <> 'pago'",
             ("enviado" if enviado else "a_enviar", boleto_id))
     fazer_backup()
 
@@ -1433,7 +1436,7 @@ def notificacao_parcela_ja_enviada(parcela_id, marco, data_venc, origem="apolice
     with conexao() as con:
         r = con.execute(
             f"SELECT 1 FROM {_tabela_notif_parcela(origem)} "
-            "WHERE parcela_id = ? AND marco = ? AND data_vencimento IS ?",
+            "WHERE parcela_id = %s AND marco = %s AND data_vencimento <=> %s",
             (parcela_id, marco, data_venc),
         ).fetchone()
         return r is not None
@@ -1442,9 +1445,12 @@ def notificacao_parcela_ja_enviada(parcela_id, marco, data_venc, origem="apolice
 def registrar_notificacao_parcela(parcela_id, marco, data_venc, canal, destino, resultado, origem="apolice"):
     with conexao() as con:
         con.execute(
-            f"""INSERT OR REPLACE INTO {_tabela_notif_parcela(origem)}
+            f"""INSERT INTO {_tabela_notif_parcela(origem)}
                    (parcela_id, marco, data_vencimento, canal, destino, resultado, enviado_em)
-               VALUES (?, ?, ?, ?, ?, ?, datetime('now'))""",
+               VALUES (%s, %s, %s, %s, %s, %s, NOW())
+               ON DUPLICATE KEY UPDATE
+                   canal = VALUES(canal), destino = VALUES(destino),
+                   resultado = VALUES(resultado), enviado_em = NOW()""",
             (parcela_id, marco, data_venc, canal, destino, resultado),
         )
     fazer_backup()
@@ -1454,7 +1460,7 @@ def registrar_notificacao_parcela(parcela_id, marco, data_venc, canal, destino, 
 
 def evento_agenda_obter(chave):
     with conexao() as con:
-        l = con.execute("SELECT * FROM evento_agenda WHERE chave = ?", (chave,)).fetchone()
+        l = con.execute("SELECT * FROM evento_agenda WHERE chave = %s", (chave,)).fetchone()
         return dict(l) if l else None
 
 
@@ -1462,10 +1468,10 @@ def evento_agenda_salvar(chave, event_id, data_ref, resumo):
     with conexao() as con:
         con.execute(
             """INSERT INTO evento_agenda (chave, event_id, data_ref, resumo, atualizado_em)
-               VALUES (?, ?, ?, ?, datetime('now'))
-               ON CONFLICT(chave) DO UPDATE SET
-                   event_id = excluded.event_id, data_ref = excluded.data_ref,
-                   resumo = excluded.resumo, atualizado_em = datetime('now')""",
+               VALUES (%s, %s, %s, %s, NOW())
+               ON DUPLICATE KEY UPDATE
+                   event_id = VALUES(event_id), data_ref = VALUES(data_ref),
+                   resumo = VALUES(resumo), atualizado_em = NOW()""",
             (chave, event_id, data_ref, resumo),
         )
     fazer_backup()
@@ -1473,7 +1479,7 @@ def evento_agenda_salvar(chave, event_id, data_ref, resumo):
 
 def evento_agenda_remover(chave):
     with conexao() as con:
-        con.execute("DELETE FROM evento_agenda WHERE chave = ?", (chave,))
+        con.execute("DELETE FROM evento_agenda WHERE chave = %s", (chave,))
     fazer_backup()
 
 
@@ -1510,7 +1516,7 @@ def _valores_saida(dados):
 
 
 def _inserir_saida(con, dados):
-    marc = ", ".join("?" for _ in _COLS_SAIDA)
+    marc = ", ".join("%s" for _ in _COLS_SAIDA)
     cur = con.execute(f"INSERT INTO saida ({', '.join(_COLS_SAIDA)}) VALUES ({marc})",
                       _valores_saida(dados))
     return cur.lastrowid
@@ -1518,7 +1524,7 @@ def _inserir_saida(con, dados):
 
 def obter_saida(saida_id):
     with conexao() as con:
-        l = con.execute("SELECT * FROM saida WHERE id = ?", (saida_id,)).fetchone()
+        l = con.execute("SELECT * FROM saida WHERE id = %s", (saida_id,)).fetchone()
         return dict(l) if l else None
 
 
@@ -1532,7 +1538,7 @@ def obter_grupo_saida(saida_id):
     if s.get("serie_id"):
         with conexao() as con:
             irmas = [dict(l) for l in con.execute(
-                "SELECT * FROM saida WHERE serie_id = ? ORDER BY COALESCE(data_vencimento, ''), id",
+                "SELECT * FROM saida WHERE serie_id = %s ORDER BY COALESCE(data_vencimento, ''), id",
                 (s["serie_id"],)).fetchall()]
     else:
         irmas = [s]
@@ -1566,7 +1572,7 @@ def salvar_grupo_saida(saida_id, comum, linhas):
     with conexao() as con:
         serie = None
         if saida_id:
-            row = con.execute("SELECT serie_id FROM saida WHERE id = ?", (saida_id,)).fetchone()
+            row = con.execute("SELECT serie_id FROM saida WHERE id = %s", (saida_id,)).fetchone()
             serie = row["serie_id"] if row else None
         if len(linhas) == 1:
             serie = None
@@ -1578,12 +1584,12 @@ def salvar_grupo_saida(saida_id, comum, linhas):
         if saida_id:
             if row and row["serie_id"]:
                 antigos = [r["id"] for r in con.execute(
-                    "SELECT id FROM saida WHERE serie_id = ?", (row["serie_id"],)).fetchall()]
+                    "SELECT id FROM saida WHERE serie_id = %s", (row["serie_id"],)).fetchall()]
             else:
                 antigos = [saida_id]
             for old in antigos:
                 if old not in enviados:
-                    con.execute("DELETE FROM saida WHERE id = ?", (old,))
+                    con.execute("DELETE FROM saida WHERE id = %s", (old,))
 
         base = {**comum, "serie_id": serie}
         for l in linhas:
@@ -1592,9 +1598,9 @@ def salvar_grupo_saida(saida_id, comum, linhas):
                      "data_pagamento": l.get("data_pagamento"),
                      "numero_parcela": l.get("numero_parcela")}
             if l.get("id") and l["id"] in enviados:
-                atrib = ", ".join(f"{c} = ?" for c in _COLS_SAIDA)
+                atrib = ", ".join(f"{c} = %s" for c in _COLS_SAIDA)
                 con.execute(
-                    f"UPDATE saida SET {atrib}, atualizado_em = datetime('now') WHERE id = ?",
+                    f"UPDATE saida SET {atrib}, atualizado_em = NOW() WHERE id = %s",
                     _valores_saida(dados) + [l["id"]])
             else:
                 _inserir_saida(con, dados)
@@ -1604,14 +1610,14 @@ def salvar_grupo_saida(saida_id, comum, linhas):
 
 def excluir_saida(saida_id):
     with conexao() as con:
-        con.execute("DELETE FROM saida WHERE id = ?", (saida_id,))
+        con.execute("DELETE FROM saida WHERE id = %s", (saida_id,))
     fazer_backup()
 
 
 def marcar_saida_paga(saida_id, paga, data=None):
     d = (data or "").strip() or date.today().isoformat()
     with conexao() as con:
-        con.execute("UPDATE saida SET data_pagamento = ?, atualizado_em = datetime('now') WHERE id = ?",
+        con.execute("UPDATE saida SET data_pagamento = %s, atualizado_em = NOW() WHERE id = %s",
                     (d if paga else None, saida_id))
     fazer_backup()
 
@@ -1692,10 +1698,10 @@ def categorias_saida():
 def descricoes_saida():
     """Descrições distintas já cadastradas em `saida` (p/ o autocomplete da busca)."""
     with conexao() as con:
-        return [r[0] for r in con.execute(
+        return [r["descricao"] for r in con.execute(
             "SELECT DISTINCT descricao FROM saida "
             "WHERE descricao IS NOT NULL AND TRIM(descricao) <> '' "
-            "ORDER BY descricao COLLATE NOCASE"
+            "ORDER BY descricao"
         ).fetchall()]
 
 
@@ -1715,14 +1721,14 @@ def saidas_a_pagar(limite_dias):
 def resumo_saidas():
     with conexao() as con:
         mes = date.today().strftime("%Y-%m")
-        a_pagar_mes = con.execute(
+        a_pagar_mes = _um(con.execute(
             "SELECT COALESCE(SUM(valor), 0) FROM saida "
-            "WHERE data_pagamento IS NULL AND substr(data_vencimento, 1, 7) = ?", (mes,)
-        ).fetchone()[0]
-        vencido = con.execute(
+            "WHERE data_pagamento IS NULL AND substr(data_vencimento, 1, 7) = %s", (mes,)
+        ))
+        vencido = _um(con.execute(
             "SELECT COALESCE(SUM(valor), 0) FROM saida "
-            "WHERE data_pagamento IS NULL AND data_vencimento < ?", (date.today().isoformat(),)
-        ).fetchone()[0]
+            "WHERE data_pagamento IS NULL AND data_vencimento < %s", (date.today().isoformat(),)
+        ))
     return {"a_pagar_mes": a_pagar_mes, "vencido": vencido}
 
 
@@ -1932,7 +1938,7 @@ def panorama_comissoes(busca=None, data_ini=None, data_fim=None):
             "  LEFT JOIN cliente c     ON c.id = a.cliente_id "
             "  LEFT JOIN seguradora s  ON s.id = a.seguradora_id "
             "  LEFT JOIN tipo_seguro ts ON ts.id = a.tipo_seguro_id "
-            " ORDER BY seguradora_nome COLLATE NOCASE, c.nome COLLATE NOCASE, a.id"
+            " ORDER BY seguradora_nome, c.nome, a.id"
         ).fetchall()]
         # endossos com comissão — entram como linhas próprias, ao lado da apólice
         endossos = [dict(r) for r in con.execute(

@@ -1,202 +1,244 @@
-"""Banco de dados do Plenus SEGURALTA.
+"""Banco de dados do Plenus SEGURALTA - MySQL 8 (via PyMySQL).
 
-SQLite nativo (sem servidor separado - volume pequeno). O esquema cresce aos poucos, então
-`inicializar_db()` roda `CREATE TABLE IF NOT EXISTS` + `_migrar_esquema()` que só ACRESCENTA
-colunas/tabelas que faltam - nunca apaga nem recria nada com dado dentro. Antes de qualquer
-criação/migração e depois de toda gravação, `fazer_backup()` grava um snapshot do .db numa pasta
-datada, pra que um erro de código ou migração nunca custe dado real.
+O esquema cresce aos poucos, entao `inicializar_db()` roda `CREATE TABLE IF NOT EXISTS` +
+`_migrar_esquema()` que so ACRESCENTA colunas/tabelas que faltam - nunca apaga nem recria
+nada com dado dentro. Antes de qualquer criacao/migracao e depois de toda gravacao,
+`fazer_backup()` grava um `mysqldump` do banco numa pasta datada (com intervalo minimo pra
+nao pesar), pra que um erro de codigo ou migracao nunca custe dado real.
+
+Conexao: bloco `db` do plenus_config.json (host / port / user / password / database /
+charset). O acesso todo passa por aqui e por `repo.py`.
 """
 
 import contextlib
+import json
 import os
+import re
 import shutil
-import sqlite3
+import subprocess
+import time
 import unicodedata
 from datetime import datetime
 
+import pymysql
+import pymysql.cursors
+
 _RAIZ = os.path.dirname(os.path.abspath(__file__))
+# SQLite legado: so a carga unica (migrar_para_mysql.py) le este arquivo, em modo leitura.
 CAMINHO_DB = os.path.join(_RAIZ, "plenus.db")
 PASTA_BACKUPS = os.path.join(_RAIZ, "backups")
 MAX_BACKUPS = 300
+BACKUP_INTERVALO_MIN_S = 600   # nao dispara um novo mysqldump se o ultimo foi ha menos disso
+
+_CONFIG_PATH = os.path.join(_RAIZ, "plenus_config.json")
+_DB_PADRAO = {"host": "127.0.0.1", "port": 3306, "user": "plenus",
+              "password": "", "database": "plenus", "charset": "utf8mb4"}
+
+# candidatos de mysqldump.exe quando ele nao esta no PATH (instalador padrao do MySQL no Windows)
+_MYSQLDUMP_CANDIDATOS = [
+    r"C:\Program Files\MySQL\MySQL Server 8.0\bin\mysqldump.exe",
+    r"C:\Program Files\MySQL\MySQL Server 8.4\bin\mysqldump.exe",
+    r"C:\Program Files\MySQL\MySQL Server 9.0\bin\mysqldump.exe",
+]
+
+
+def config_db():
+    """Le o bloco `db` do plenus_config.json sobre os padroes. Usado tambem por
+    backup_db.py e migrar_para_mysql.py."""
+    cfg = dict(_DB_PADRAO)
+    if os.path.exists(_CONFIG_PATH):
+        try:
+            with open(_CONFIG_PATH, encoding="utf-8") as f:
+                bloco = (json.load(f) or {}).get("db") or {}
+            for k, v in bloco.items():
+                if not str(k).startswith("_"):
+                    cfg[k] = v
+        except (json.JSONDecodeError, OSError):
+            pass
+    cfg["port"] = int(cfg.get("port") or 3306)
+    return cfg
+
 
 _ESQUEMA_SQL = """
 CREATE TABLE IF NOT EXISTS usuario (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id INT AUTO_INCREMENT PRIMARY KEY,
     nome TEXT NOT NULL,
-    login TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    login VARCHAR(191) NOT NULL,
     senha_hash TEXT NOT NULL,
-    ativo INTEGER NOT NULL DEFAULT 1,
-    criado_em TEXT NOT NULL DEFAULT (datetime('now')),
-    ultimo_acesso TEXT
-);
+    ativo INT NOT NULL DEFAULT 1,
+    criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ultimo_acesso DATETIME,
+    UNIQUE KEY ix_usuario_login_unico (login)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS cliente (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    nome TEXT NOT NULL,            -- pessoa física: nome; pessoa jurídica: razão social
-    tipo_pessoa TEXT NOT NULL DEFAULT 'F',  -- 'F' = física (CPF) | 'J' = jurídica (CNPJ)
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nome TEXT NOT NULL,            -- pessoa fisica: nome; pessoa juridica: razao social
+    tipo_pessoa VARCHAR(1) NOT NULL DEFAULT 'F',  -- 'F' = fisica (CPF) | 'J' = juridica (CNPJ)
     data_nascimento TEXT,          -- ISO AAAA-MM-DD (do <input type=date>)
     sexo TEXT,                     -- 'F' | 'M' | 'Outro'
-    cpf TEXT,                      -- só dígitos, sem máscara: 11 (CPF) ou 14 (CNPJ)
+    cpf VARCHAR(14),               -- so digitos, sem mascara: 11 (CPF) ou 14 (CNPJ)
     end_rua TEXT,
     end_numero TEXT,
     end_complemento TEXT,
     end_bairro TEXT,
-    end_cep TEXT,                  -- só os 8 dígitos
+    end_cep TEXT,                  -- so os 8 digitos
     end_cidade TEXT,
     end_estado TEXT,              -- sigla da UF ('RJ', 'SP'...)
     tel_ddd TEXT,
-    tel_numero TEXT,              -- só dígitos, sem o DDD
+    tel_numero TEXT,              -- so digitos, sem o DDD
     email TEXT,
-    criado_em TEXT NOT NULL DEFAULT (datetime('now')),
-    atualizado_em TEXT NOT NULL DEFAULT (datetime('now'))
-);
--- não deixa cadastrar o mesmo CPF duas vezes (só vale quando o CPF foi informado;
--- clientes sem CPF continuam livres). CPF é gravado só com dígitos.
-CREATE UNIQUE INDEX IF NOT EXISTS ix_cliente_cpf_unico
-    ON cliente (cpf) WHERE cpf IS NOT NULL AND cpf <> '';
+    criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    atualizado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- nao deixa cadastrar o mesmo CPF/CNPJ duas vezes (varios NULL sao permitidos no UNIQUE
+    -- do MySQL; clientes sem documento continuam livres). Documento gravado so com digitos.
+    UNIQUE KEY ix_cliente_cpf_unico (cpf)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS tipo_seguro (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    nome TEXT NOT NULL
-);
--- não deixa cadastrar o mesmo tipo de seguro duas vezes (ignora maiúsc./minúsc.)
-CREATE UNIQUE INDEX IF NOT EXISTS ix_tipo_seguro_nome_unico
-    ON tipo_seguro (nome COLLATE NOCASE);
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nome VARCHAR(191) NOT NULL,
+    UNIQUE KEY ix_tipo_seguro_nome_unico (nome)   -- collation padrao ja e case-insensitive
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS forma_pagamento (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    nome TEXT NOT NULL
-);
--- não deixa cadastrar a mesma forma de pagamento duas vezes (ignora maiúsc./minúsc.)
-CREATE UNIQUE INDEX IF NOT EXISTS ix_forma_pagamento_nome_unico
-    ON forma_pagamento (nome COLLATE NOCASE);
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nome VARCHAR(191) NOT NULL,
+    UNIQUE KEY ix_forma_pagamento_nome_unico (nome)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS seguradora (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    nome TEXT NOT NULL
-);
--- não deixa cadastrar a mesma seguradora duas vezes (ignora maiúsc./minúsc.)
-CREATE UNIQUE INDEX IF NOT EXISTS ix_seguradora_nome_unico
-    ON seguradora (nome COLLATE NOCASE);
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nome VARCHAR(191) NOT NULL,
+    UNIQUE KEY ix_seguradora_nome_unico (nome)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS categoria_saida (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id INT AUTO_INCREMENT PRIMARY KEY,
     nome TEXT NOT NULL
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS tipo_consorcio (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    nome TEXT NOT NULL
-);
--- não deixa cadastrar o mesmo tipo de consórcio duas vezes (ignora maiúsc./minúsc.)
-CREATE UNIQUE INDEX IF NOT EXISTS ix_tipo_consorcio_nome_unico
-    ON tipo_consorcio (nome COLLATE NOCASE);
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nome VARCHAR(191) NOT NULL,
+    UNIQUE KEY ix_tipo_consorcio_nome_unico (nome)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- campos configuráveis da cotação (montam o formulário de cotação)
+-- campos configuraveis da cotacao (montam o formulario de cotacao)
 CREATE TABLE IF NOT EXISTS cotacao_campo (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id INT AUTO_INCREMENT PRIMARY KEY,
     nome TEXT NOT NULL,
     tipo TEXT NOT NULL,            -- texto | valor | numerico | data | percentual | sim_nao | selecao
-    ordem INTEGER NOT NULL DEFAULT 0,  -- ordem no formulário "Gerar cotação"
-    papel TEXT NOT NULL DEFAULT '',    -- '' | base_parcelamento | num_parcelas (usados no cálculo do PDF)
-    opcoes TEXT NOT NULL DEFAULT '',   -- tipo 'selecao': uma opção por linha
-    criado_em TEXT NOT NULL DEFAULT (datetime('now'))
-);
+    ordem INT NOT NULL DEFAULT 0,  -- ordem no formulario "Gerar cotacao"
+    papel VARCHAR(40) NOT NULL DEFAULT '',    -- '' | base_parcelamento | num_parcelas
+    opcoes TEXT,                              -- tipo 'selecao': uma opcao por linha ('' quando vazio)
+    criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS apolice (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    cliente_id INTEGER REFERENCES cliente(id),
-    seguradora_id INTEGER REFERENCES seguradora(id),
-    tipo_seguro_id INTEGER REFERENCES tipo_seguro(id),
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    cliente_id INT,
+    seguradora_id INT,
+    tipo_seguro_id INT,
     numero_apolice TEXT,
     vigencia_inicio TEXT,
     vigencia_fim TEXT,
     premio_liquido REAL,
     iof REAL,
     premio_total REAL,
-    forma_pagamento_id INTEGER REFERENCES forma_pagamento(id),
+    forma_pagamento_id INT,
     comissao_percentual REAL,
-    comissao_valor_seguralta_receber REAL,   -- calculado: prêmio líquido * % / 100
+    comissao_valor_seguralta_receber REAL,   -- calculado: premio liquido * % / 100
     comissao_valor_plenus_receber REAL,      -- calculado: 75% do que a SEGURALTA recebeu
-    comissao_valor_seguralta_recebido REAL,  -- lançado à mão
-    comissao_valor_plenus_recebido REAL,     -- lançado à mão
-    data_seguralta_recebido TEXT,            -- data em que a SEGURALTA recebeu (ISO), repasse único
+    comissao_valor_seguralta_recebido REAL,  -- lancado a mao
+    comissao_valor_plenus_recebido REAL,     -- lancado a mao
+    data_seguralta_recebido TEXT,            -- data em que a SEGURALTA recebeu (ISO), repasse unico
     data_plenus_recebido TEXT,               -- data em que a Plenus recebeu (ISO)
-    plenus_conferido_banco INTEGER NOT NULL DEFAULT 0,  -- 1 = repasse único conferido no extrato bancário da Plenus
-    comissao_parcelada INTEGER NOT NULL DEFAULT 0,  -- 1 = repasse mensal (usa apolice_comissao/apolice_repasse)
-    comissao_cocorretagem INTEGER NOT NULL DEFAULT 0,  -- 1 = cocorretagem (SEGURALTA 25% / Plenus 75% da comissão, sem repasse)
-    -- totais que o RELATÓRIO da corretora informa (p/ conferir divergência vs. soma do sistema)
+    plenus_conferido_banco INT NOT NULL DEFAULT 0,  -- 1 = repasse unico conferido no extrato
+    comissao_parcelada INT NOT NULL DEFAULT 0,      -- 1 = repasse mensal (apolice_comissao/repasse)
+    comissao_cocorretagem INT NOT NULL DEFAULT 0,   -- 1 = cocorretagem (SEGURALTA 25% / Plenus 75%)
     previsto_relatorio_seguralta REAL,
     recebido_relatorio_seguralta REAL,
     previsto_relatorio_plenus REAL,
     recebido_relatorio_plenus REAL,
-    lancado_quiver INTEGER NOT NULL DEFAULT 0,   -- 0 = não, 1 = sim
+    lancado_quiver INT NOT NULL DEFAULT 0,
     link_onedrive TEXT,
-    veiculo_placa TEXT,                          -- só p/ seguro de automóvel
+    veiculo_placa TEXT,                          -- so p/ seguro de automovel
     veiculo_descricao TEXT,                      -- marca / modelo / ano
-    aviso_vigencia_ok INTEGER NOT NULL DEFAULT 0,  -- 1 = cliente já avisado da renovação (para o e-mail diário)
+    aviso_vigencia_ok INT NOT NULL DEFAULT 0,    -- 1 = cliente ja avisado da renovacao
     aviso_vigencia_ok_em TEXT,
-    apolice_enviada INTEGER NOT NULL DEFAULT 0,
+    apolice_enviada INT NOT NULL DEFAULT 0,
     apolice_enviada_data TEXT,
-    cartao_enviado INTEGER NOT NULL DEFAULT 0,
+    cartao_enviado INT NOT NULL DEFAULT 0,
     cartao_enviado_data TEXT,
-    observacao TEXT,                             -- texto livre (anotações da apólice)
-    criado_em TEXT NOT NULL DEFAULT (datetime('now')),
-    atualizado_em TEXT NOT NULL DEFAULT (datetime('now'))
-);
+    observacao TEXT,                             -- texto livre (anotacoes da apolice)
+    criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    atualizado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY ix_apolice_cliente (cliente_id),
+    CONSTRAINT fk_apolice_cliente     FOREIGN KEY (cliente_id)        REFERENCES cliente(id),
+    CONSTRAINT fk_apolice_seguradora  FOREIGN KEY (seguradora_id)     REFERENCES seguradora(id),
+    CONSTRAINT fk_apolice_tiposeguro  FOREIGN KEY (tipo_seguro_id)    REFERENCES tipo_seguro(id),
+    CONSTRAINT fk_apolice_formapgto   FOREIGN KEY (forma_pagamento_id) REFERENCES forma_pagamento(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS apolice_parcela (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    apolice_id INTEGER NOT NULL REFERENCES apolice(id) ON DELETE CASCADE,
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    apolice_id INT NOT NULL,
     identificacao TEXT,
     data TEXT,
     valor REAL,
-    paga INTEGER NOT NULL DEFAULT 0,   -- 0 = a pagar, 1 = paga
+    paga INT NOT NULL DEFAULT 0,       -- 0 = a pagar, 1 = paga
     pago_em TEXT,                       -- data ISO em que foi marcada como paga
-    aviso_ok INTEGER NOT NULL DEFAULT 0,  -- 1 = cliente já foi avisado desse boleto (para o e-mail diário)
-    aviso_ok_em TEXT
-);
+    aviso_ok INT NOT NULL DEFAULT 0,   -- 1 = cliente ja foi avisado desse boleto
+    aviso_ok_em TEXT,
+    KEY ix_apolice_parcela_apolice (apolice_id),
+    CONSTRAINT fk_apolice_parcela_apolice FOREIGN KEY (apolice_id)
+        REFERENCES apolice(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- comissão parcelada: o que a corretora recebe da seguradora, mês a mês
+-- comissao parcelada: o que a corretora recebe da seguradora, mes a mes
 CREATE TABLE IF NOT EXISTS apolice_comissao (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    apolice_id INTEGER NOT NULL REFERENCES apolice(id) ON DELETE CASCADE,
-    parcela TEXT,                 -- rótulo livre ("1", "4"...), pode repetir
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    apolice_id INT NOT NULL,
+    parcela TEXT,                 -- rotulo livre ("1", "4"...), pode repetir
     valor_previsto REAL,
     valor_recebido REAL,
     data TEXT,                    -- ISO
-    ordem INTEGER NOT NULL DEFAULT 0
-);
+    ordem INT NOT NULL DEFAULT 0,
+    KEY ix_apolice_comissao_apolice (apolice_id),
+    CONSTRAINT fk_apolice_comissao_apolice FOREIGN KEY (apolice_id)
+        REFERENCES apolice(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- comissão parcelada: o que a Plenus recebe da corretora (repasse), mês a mês
--- (mesma estrutura da apolice_comissao)
+-- comissao parcelada: o que a Plenus recebe da corretora (repasse), mes a mes
 CREATE TABLE IF NOT EXISTS apolice_repasse (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    apolice_id INTEGER NOT NULL REFERENCES apolice(id) ON DELETE CASCADE,
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    apolice_id INT NOT NULL,
     parcela TEXT,
     valor_previsto REAL,
     valor_recebido REAL,
     data TEXT,
-    conferido_banco INTEGER NOT NULL DEFAULT 0,  -- 1 = depósito conferido no extrato bancário da Plenus
-    ordem INTEGER NOT NULL DEFAULT 0
-);
+    conferido_banco INT NOT NULL DEFAULT 0,  -- 1 = deposito conferido no extrato da Plenus
+    ordem INT NOT NULL DEFAULT 0,
+    KEY ix_apolice_repasse_apolice (apolice_id),
+    CONSTRAINT fk_apolice_repasse_apolice FOREIGN KEY (apolice_id)
+        REFERENCES apolice(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- endosso da apólice: alteração após a emissão (número próprio, vigência, motivo,
--- situação financeira e comissão própria). Ônus/devolução NÃO geram parcelas de
--- pagamento — o valor fica só como registro.
+-- endosso da apolice: alteracao apos a emissao
 CREATE TABLE IF NOT EXISTS apolice_endosso (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    apolice_id INTEGER NOT NULL REFERENCES apolice(id) ON DELETE CASCADE,
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    apolice_id INT NOT NULL,
     numero TEXT,
     vigencia_inicio TEXT,
     vigencia_fim TEXT,
     motivacao TEXT,
-    situacao TEXT NOT NULL DEFAULT 'sem_alteracao',   -- 'onus' | 'devolucao' | 'sem_alteracao'
-    valor REAL,                                        -- valor total do endosso (ônus/devolução)
-    forma_pagamento_id INTEGER REFERENCES forma_pagamento(id),
-    veiculo_placa TEXT,                                -- endosso de troca de veículo
+    situacao VARCHAR(20) NOT NULL DEFAULT 'sem_alteracao',   -- 'onus' | 'devolucao' | 'sem_alteracao'
+    valor REAL,                                              -- valor total do endosso
+    forma_pagamento_id INT,
+    veiculo_placa TEXT,                                      -- endosso de troca de veiculo
     veiculo_descricao TEXT,
-    comissao_parcelada INTEGER NOT NULL DEFAULT 0,     -- 1 = comissão mês a mês (tabelas-filhas)
+    comissao_parcelada INT NOT NULL DEFAULT 0,               -- 1 = comissao mes a mes
     comissao_percentual REAL,
     comissao_valor_seguralta_receber REAL,
     comissao_valor_seguralta_recebido REAL,
@@ -204,103 +246,118 @@ CREATE TABLE IF NOT EXISTS apolice_endosso (
     comissao_valor_plenus_recebido REAL,
     data_seguralta_recebido TEXT,
     data_plenus_recebido TEXT,
-    plenus_conferido_banco INTEGER NOT NULL DEFAULT 0,
+    plenus_conferido_banco INT NOT NULL DEFAULT 0,
     previsto_relatorio_seguralta REAL,
     recebido_relatorio_seguralta REAL,
     previsto_relatorio_plenus REAL,
     recebido_relatorio_plenus REAL,
-    lancado_quiver INTEGER NOT NULL DEFAULT 0,
+    lancado_quiver INT NOT NULL DEFAULT 0,
     link_onedrive TEXT,
-    criado_em TEXT NOT NULL DEFAULT (datetime('now')),
-    atualizado_em TEXT NOT NULL DEFAULT (datetime('now'))
-);
+    criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    atualizado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY ix_apolice_endosso_apolice (apolice_id),
+    CONSTRAINT fk_apolice_endosso_apolice FOREIGN KEY (apolice_id)
+        REFERENCES apolice(id) ON DELETE CASCADE,
+    CONSTRAINT fk_apolice_endosso_formapgto FOREIGN KEY (forma_pagamento_id)
+        REFERENCES forma_pagamento(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- comissão parcelada do endosso (mesma ideia de apolice_comissao / apolice_repasse)
 CREATE TABLE IF NOT EXISTS apolice_endosso_comissao (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    endosso_id INTEGER NOT NULL REFERENCES apolice_endosso(id) ON DELETE CASCADE,
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    endosso_id INT NOT NULL,
     parcela TEXT, valor_previsto REAL, valor_recebido REAL, data TEXT,
-    ordem INTEGER NOT NULL DEFAULT 0
-);
-CREATE TABLE IF NOT EXISTS apolice_endosso_repasse (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    endosso_id INTEGER NOT NULL REFERENCES apolice_endosso(id) ON DELETE CASCADE,
-    parcela TEXT, valor_previsto REAL, valor_recebido REAL, data TEXT,
-    conferido_banco INTEGER NOT NULL DEFAULT 0, ordem INTEGER NOT NULL DEFAULT 0
-);
+    ordem INT NOT NULL DEFAULT 0,
+    KEY ix_end_comissao_endosso (endosso_id),
+    CONSTRAINT fk_end_comissao_endosso FOREIGN KEY (endosso_id)
+        REFERENCES apolice_endosso(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- parcelas de pagamento do endosso (mesma ideia de apolice_parcela)
+CREATE TABLE IF NOT EXISTS apolice_endosso_repasse (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    endosso_id INT NOT NULL,
+    parcela TEXT, valor_previsto REAL, valor_recebido REAL, data TEXT,
+    conferido_banco INT NOT NULL DEFAULT 0, ordem INT NOT NULL DEFAULT 0,
+    KEY ix_end_repasse_endosso (endosso_id),
+    CONSTRAINT fk_end_repasse_endosso FOREIGN KEY (endosso_id)
+        REFERENCES apolice_endosso(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS apolice_endosso_parcela (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    endosso_id INTEGER NOT NULL REFERENCES apolice_endosso(id) ON DELETE CASCADE,
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    endosso_id INT NOT NULL,
     identificacao TEXT,
     data TEXT,
     valor REAL,
-    paga INTEGER NOT NULL DEFAULT 0,
+    paga INT NOT NULL DEFAULT 0,
     pago_em TEXT,
-    aviso_ok INTEGER NOT NULL DEFAULT 0,
-    aviso_ok_em TEXT
-);
+    aviso_ok INT NOT NULL DEFAULT 0,
+    aviso_ok_em TEXT,
+    KEY ix_end_parcela_endosso (endosso_id),
+    CONSTRAINT fk_end_parcela_endosso FOREIGN KEY (endosso_id)
+        REFERENCES apolice_endosso(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- registro de aviso de vencimento já enviado (pra não repetir o mesmo marco)
+-- registro de aviso de vencimento ja enviado (pra nao repetir o mesmo marco)
 CREATE TABLE IF NOT EXISTS notificacao_vencimento (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    apolice_id INTEGER NOT NULL REFERENCES apolice(id) ON DELETE CASCADE,
-    marco INTEGER NOT NULL,            -- dias que faltavam no marco (10, 5, 1...)
-    vigencia_fim TEXT,                 -- pra reenviar se a vigência mudar
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    apolice_id INT NOT NULL,
+    marco INT NOT NULL,               -- dias que faltavam no marco (10, 5, 1...)
+    vigencia_fim VARCHAR(32),         -- pra reenviar se a vigencia mudar
     canal TEXT,
     destino TEXT,
     resultado TEXT,
-    enviado_em TEXT NOT NULL DEFAULT (datetime('now'))
-);
-CREATE UNIQUE INDEX IF NOT EXISTS ix_notif_venc_unico
-    ON notificacao_vencimento (apolice_id, marco, vigencia_fim);
+    enviado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY ix_notif_venc_unico (apolice_id, marco, vigencia_fim),
+    CONSTRAINT fk_notif_venc_apolice FOREIGN KEY (apolice_id)
+        REFERENCES apolice(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- aviso de parcela de boleto a vencer (mesma ideia, por parcela)
 CREATE TABLE IF NOT EXISTS notificacao_parcela (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    parcela_id INTEGER NOT NULL REFERENCES apolice_parcela(id) ON DELETE CASCADE,
-    marco INTEGER NOT NULL,
-    data_vencimento TEXT,
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    parcela_id INT NOT NULL,
+    marco INT NOT NULL,
+    data_vencimento VARCHAR(32),
     canal TEXT,
     destino TEXT,
     resultado TEXT,
-    enviado_em TEXT NOT NULL DEFAULT (datetime('now'))
-);
-CREATE UNIQUE INDEX IF NOT EXISTS ix_notif_parcela_unico
-    ON notificacao_parcela (parcela_id, marco, data_vencimento);
+    enviado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY ix_notif_parcela_unico (parcela_id, marco, data_vencimento),
+    CONSTRAINT fk_notif_parcela_parcela FOREIGN KEY (parcela_id)
+        REFERENCES apolice_parcela(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- mesmo controle de aviso, para as parcelas de boleto do ENDOSSO
 CREATE TABLE IF NOT EXISTS notificacao_endosso_parcela (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    parcela_id INTEGER NOT NULL REFERENCES apolice_endosso_parcela(id) ON DELETE CASCADE,
-    marco INTEGER NOT NULL,
-    data_vencimento TEXT,
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    parcela_id INT NOT NULL,
+    marco INT NOT NULL,
+    data_vencimento VARCHAR(32),
     canal TEXT,
     destino TEXT,
     resultado TEXT,
-    enviado_em TEXT NOT NULL DEFAULT (datetime('now'))
-);
-CREATE UNIQUE INDEX IF NOT EXISTS ix_notif_end_parcela_unico
-    ON notificacao_endosso_parcela (parcela_id, marco, data_vencimento);
+    enviado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY ix_notif_end_parcela_unico (parcela_id, marco, data_vencimento),
+    CONSTRAINT fk_notif_end_parcela_parcela FOREIGN KEY (parcela_id)
+        REFERENCES apolice_endosso_parcela(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- consórcio: cota de um grupo, com carta de crédito, parcelas mensais (boletos)
--- e comissão nos mesmos moldes da apólice (cocorretagem, parcelada, 25/75).
+-- consorcio: cota de um grupo, com carta de credito, parcelas mensais (boletos)
+-- e comissao nos mesmos moldes da apolice.
 CREATE TABLE IF NOT EXISTS consorcio (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    cliente_id INTEGER REFERENCES cliente(id),
-    seguradora_id INTEGER REFERENCES seguradora(id),
-    tipo_consorcio_id INTEGER REFERENCES tipo_consorcio(id),
-    carta REAL,                                  -- valor da carta de crédito (base da comissão)
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    cliente_id INT,
+    seguradora_id INT,
+    tipo_consorcio_id INT,
+    carta REAL,                                  -- valor da carta de credito (base da comissao)
     numero_grupo TEXT,
     numero_cota TEXT,
-    forma_pagamento_id INTEGER REFERENCES forma_pagamento(id),
-    quantidade_parcelas INTEGER,
-    parcela_dia_vencimento TEXT,                 -- dia do mês em que a parcela vence
-    situacao TEXT NOT NULL DEFAULT 'ativo',      -- ativo | contemplado | quitado | cancelado | desistente
+    forma_pagamento_id INT,
+    quantidade_parcelas INT,
+    parcela_dia_vencimento TEXT,                 -- dia do mes em que a parcela vence
+    situacao VARCHAR(20) NOT NULL DEFAULT 'ativo',  -- ativo|contemplado|quitado|cancelado|desistente
     forma_contemplacao TEXT,                     -- sorteio | lance
     data_contemplacao TEXT,                      -- ISO
-    -- comissão (idêntica à da apólice) — calculada sobre o valor da carta
     comissao_percentual REAL,
     comissao_valor_seguralta_receber REAL,
     comissao_valor_plenus_receber REAL,
@@ -308,306 +365,396 @@ CREATE TABLE IF NOT EXISTS consorcio (
     comissao_valor_plenus_recebido REAL,
     data_seguralta_recebido TEXT,
     data_plenus_recebido TEXT,
-    plenus_conferido_banco INTEGER NOT NULL DEFAULT 0,
-    comissao_parcelada INTEGER NOT NULL DEFAULT 0,
-    comissao_cocorretagem INTEGER NOT NULL DEFAULT 0,
+    plenus_conferido_banco INT NOT NULL DEFAULT 0,
+    comissao_parcelada INT NOT NULL DEFAULT 0,
+    comissao_cocorretagem INT NOT NULL DEFAULT 0,
     previsto_relatorio_seguralta REAL,
     recebido_relatorio_seguralta REAL,
     previsto_relatorio_plenus REAL,
     recebido_relatorio_plenus REAL,
-    lancado_quiver INTEGER NOT NULL DEFAULT 0,
+    lancado_quiver INT NOT NULL DEFAULT 0,
     link_onedrive TEXT,
     observacao TEXT,
-    criado_em TEXT NOT NULL DEFAULT (datetime('now')),
-    atualizado_em TEXT NOT NULL DEFAULT (datetime('now'))
-);
+    criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    atualizado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY ix_consorcio_cliente (cliente_id),
+    CONSTRAINT fk_consorcio_cliente    FOREIGN KEY (cliente_id)        REFERENCES cliente(id),
+    CONSTRAINT fk_consorcio_seguradora FOREIGN KEY (seguradora_id)     REFERENCES seguradora(id),
+    CONSTRAINT fk_consorcio_tipo       FOREIGN KEY (tipo_consorcio_id) REFERENCES tipo_consorcio(id),
+    CONSTRAINT fk_consorcio_formapgto  FOREIGN KEY (forma_pagamento_id) REFERENCES forma_pagamento(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- histórico do valor da parcela do consórcio: o 1º registro é o valor inicial;
--- cada reajuste entra como uma nova linha (valor + data em que passou a vigorar).
+-- historico do valor da parcela do consorcio
 CREATE TABLE IF NOT EXISTS consorcio_parcela_valor (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    consorcio_id INTEGER NOT NULL REFERENCES consorcio(id) ON DELETE CASCADE,
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    consorcio_id INT NOT NULL,
     valor REAL,
     data TEXT,                                   -- ISO: a partir de quando este valor vale
-    ordem INTEGER NOT NULL DEFAULT 0
-);
+    ordem INT NOT NULL DEFAULT 0,
+    KEY ix_cons_parcela_valor_cons (consorcio_id),
+    CONSTRAINT fk_cons_parcela_valor_cons FOREIGN KEY (consorcio_id)
+        REFERENCES consorcio(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- comissão parcelada do consórcio (mesma ideia de apolice_comissao / apolice_repasse)
 CREATE TABLE IF NOT EXISTS consorcio_comissao (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    consorcio_id INTEGER NOT NULL REFERENCES consorcio(id) ON DELETE CASCADE,
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    consorcio_id INT NOT NULL,
     parcela TEXT, valor_previsto REAL, valor_recebido REAL, data TEXT,
-    ordem INTEGER NOT NULL DEFAULT 0
-);
-CREATE TABLE IF NOT EXISTS consorcio_repasse (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    consorcio_id INTEGER NOT NULL REFERENCES consorcio(id) ON DELETE CASCADE,
-    parcela TEXT, valor_previsto REAL, valor_recebido REAL, data TEXT,
-    conferido_banco INTEGER NOT NULL DEFAULT 0, ordem INTEGER NOT NULL DEFAULT 0
-);
+    ordem INT NOT NULL DEFAULT 0,
+    KEY ix_cons_comissao_cons (consorcio_id),
+    CONSTRAINT fk_cons_comissao_cons FOREIGN KEY (consorcio_id)
+        REFERENCES consorcio(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- boletos do consórcio: controle próprio (emissão / vencimento / pagamento / status)
+CREATE TABLE IF NOT EXISTS consorcio_repasse (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    consorcio_id INT NOT NULL,
+    parcela TEXT, valor_previsto REAL, valor_recebido REAL, data TEXT,
+    conferido_banco INT NOT NULL DEFAULT 0, ordem INT NOT NULL DEFAULT 0,
+    KEY ix_cons_repasse_cons (consorcio_id),
+    CONSTRAINT fk_cons_repasse_cons FOREIGN KEY (consorcio_id)
+        REFERENCES consorcio(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- boletos do consorcio: controle proprio (emissao / vencimento / pagamento / status)
 CREATE TABLE IF NOT EXISTS consorcio_boleto (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    consorcio_id INTEGER NOT NULL REFERENCES consorcio(id) ON DELETE CASCADE,
-    identificacao TEXT,                          -- rótulo da parcela ("1/60", "12"...)
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    consorcio_id INT NOT NULL,
+    identificacao TEXT,                          -- rotulo da parcela ("1/60", "12"...)
     valor REAL,
     data_emissao TEXT,
     data_vencimento TEXT,
-    data_pagamento TEXT,                         -- NULL = ainda não pago
-    status TEXT NOT NULL DEFAULT 'a_enviar',     -- 'a_enviar' (recém-gerado) | 'enviado' | 'pago'
-    aviso_ok INTEGER NOT NULL DEFAULT 0,         -- 1 = cliente já avisado deste boleto (e-mail diário)
+    data_pagamento TEXT,                         -- NULL = ainda nao pago
+    status VARCHAR(20) NOT NULL DEFAULT 'a_enviar',  -- 'a_enviar' | 'enviado' | 'pago'
+    aviso_ok INT NOT NULL DEFAULT 0,            -- 1 = cliente ja avisado deste boleto
     aviso_ok_em TEXT,
-    ordem INTEGER NOT NULL DEFAULT 0
-);
+    ordem INT NOT NULL DEFAULT 0,
+    KEY ix_cons_boleto_cons (consorcio_id),
+    CONSTRAINT fk_cons_boleto_cons FOREIGN KEY (consorcio_id)
+        REFERENCES consorcio(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- mesmo controle de aviso de vencimento, para os boletos do CONSÓRCIO
--- (a coluna se chama parcela_id p/ reaproveitar as mesmas funções dos outros boletos)
+-- mesmo controle de aviso de vencimento, para os boletos do CONSORCIO
 CREATE TABLE IF NOT EXISTS notificacao_consorcio_boleto (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    parcela_id INTEGER NOT NULL REFERENCES consorcio_boleto(id) ON DELETE CASCADE,
-    marco INTEGER NOT NULL,
-    data_vencimento TEXT,
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    parcela_id INT NOT NULL,
+    marco INT NOT NULL,
+    data_vencimento VARCHAR(32),
     canal TEXT,
     destino TEXT,
     resultado TEXT,
-    enviado_em TEXT NOT NULL DEFAULT (datetime('now'))
-);
-CREATE UNIQUE INDEX IF NOT EXISTS ix_notif_consorcio_boleto_unico
-    ON notificacao_consorcio_boleto (parcela_id, marco, data_vencimento);
+    enviado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY ix_notif_consorcio_boleto_unico (parcela_id, marco, data_vencimento),
+    CONSTRAINT fk_notif_cons_boleto_parcela FOREIGN KEY (parcela_id)
+        REFERENCES consorcio_boleto(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- fluxo de caixa: saídas (contas a pagar)
+-- fluxo de caixa: saidas (contas a pagar)
 CREATE TABLE IF NOT EXISTS saida (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id INT AUTO_INCREMENT PRIMARY KEY,
     descricao TEXT NOT NULL,
-    categoria_id INTEGER REFERENCES categoria_saida(id),
-    forma_pagamento_id INTEGER REFERENCES forma_pagamento(id),
+    categoria_id INT,
+    forma_pagamento_id INT,
     valor REAL,
     data_vencimento TEXT,          -- ISO AAAA-MM-DD
-    data_pagamento TEXT,           -- NULL = ainda não paga
+    data_pagamento TEXT,           -- NULL = ainda nao paga
     numero_parcela TEXT,           -- livre ("3/6"), ou vazio
-    fixo_mensal INTEGER NOT NULL DEFAULT 0,
-    serie_id TEXT,                 -- mesmo token nas linhas geradas juntas (parcelamento / série mensal)
-    criado_em TEXT NOT NULL DEFAULT (datetime('now')),
-    atualizado_em TEXT NOT NULL DEFAULT (datetime('now'))
-);
+    fixo_mensal INT NOT NULL DEFAULT 0,
+    serie_id TEXT,                 -- mesmo token nas linhas geradas juntas
+    criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    atualizado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_saida_categoria FOREIGN KEY (categoria_id)      REFERENCES categoria_saida(id),
+    CONSTRAINT fk_saida_formapgto FOREIGN KEY (forma_pagamento_id) REFERENCES forma_pagamento(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- eventos criados no Google Agenda (1 por apólice/parcela) para não duplicar
+-- eventos criados no Google Agenda (1 por apolice/parcela) para nao duplicar
 CREATE TABLE IF NOT EXISTS evento_agenda (
-    chave TEXT PRIMARY KEY,          -- 'vigencia:<apolice_id>' | 'boleto:<parcela_id>'
+    chave VARCHAR(191) PRIMARY KEY,  -- 'vigencia:<apolice_id>' | 'boleto:<parcela_id>'
     event_id TEXT NOT NULL,
-    data_ref TEXT,                   -- data do evento na última sincronização
+    data_ref TEXT,                   -- data do evento na ultima sincronizacao
     resumo TEXT,
-    atualizado_em TEXT NOT NULL DEFAULT (datetime('now'))
-);
+    atualizado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 """
 
 # colunas esperadas por tabela - o migrador acrescenta as que faltarem num banco antigo.
-# (formato: coluna -> definição usada no ALTER TABLE ADD COLUMN)
+# (formato: coluna -> definicao MySQL usada no ALTER TABLE ADD COLUMN)
 _COLUNAS_ESPERADAS = {
     "usuario": {
-        "nome": "TEXT", "login": "TEXT", "senha_hash": "TEXT",
-        "ativo": "INTEGER NOT NULL DEFAULT 1",
-        "criado_em": "TEXT NOT NULL DEFAULT (datetime('now'))", "ultimo_acesso": "TEXT",
+        "nome": "TEXT", "login": "VARCHAR(191)", "senha_hash": "TEXT",
+        "ativo": "INT NOT NULL DEFAULT 1",
+        "criado_em": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP", "ultimo_acesso": "DATETIME",
     },
     "cliente": {
-        "nome": "TEXT", "tipo_pessoa": "TEXT NOT NULL DEFAULT 'F'",
-        "data_nascimento": "TEXT", "sexo": "TEXT", "cpf": "TEXT",
+        "nome": "TEXT", "tipo_pessoa": "VARCHAR(1) NOT NULL DEFAULT 'F'",
+        "data_nascimento": "TEXT", "sexo": "TEXT", "cpf": "VARCHAR(14)",
         "end_rua": "TEXT", "end_numero": "TEXT", "end_complemento": "TEXT", "end_bairro": "TEXT",
         "end_cep": "TEXT", "end_cidade": "TEXT", "end_estado": "TEXT",
         "tel_ddd": "TEXT", "tel_numero": "TEXT", "email": "TEXT",
-        "criado_em": "TEXT NOT NULL DEFAULT (datetime('now'))",
-        "atualizado_em": "TEXT NOT NULL DEFAULT (datetime('now'))",
+        "criado_em": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+        "atualizado_em": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
     },
-    "tipo_seguro": {"nome": "TEXT"},
-    "forma_pagamento": {"nome": "TEXT"},
-    "seguradora": {"nome": "TEXT"},
+    "tipo_seguro": {"nome": "VARCHAR(191)"},
+    "forma_pagamento": {"nome": "VARCHAR(191)"},
+    "seguradora": {"nome": "VARCHAR(191)"},
     "categoria_saida": {"nome": "TEXT"},
-    "tipo_consorcio": {"nome": "TEXT"},
+    "tipo_consorcio": {"nome": "VARCHAR(191)"},
     "cotacao_campo": {
-        "nome": "TEXT", "tipo": "TEXT", "ordem": "INTEGER NOT NULL DEFAULT 0",
-        "papel": "TEXT NOT NULL DEFAULT ''", "opcoes": "TEXT NOT NULL DEFAULT ''",
-        "criado_em": "TEXT NOT NULL DEFAULT (datetime('now'))",
+        "nome": "TEXT", "tipo": "TEXT", "ordem": "INT NOT NULL DEFAULT 0",
+        "papel": "VARCHAR(40) NOT NULL DEFAULT ''", "opcoes": "TEXT",
+        "criado_em": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
     },
     "apolice": {
-        "cliente_id": "INTEGER", "seguradora_id": "INTEGER",
-        "tipo_seguro_id": "INTEGER", "numero_apolice": "TEXT",
+        "cliente_id": "INT", "seguradora_id": "INT",
+        "tipo_seguro_id": "INT", "numero_apolice": "TEXT",
         "vigencia_inicio": "TEXT", "vigencia_fim": "TEXT",
         "premio_liquido": "REAL", "iof": "REAL", "premio_total": "REAL",
-        "forma_pagamento_id": "INTEGER", "comissao_percentual": "REAL",
+        "forma_pagamento_id": "INT", "comissao_percentual": "REAL",
         "comissao_valor_seguralta_receber": "REAL", "comissao_valor_plenus_receber": "REAL",
         "comissao_valor_seguralta_recebido": "REAL", "comissao_valor_plenus_recebido": "REAL",
         "data_seguralta_recebido": "TEXT", "data_plenus_recebido": "TEXT",
-        "plenus_conferido_banco": "INTEGER NOT NULL DEFAULT 0",
-        "comissao_parcelada": "INTEGER NOT NULL DEFAULT 0",
-        "comissao_cocorretagem": "INTEGER NOT NULL DEFAULT 0",
+        "plenus_conferido_banco": "INT NOT NULL DEFAULT 0",
+        "comissao_parcelada": "INT NOT NULL DEFAULT 0",
+        "comissao_cocorretagem": "INT NOT NULL DEFAULT 0",
         "previsto_relatorio_seguralta": "REAL", "recebido_relatorio_seguralta": "REAL",
         "previsto_relatorio_plenus": "REAL", "recebido_relatorio_plenus": "REAL",
-        "lancado_quiver": "INTEGER NOT NULL DEFAULT 0", "link_onedrive": "TEXT",
+        "lancado_quiver": "INT NOT NULL DEFAULT 0", "link_onedrive": "TEXT",
         "veiculo_placa": "TEXT", "veiculo_descricao": "TEXT",
-        "aviso_vigencia_ok": "INTEGER NOT NULL DEFAULT 0", "aviso_vigencia_ok_em": "TEXT",
-        "apolice_enviada": "INTEGER NOT NULL DEFAULT 0", "apolice_enviada_data": "TEXT",
-        "cartao_enviado": "INTEGER NOT NULL DEFAULT 0", "cartao_enviado_data": "TEXT",
+        "aviso_vigencia_ok": "INT NOT NULL DEFAULT 0", "aviso_vigencia_ok_em": "TEXT",
+        "apolice_enviada": "INT NOT NULL DEFAULT 0", "apolice_enviada_data": "TEXT",
+        "cartao_enviado": "INT NOT NULL DEFAULT 0", "cartao_enviado_data": "TEXT",
         "observacao": "TEXT",
-        "criado_em": "TEXT NOT NULL DEFAULT (datetime('now'))",
-        "atualizado_em": "TEXT NOT NULL DEFAULT (datetime('now'))",
+        "criado_em": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+        "atualizado_em": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
     },
     "apolice_parcela": {
-        "apolice_id": "INTEGER", "identificacao": "TEXT", "data": "TEXT", "valor": "REAL",
-        "paga": "INTEGER NOT NULL DEFAULT 0", "pago_em": "TEXT",
-        "aviso_ok": "INTEGER NOT NULL DEFAULT 0", "aviso_ok_em": "TEXT",
+        "apolice_id": "INT", "identificacao": "TEXT", "data": "TEXT", "valor": "REAL",
+        "paga": "INT NOT NULL DEFAULT 0", "pago_em": "TEXT",
+        "aviso_ok": "INT NOT NULL DEFAULT 0", "aviso_ok_em": "TEXT",
     },
     "apolice_comissao": {
-        "apolice_id": "INTEGER", "parcela": "TEXT", "valor_previsto": "REAL",
-        "valor_recebido": "REAL", "data": "TEXT", "ordem": "INTEGER NOT NULL DEFAULT 0",
+        "apolice_id": "INT", "parcela": "TEXT", "valor_previsto": "REAL",
+        "valor_recebido": "REAL", "data": "TEXT", "ordem": "INT NOT NULL DEFAULT 0",
     },
     "apolice_repasse": {
-        "apolice_id": "INTEGER", "parcela": "TEXT", "valor_previsto": "REAL",
+        "apolice_id": "INT", "parcela": "TEXT", "valor_previsto": "REAL",
         "valor_recebido": "REAL", "data": "TEXT",
-        "conferido_banco": "INTEGER NOT NULL DEFAULT 0", "ordem": "INTEGER NOT NULL DEFAULT 0",
+        "conferido_banco": "INT NOT NULL DEFAULT 0", "ordem": "INT NOT NULL DEFAULT 0",
     },
     "apolice_endosso": {
-        "apolice_id": "INTEGER", "numero": "TEXT",
+        "apolice_id": "INT", "numero": "TEXT",
         "vigencia_inicio": "TEXT", "vigencia_fim": "TEXT", "motivacao": "TEXT",
-        "situacao": "TEXT NOT NULL DEFAULT 'sem_alteracao'", "valor": "REAL",
-        "forma_pagamento_id": "INTEGER",
+        "situacao": "VARCHAR(20) NOT NULL DEFAULT 'sem_alteracao'", "valor": "REAL",
+        "forma_pagamento_id": "INT",
         "veiculo_placa": "TEXT", "veiculo_descricao": "TEXT",
-        "comissao_parcelada": "INTEGER NOT NULL DEFAULT 0",
+        "comissao_parcelada": "INT NOT NULL DEFAULT 0",
         "comissao_percentual": "REAL",
         "comissao_valor_seguralta_receber": "REAL", "comissao_valor_seguralta_recebido": "REAL",
         "comissao_valor_plenus_receber": "REAL", "comissao_valor_plenus_recebido": "REAL",
         "data_seguralta_recebido": "TEXT", "data_plenus_recebido": "TEXT",
-        "plenus_conferido_banco": "INTEGER NOT NULL DEFAULT 0",
+        "plenus_conferido_banco": "INT NOT NULL DEFAULT 0",
         "previsto_relatorio_seguralta": "REAL", "recebido_relatorio_seguralta": "REAL",
         "previsto_relatorio_plenus": "REAL", "recebido_relatorio_plenus": "REAL",
-        "lancado_quiver": "INTEGER NOT NULL DEFAULT 0", "link_onedrive": "TEXT",
-        "criado_em": "TEXT NOT NULL DEFAULT (datetime('now'))",
-        "atualizado_em": "TEXT NOT NULL DEFAULT (datetime('now'))",
+        "lancado_quiver": "INT NOT NULL DEFAULT 0", "link_onedrive": "TEXT",
+        "criado_em": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+        "atualizado_em": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
     },
     "apolice_endosso_parcela": {
-        "endosso_id": "INTEGER", "identificacao": "TEXT", "data": "TEXT", "valor": "REAL",
-        "paga": "INTEGER NOT NULL DEFAULT 0", "pago_em": "TEXT",
-        "aviso_ok": "INTEGER NOT NULL DEFAULT 0", "aviso_ok_em": "TEXT",
+        "endosso_id": "INT", "identificacao": "TEXT", "data": "TEXT", "valor": "REAL",
+        "paga": "INT NOT NULL DEFAULT 0", "pago_em": "TEXT",
+        "aviso_ok": "INT NOT NULL DEFAULT 0", "aviso_ok_em": "TEXT",
     },
     "apolice_endosso_comissao": {
-        "endosso_id": "INTEGER", "parcela": "TEXT", "valor_previsto": "REAL",
-        "valor_recebido": "REAL", "data": "TEXT", "ordem": "INTEGER NOT NULL DEFAULT 0",
+        "endosso_id": "INT", "parcela": "TEXT", "valor_previsto": "REAL",
+        "valor_recebido": "REAL", "data": "TEXT", "ordem": "INT NOT NULL DEFAULT 0",
     },
     "apolice_endosso_repasse": {
-        "endosso_id": "INTEGER", "parcela": "TEXT", "valor_previsto": "REAL",
+        "endosso_id": "INT", "parcela": "TEXT", "valor_previsto": "REAL",
         "valor_recebido": "REAL", "data": "TEXT",
-        "conferido_banco": "INTEGER NOT NULL DEFAULT 0", "ordem": "INTEGER NOT NULL DEFAULT 0",
+        "conferido_banco": "INT NOT NULL DEFAULT 0", "ordem": "INT NOT NULL DEFAULT 0",
     },
     "notificacao_endosso_parcela": {
-        "parcela_id": "INTEGER", "marco": "INTEGER", "data_vencimento": "TEXT",
+        "parcela_id": "INT", "marco": "INT", "data_vencimento": "VARCHAR(32)",
         "canal": "TEXT", "destino": "TEXT", "resultado": "TEXT",
-        "enviado_em": "TEXT NOT NULL DEFAULT (datetime('now'))",
+        "enviado_em": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
     },
     "notificacao_parcela": {
-        "parcela_id": "INTEGER", "marco": "INTEGER", "data_vencimento": "TEXT",
+        "parcela_id": "INT", "marco": "INT", "data_vencimento": "VARCHAR(32)",
         "canal": "TEXT", "destino": "TEXT", "resultado": "TEXT",
-        "enviado_em": "TEXT NOT NULL DEFAULT (datetime('now'))",
+        "enviado_em": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
     },
     "consorcio": {
-        "cliente_id": "INTEGER", "seguradora_id": "INTEGER", "tipo_consorcio_id": "INTEGER",
+        "cliente_id": "INT", "seguradora_id": "INT", "tipo_consorcio_id": "INT",
         "carta": "REAL", "numero_grupo": "TEXT", "numero_cota": "TEXT",
-        "forma_pagamento_id": "INTEGER", "quantidade_parcelas": "INTEGER",
+        "forma_pagamento_id": "INT", "quantidade_parcelas": "INT",
         "parcela_dia_vencimento": "TEXT",
-        "situacao": "TEXT NOT NULL DEFAULT 'ativo'",
+        "situacao": "VARCHAR(20) NOT NULL DEFAULT 'ativo'",
         "forma_contemplacao": "TEXT", "data_contemplacao": "TEXT",
         "comissao_percentual": "REAL",
         "comissao_valor_seguralta_receber": "REAL", "comissao_valor_plenus_receber": "REAL",
         "comissao_valor_seguralta_recebido": "REAL", "comissao_valor_plenus_recebido": "REAL",
         "data_seguralta_recebido": "TEXT", "data_plenus_recebido": "TEXT",
-        "plenus_conferido_banco": "INTEGER NOT NULL DEFAULT 0",
-        "comissao_parcelada": "INTEGER NOT NULL DEFAULT 0",
-        "comissao_cocorretagem": "INTEGER NOT NULL DEFAULT 0",
+        "plenus_conferido_banco": "INT NOT NULL DEFAULT 0",
+        "comissao_parcelada": "INT NOT NULL DEFAULT 0",
+        "comissao_cocorretagem": "INT NOT NULL DEFAULT 0",
         "previsto_relatorio_seguralta": "REAL", "recebido_relatorio_seguralta": "REAL",
         "previsto_relatorio_plenus": "REAL", "recebido_relatorio_plenus": "REAL",
-        "lancado_quiver": "INTEGER NOT NULL DEFAULT 0", "link_onedrive": "TEXT",
+        "lancado_quiver": "INT NOT NULL DEFAULT 0", "link_onedrive": "TEXT",
         "observacao": "TEXT",
-        "criado_em": "TEXT NOT NULL DEFAULT (datetime('now'))",
-        "atualizado_em": "TEXT NOT NULL DEFAULT (datetime('now'))",
+        "criado_em": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+        "atualizado_em": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
     },
     "consorcio_parcela_valor": {
-        "consorcio_id": "INTEGER", "valor": "REAL", "data": "TEXT",
-        "ordem": "INTEGER NOT NULL DEFAULT 0",
+        "consorcio_id": "INT", "valor": "REAL", "data": "TEXT",
+        "ordem": "INT NOT NULL DEFAULT 0",
     },
     "consorcio_comissao": {
-        "consorcio_id": "INTEGER", "parcela": "TEXT", "valor_previsto": "REAL",
-        "valor_recebido": "REAL", "data": "TEXT", "ordem": "INTEGER NOT NULL DEFAULT 0",
+        "consorcio_id": "INT", "parcela": "TEXT", "valor_previsto": "REAL",
+        "valor_recebido": "REAL", "data": "TEXT", "ordem": "INT NOT NULL DEFAULT 0",
     },
     "consorcio_repasse": {
-        "consorcio_id": "INTEGER", "parcela": "TEXT", "valor_previsto": "REAL",
+        "consorcio_id": "INT", "parcela": "TEXT", "valor_previsto": "REAL",
         "valor_recebido": "REAL", "data": "TEXT",
-        "conferido_banco": "INTEGER NOT NULL DEFAULT 0", "ordem": "INTEGER NOT NULL DEFAULT 0",
+        "conferido_banco": "INT NOT NULL DEFAULT 0", "ordem": "INT NOT NULL DEFAULT 0",
     },
     "consorcio_boleto": {
-        "consorcio_id": "INTEGER", "identificacao": "TEXT", "valor": "REAL",
+        "consorcio_id": "INT", "identificacao": "TEXT", "valor": "REAL",
         "data_emissao": "TEXT", "data_vencimento": "TEXT", "data_pagamento": "TEXT",
-        "status": "TEXT NOT NULL DEFAULT 'a_enviar'",
-        "aviso_ok": "INTEGER NOT NULL DEFAULT 0", "aviso_ok_em": "TEXT",
-        "ordem": "INTEGER NOT NULL DEFAULT 0",
+        "status": "VARCHAR(20) NOT NULL DEFAULT 'a_enviar'",
+        "aviso_ok": "INT NOT NULL DEFAULT 0", "aviso_ok_em": "TEXT",
+        "ordem": "INT NOT NULL DEFAULT 0",
     },
     "notificacao_consorcio_boleto": {
-        "parcela_id": "INTEGER", "marco": "INTEGER", "data_vencimento": "TEXT",
+        "parcela_id": "INT", "marco": "INT", "data_vencimento": "VARCHAR(32)",
         "canal": "TEXT", "destino": "TEXT", "resultado": "TEXT",
-        "enviado_em": "TEXT NOT NULL DEFAULT (datetime('now'))",
+        "enviado_em": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
     },
     "evento_agenda": {
-        "chave": "TEXT", "event_id": "TEXT", "data_ref": "TEXT", "resumo": "TEXT",
-        "atualizado_em": "TEXT NOT NULL DEFAULT (datetime('now'))",
+        "chave": "VARCHAR(191)", "event_id": "TEXT", "data_ref": "TEXT", "resumo": "TEXT",
+        "atualizado_em": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
     },
     "saida": {
-        "descricao": "TEXT", "categoria_id": "INTEGER", "forma_pagamento_id": "INTEGER",
+        "descricao": "TEXT", "categoria_id": "INT", "forma_pagamento_id": "INT",
         "valor": "REAL",
         "data_vencimento": "TEXT", "data_pagamento": "TEXT", "numero_parcela": "TEXT",
-        "fixo_mensal": "INTEGER NOT NULL DEFAULT 0", "serie_id": "TEXT",
-        "criado_em": "TEXT NOT NULL DEFAULT (datetime('now'))",
-        "atualizado_em": "TEXT NOT NULL DEFAULT (datetime('now'))",
+        "fixo_mensal": "INT NOT NULL DEFAULT 0", "serie_id": "TEXT",
+        "criado_em": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+        "atualizado_em": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
     },
     "notificacao_vencimento": {
-        "apolice_id": "INTEGER", "marco": "INTEGER", "vigencia_fim": "TEXT",
+        "apolice_id": "INT", "marco": "INT", "vigencia_fim": "VARCHAR(32)",
         "canal": "TEXT", "destino": "TEXT", "resultado": "TEXT",
-        "enviado_em": "TEXT NOT NULL DEFAULT (datetime('now'))",
+        "enviado_em": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
     },
 }
 
 
+class _Conexao:
+    """Wrapper fino sobre a conexao do PyMySQL que expoe a mesma API que o `repo.py`
+    ja usava com o sqlite3: `con.execute(sql, params)` devolve um cursor (DictCursor),
+    `con.executescript(...)`, `con.lastrowid`, e commit/rollback no `with`."""
+
+    def __init__(self, raw):
+        self._raw = raw
+        self._ultimo_cur = None
+
+    def execute(self, sql, params=None):
+        cur = self._raw.cursor()
+        # params falsy (None / tupla vazia) -> None, pra o PyMySQL NAO tentar formatar a
+        # query (deixa `%` literal de `LIKE '%x%'` em paz em queries sem parametro).
+        cur.execute(sql, params if params else None)
+        self._ultimo_cur = cur
+        return cur
+
+    def executemany(self, sql, seq):
+        cur = self._raw.cursor()
+        cur.executemany(sql, list(seq))
+        self._ultimo_cur = cur
+        return cur
+
+    def executescript(self, script):
+        # tira os comentarios `-- ...` (inclusive os que tem ';' no meio) antes de dividir
+        limpo = re.sub(r"--[^\n]*", "", script)
+        for stmt in limpo.split(";"):
+            if stmt.strip():
+                self.execute(stmt)
+
+    @property
+    def lastrowid(self):
+        return self._ultimo_cur.lastrowid if self._ultimo_cur is not None else None
+
+    def commit(self):
+        self._raw.commit()
+
+    def rollback(self):
+        self._raw.rollback()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        if exc_type is None:
+            self._raw.commit()
+        else:
+            self._raw.rollback()
+        return False
+
+
 @contextlib.contextmanager
 def conexao():
-    con = sqlite3.connect(CAMINHO_DB, timeout=30)
-    con.row_factory = sqlite3.Row
-    con.execute("PRAGMA foreign_keys = ON")
-    con.execute("PRAGMA busy_timeout = 10000")  # espera até 10s por um lock (2 usuários ao mesmo tempo)
+    cfg = config_db()
+    raw = pymysql.connect(
+        host=cfg["host"], port=cfg["port"], user=cfg["user"],
+        password=cfg.get("password") or "", database=cfg["database"],
+        charset=cfg.get("charset", "utf8mb4"),
+        cursorclass=pymysql.cursors.DictCursor,
+        autocommit=False,
+        connect_timeout=10, read_timeout=30, write_timeout=30,
+    )
+    con = _Conexao(raw)
     try:
         with con:
             yield con
     finally:
-        con.close()
+        raw.close()
+
+
+def _um(cur):
+    """Primeiro valor da primeira linha (para SELECT COUNT(*)/SUM()/MAX() etc.)."""
+    row = cur.fetchone()
+    return next(iter(row.values())) if row else None
+
+
+def _colunas_da_tabela(con, tabela):
+    base = config_db()["database"]
+    return {r["c"] for r in con.execute(
+        "SELECT LOWER(column_name) AS c FROM information_schema.columns "
+        "WHERE table_schema = %s AND table_name = %s", (base, tabela)).fetchall()}
 
 
 def inicializar_db():
-    fazer_backup()  # snapshot ANTES de qualquer criação/migração
+    fazer_backup()  # snapshot ANTES de qualquer criacao/migracao
     with conexao() as con:
+        con.execute("SET FOREIGN_KEY_CHECKS = 0")
         con.executescript(_ESQUEMA_SQL)
+        con.execute("SET FOREIGN_KEY_CHECKS = 1")
         _migrar_esquema(con)
         _backfill_dados(con)
 
 
 def _migrar_esquema(con):
     for tabela, colunas in _COLUNAS_ESPERADAS.items():
-        existentes = {l["name"] for l in con.execute(f"PRAGMA table_info({tabela})")}
+        existentes = _colunas_da_tabela(con, tabela)
         if not existentes:
             continue  # tabela nem existe ainda (criada pelo _ESQUEMA_SQL acima) - nada a migrar
         for coluna, definicao in colunas.items():
-            if coluna not in existentes:
+            if coluna.lower() not in existentes:
                 con.execute(f"ALTER TABLE {tabela} ADD COLUMN {coluna} {definicao}")
 
 
 def _backfill_dados(con):
-    """Preenchimentos únicos de dados após a migração de esquema (só coisas idempotentes)."""
-    cols = {l["name"] for l in con.execute("PRAGMA table_info(apolice)")}
+    """Preenchimentos unicos de dados apos a migracao de esquema (so coisas idempotentes)."""
+    cols = _colunas_da_tabela(con, "apolice")
     # comissao_valor (coluna antiga) -> comissao_valor_seguralta_receber
     if {"comissao_valor", "comissao_valor_seguralta_receber"} <= cols:
         con.execute(
@@ -616,7 +763,7 @@ def _backfill_dados(con):
         )
 
     # apolice_repasse: valor/status/data_pagamento -> valor_previsto/valor_recebido/data
-    rep = {l["name"] for l in con.execute("PRAGMA table_info(apolice_repasse)")}
+    rep = _colunas_da_tabela(con, "apolice_repasse")
     if {"valor", "status", "data_pagamento", "valor_previsto"} <= rep:
         con.execute(
             "UPDATE apolice_repasse SET "
@@ -626,49 +773,97 @@ def _backfill_dados(con):
             "WHERE valor_previsto IS NULL AND valor IS NOT NULL"
         )
 
-    # cotacao_campo.papel: 1ª migração herda os papéis dos nomes usados até agora
-    # ("Valor do Seguro" / "Nº de Parcelas"). Só roda quando NENHUM campo tem papel,
-    # pra nunca brigar com a escolha feita na tela depois.
-    cc = {l["name"] for l in con.execute("PRAGMA table_info(cotacao_campo)")}
+    # cotacao_campo.papel: 1a migracao herda os papeis dos nomes usados ate agora.
+    cc = _colunas_da_tabela(con, "cotacao_campo")
     if "papel" in cc:
-        ja_tem = con.execute(
+        ja_tem = _um(con.execute(
             "SELECT COUNT(*) FROM cotacao_campo WHERE papel IS NOT NULL AND papel <> ''"
-        ).fetchone()[0]
+        ))
         if not ja_tem:
             def _n(s):
                 t = unicodedata.normalize("NFKD", (s or "").strip().lower())
                 return "".join(c for c in t if not unicodedata.combining(c))
             usados = set()
-            for cid, nome in con.execute("SELECT id, nome FROM cotacao_campo ORDER BY ordem, id").fetchall():
+            for row in con.execute(
+                    "SELECT id, nome FROM cotacao_campo ORDER BY ordem, id").fetchall():
+                cid, nome = row["id"], row["nome"]
                 n = _n(nome)
                 if n == "valor do seguro" and "base_parcelamento" not in usados:
-                    con.execute("UPDATE cotacao_campo SET papel = 'base_parcelamento' WHERE id = ?", (cid,))
+                    con.execute("UPDATE cotacao_campo SET papel = 'base_parcelamento' WHERE id = %s", (cid,))
                     usados.add("base_parcelamento")
                 elif n == "no de parcelas" and "num_parcelas" not in usados:
-                    con.execute("UPDATE cotacao_campo SET papel = 'num_parcelas' WHERE id = ?", (cid,))
+                    con.execute("UPDATE cotacao_campo SET papel = 'num_parcelas' WHERE id = %s", (cid,))
                     usados.add("num_parcelas")
 
-    # tipos antigos 'nivel' / 'livre_referenciada' viram 'selecao' com as opções fixas
-    # copiadas para a coluna `opcoes`. Idempotente: some quando não há mais esses tipos.
+    # tipos antigos 'nivel' / 'livre_referenciada' viram 'selecao' com as opcoes fixas.
     if "opcoes" in cc:
-        for tipo_antigo, opcoes in (("nivel", "Simples\nIntermediário\nCompleto"),
+        for tipo_antigo, opcoes in (("nivel", "Simples\nIntermediario\nCompleto"),
                                     ("livre_referenciada", "Livre escolha\nReferenciada")):
             con.execute(
-                "UPDATE cotacao_campo SET tipo = 'selecao', opcoes = ? "
-                "WHERE tipo = ? AND (opcoes IS NULL OR opcoes = '')",
+                "UPDATE cotacao_campo SET tipo = 'selecao', opcoes = %s "
+                "WHERE tipo = %s AND (opcoes IS NULL OR opcoes = '')",
                 (opcoes, tipo_antigo),
             )
 
 
-# ---------- backup ----------
+# ---------- backup (mysqldump) ----------
 
-def fazer_backup():
-    if not os.path.exists(CAMINHO_DB):
+_ultimo_dump_mono = 0.0  # time.monotonic() do ultimo dump feito nesta execucao
+
+
+def _mysqldump_bin():
+    return (shutil.which("mysqldump")
+            or next((p for p in _MYSQLDUMP_CANDIDATOS if os.path.exists(p)), None))
+
+
+def _ultimo_backup_ts():
+    """mtime da pasta de backup mais recente que tenha um plenus.sql dentro (0 se nao ha)."""
+    if not os.path.isdir(PASTA_BACKUPS):
+        return 0.0
+    ts = 0.0
+    for n in os.listdir(PASTA_BACKUPS):
+        d = os.path.join(PASTA_BACKUPS, n)
+        if os.path.isdir(d) and os.path.exists(os.path.join(d, "plenus.sql")):
+            ts = max(ts, os.path.getmtime(d))
+    return ts
+
+
+def fazer_backup(forcar=False):
+    """mysqldump do banco `plenus` para backups/<carimbo>/plenus.sql, com intervalo minimo
+    (BACKUP_INTERVALO_MIN_S) pra nao rodar a cada gravacao. Nunca levanta excecao."""
+    global _ultimo_dump_mono
+    agora = time.monotonic()
+    if not forcar:
+        if _ultimo_dump_mono and (agora - _ultimo_dump_mono) < BACKUP_INTERVALO_MIN_S:
+            return None
+        if (time.time() - _ultimo_backup_ts()) < BACKUP_INTERVALO_MIN_S:
+            _ultimo_dump_mono = agora
+            return None
+
+    dump = _mysqldump_bin()
+    if not dump:
+        print("AVISO(backup): mysqldump nao encontrado no PATH nem em Program Files; backup pulado")
         return None
+
+    cfg = config_db()
     carimbo = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     destino = os.path.join(PASTA_BACKUPS, carimbo)
     os.makedirs(destino, exist_ok=True)
-    shutil.copy2(CAMINHO_DB, os.path.join(destino, "plenus.db"))
+    arq = os.path.join(destino, "plenus.sql")
+    cmd = [dump, "--host", str(cfg["host"]), "--port", str(cfg["port"]),
+           "--user", str(cfg["user"]), "--no-tablespaces", "--lock-tables=false",
+           "--set-gtid-purged=OFF", str(cfg["database"])]
+    env = {**os.environ, "MYSQL_PWD": str(cfg.get("password") or "")}
+    try:
+        with open(arq, "w", encoding="utf-8", newline="\n") as f:
+            subprocess.run(cmd, stdout=f, stderr=subprocess.PIPE, env=env,
+                           check=True, timeout=120)
+    except (subprocess.SubprocessError, OSError) as e:
+        print(f"AVISO(backup): mysqldump falhou ({e!r}); backup pulado")
+        shutil.rmtree(destino, ignore_errors=True)
+        return None
+
+    _ultimo_dump_mono = agora
     _rotacionar_backups()
     return destino
 

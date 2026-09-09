@@ -65,7 +65,8 @@ O `fail2ban` já vem com proteção de SSH ativa por padrão.
 ## 3. Instalar o sistema
 
 ```bash
-sudo apt -y install python3-venv python3-pip git tesseract-ocr tesseract-ocr-por
+sudo apt -y install python3-venv python3-pip git tesseract-ocr tesseract-ocr-por \
+    mariadb-server
 
 # código
 sudo mkdir -p /opt/plenus && sudo chown plenus:plenus /opt/plenus
@@ -80,13 +81,39 @@ python3 -m venv venv
 > No Linux o Tesseract fica no PATH; o `leitura_pdf.py` acha sozinho. (O caminho
 > `C:\Program Files\...` no código é só o fallback do Windows e é ignorado aqui.)
 
-### Config dos avisos (e-mail + Google Agenda)
+### Banco de dados (MySQL / MariaDB)
+
+O Plenus usa MySQL (schema `plenus`, isolado, com usuário próprio). O `mariadb-server`
+instalado acima serve. Crie o schema e o usuário:
+
+```bash
+sudo mysql
+```
+```sql
+CREATE DATABASE plenus CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+CREATE USER 'plenus'@'localhost' IDENTIFIED BY 'UMA-SENHA-FORTE';
+GRANT ALL PRIVILEGES ON plenus.* TO 'plenus'@'localhost';
+FLUSH PRIVILEGES;
+EXIT;
+```
+
+O `mysqldump` (usado pelos backups) já vem com o `mariadb-server`. O `plenus_config.json`
+(próxima seção) leva o bloco `"db"` com host/porta/usuário/senha/base — o app cria as
+tabelas sozinho no primeiro start (`db.inicializar_db()`).
+
+Se estiver migrando de uma instalação SQLite antiga, copie o `plenus.db` para a VPS e rode
+`./venv/bin/python migrar_para_mysql.py` uma vez (confere a contagem tabela a tabela no fim).
+
+### Config (banco + avisos)
 
 ```bash
 cp plenus_config.exemplo.json plenus_config.json
 nano plenus_config.json
 chmod 600 plenus_config.json
 ```
+
+**Banco** — bloco `"db"`: `host` `127.0.0.1`, `port` `3306`, `user` `plenus`,
+`password` = a senha que você definiu no `CREATE USER`, `database` `plenus`.
 
 **E-mail** — bloco `"email"`. Com Gmail:
 1. Ative a verificação em 2 etapas na conta Google.
@@ -115,7 +142,8 @@ sudo nano /etc/systemd/system/plenus.service
 ```ini
 [Unit]
 Description=Plenus SEGURALTA
-After=network.target
+After=network.target mariadb.service
+Wants=mariadb.service
 
 [Service]
 User=plenus
@@ -179,11 +207,11 @@ sudo nano /opt/plenus/backup.sh
 #!/bin/bash
 set -e
 cd /opt/plenus
-./venv/bin/python backup_db.py /tmp/plenus_snapshot.db
+./venv/bin/python backup_db.py /tmp/plenus_snapshot.sql
 export RESTIC_PASSWORD='UMA-SENHA-FORTE-DE-BACKUP'
-restic -r rclone:remoto:plenus-backup backup /tmp/plenus_snapshot.db plenus_config.json
+restic -r rclone:remoto:plenus-backup backup /tmp/plenus_snapshot.sql plenus_config.json
 restic -r rclone:remoto:plenus-backup forget --keep-daily 14 --keep-weekly 8 --prune
-rm -f /tmp/plenus_snapshot.db
+rm -f /tmp/plenus_snapshot.sql
 ```
 ```bash
 chmod +x /opt/plenus/backup.sh
@@ -192,8 +220,9 @@ sudo crontab -u plenus -e
 ```
 30 2 * * *  /opt/plenus/backup.sh >> /opt/plenus/backup.log 2>&1
 ```
-(`backup_db.py` usa a API de backup do SQLite — a cópia é consistente mesmo com o sistema
-em uso.)
+(`backup_db.py` roda `mysqldump --single-transaction` — a cópia é consistente mesmo com o
+sistema em uso. O app também grava `mysqldump` em `backups/` com intervalo mínimo a cada
+gravação.)
 
 ## 7. Avisos de vencimento (cron, em vez da Tarefa Agendada do Windows)
 

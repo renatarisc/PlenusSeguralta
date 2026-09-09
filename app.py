@@ -6,8 +6,9 @@
 
 import os
 import re
-import sqlite3
 from datetime import date, datetime, timedelta
+
+from pymysql.err import IntegrityError
 
 from flask import (Flask, render_template, request, redirect, url_for, flash, jsonify,
                    session, Response, abort)
@@ -258,7 +259,7 @@ def usuario_form(uid=None):
                 repo.atualizar_usuario(uid, nome, login_, ativo, senha or None)
             else:
                 repo.criar_usuario(nome, login_, senha)
-        except sqlite3.IntegrityError:
+        except IntegrityError:
             flash("Já existe um usuário com esse login.", "erro")
             return render_template("usuarios_form.html", ativo="usuarios_lista",
                                    usuario={"id": uid, "nome": nome, "login": login_, "ativo": ativo})
@@ -390,7 +391,7 @@ def cliente_form(cliente_id=None):
             else:
                 cliente_id = repo.criar_cliente(dados)
                 flash("Cliente cadastrado.", "ok")
-        except sqlite3.IntegrityError:
+        except IntegrityError:
             flash(f"Já existe um cliente com esse {rotulo_doc}.", "erro")
             return render_template("clientes_form.html", ativo="clientes_lista",
                                    cliente={**dados, "id": cliente_id})
@@ -458,7 +459,7 @@ def cadastro_simples_form(slug, item_id=None):
             else:
                 repo.criar_simples(cfg["tabela"], nome)
                 flash("Cadastrado.", "ok")
-        except sqlite3.IntegrityError:
+        except IntegrityError:
             flash(f"Já existe {cfg['singular']} com esse nome.", "erro")
             return render_template("cadastro_simples_form.html", ativo="cadastro_simples", slug=slug,
                                    singular=cfg["singular"], acao_novo=cfg["acao_novo"],

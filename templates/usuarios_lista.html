@@ -18,7 +18,7 @@
           <td><a class="cel-nome" href="{{ url_for('usuario_form', uid=u.id) }}">{{ u.nome }}</a></td>
           <td>{{ u.login }}</td>
           <td>{{ 'Ativo' if u.ativo else 'Inativo' }}</td>
-          <td>{{ (u.ultimo_acesso ~ ' UTC') if u.ultimo_acesso else '—' }}</td>
+          <td>{{ u.ultimo_acesso.strftime('%d/%m/%Y %H:%M') if u.ultimo_acesso else '—' }}</td>
           <td class="acoes">
             <a class="btn btn--linha btn--mini" href="{{ url_for('usuario_form', uid=u.id) }}">{{ icone('lapis') }}</a>
             {% if u.id != usuario_atual.id %}
