@@ -65,8 +65,11 @@ def _passo_email(cfg, forcar, seco):
         if seco:
             print(f"  [SECO] {rot}"); enviados += 1; continue
         ok, det = _enviar_canais(cfg, assunto, corpo)
-        repo.registrar_notificacao(ap["id"], 0, ap["vigencia_fim"], "email",
-                                   "", ("OK: " if ok else "ERRO: ") + det)
+        try:
+            repo.registrar_notificacao(ap["id"], 0, ap["vigencia_fim"], "email",
+                                       "", ("OK: " if ok else "ERRO: ") + det)
+        except Exception as e:  # registro que falha nao pode abortar o resto do lote
+            print(f"  ERRO registrar {rot} -> {e!r}")
         print(f"  {'OK  ' if ok else 'ERRO'} {rot} -> {det}"); enviados += 1
 
     for p in repo.parcelas_boleto_pendentes():
@@ -90,8 +93,11 @@ def _passo_email(cfg, forcar, seco):
         if seco:
             print(f"  [SECO] {rot}"); enviados += 1; continue
         ok, det = _enviar_canais(cfg, assunto, corpo)
-        repo.registrar_notificacao_parcela(p["parcela_id"], 0, p["data"], "email",
-                                           "", ("OK: " if ok else "ERRO: ") + det, orig)
+        try:
+            repo.registrar_notificacao_parcela(p["parcela_id"], 0, p["data"], "email",
+                                               "", ("OK: " if ok else "ERRO: ") + det, orig)
+        except Exception as e:  # registro que falha nao pode abortar o resto do lote
+            print(f"  ERRO registrar {rot} -> {e!r}")
         print(f"  {'OK  ' if ok else 'ERRO'} {rot} -> {det}"); enviados += 1
 
     return enviados, pulados
