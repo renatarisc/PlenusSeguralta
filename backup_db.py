@@ -29,8 +29,8 @@ def copiar(destino):
         raise RuntimeError("mysqldump nao encontrado no PATH nem em 'C:\\Program Files\\MySQL\\...'")
     cfg = config_db()
     cmd = [dump, "--host", str(cfg["host"]), "--port", str(cfg["port"]),
-           "--user", str(cfg["user"]), "--no-tablespaces", "--lock-tables=false",
-           "--set-gtid-purged=OFF", str(cfg["database"])]
+           "--user", str(cfg["user"]), "--no-tablespaces", "--skip-lock-tables",
+           str(cfg["database"])]
     env = {**os.environ, "MYSQL_PWD": str(cfg.get("password") or "")}
     with open(destino, "w", encoding="utf-8", newline="\n") as f:
         subprocess.run(cmd, stdout=f, stderr=subprocess.PIPE, env=env, check=True, timeout=300)

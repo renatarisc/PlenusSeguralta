@@ -856,9 +856,11 @@ def fazer_backup(forcar=False):
     destino = os.path.join(PASTA_BACKUPS, carimbo)
     os.makedirs(destino, exist_ok=True)
     arq = os.path.join(destino, "plenus.sql")
+    # args que funcionam no mysqldump do MySQL 8 E no do MariaDB (sem --single-transaction,
+    # que exige FLUSH_TABLES; sem --set-gtid-purged, que só existe no MySQL)
     cmd = [dump, "--host", str(cfg["host"]), "--port", str(cfg["port"]),
-           "--user", str(cfg["user"]), "--no-tablespaces", "--lock-tables=false",
-           "--set-gtid-purged=OFF", str(cfg["database"])]
+           "--user", str(cfg["user"]), "--no-tablespaces", "--skip-lock-tables",
+           str(cfg["database"])]
     env = {**os.environ, "MYSQL_PWD": str(cfg.get("password") or "")}
     try:
         with open(arq, "w", encoding="utf-8", newline="\n") as f:
