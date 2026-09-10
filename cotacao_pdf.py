@@ -10,6 +10,7 @@
 """
 
 import io
+import os
 import re
 from datetime import datetime
 from xml.sax.saxutils import escape
@@ -18,6 +19,7 @@ from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import ParagraphStyle
+from reportlab.lib.utils import ImageReader
 from reportlab.platypus import (BaseDocTemplate, Frame, PageTemplate, Paragraph,
                                 Table, TableStyle)
 
@@ -89,6 +91,22 @@ def _fmt(valor, tipo, unidade=""):
     return v
 
 
+_BANNER = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                       "static", "img", "seguro-e-seguralta.png")
+
+
+def _banner_seguralta(cnv, w, topo):
+    """Banner 'SEGURO É SEGURALTA' centralizado na faixa do cabeçalho. Nunca aborta o PDF."""
+    try:
+        img = ImageReader(_BANNER)
+        iw, ih = img.getSize()
+        alt = 16
+        larg = alt * iw / ih
+        cnv.drawImage(img, (w - larg) / 2, topo - alt - 4, width=larg, height=alt)
+    except Exception:
+        pass
+
+
 def _cabecalho(cnv, doc, ctx):
     w, _h = doc.pagesize
     topo = doc.pagesize[1] - MARGEM
@@ -100,6 +118,7 @@ def _cabecalho(cnv, doc, ctx):
     cnv.setFont("Helvetica", 8)
     cnv.setFillColor(CINZA_TXT)
     cnv.drawString(tx, topo - 23, "Comparativo de cotações")
+    _banner_seguralta(cnv, w, topo)
     cnv.setFont("Helvetica", 7.5)
     cnv.drawRightString(w - MARGEM, topo - 6, "Emitido em " + ctx["emissao"])
     if ctx.get("cliente"):
