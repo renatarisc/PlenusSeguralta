@@ -196,6 +196,9 @@ def _moeda(v):
 def _quando(dias):
     if dias == 0:
         return "vence HOJE"
+    if dias < 0:
+        n = -dias
+        return f"venceu há {n} dia" + ("s" if n != 1 else "")
     return f"vence em {dias} dia" + ("s" if dias != 1 else "")
 
 
