@@ -76,6 +76,48 @@
     editaveis(tr).forEach((el) => { el.removeAttribute("readonly"); el.removeAttribute("tabindex"); });
   }
 
+  // ---- status da parcela: "a enviar / enviado / pago" p/ boleto; "a pagar / pago" p/ o resto ----
+  const selForma = document.getElementById("forma_pagamento_id");
+  function ehBoleto() {
+    const t = selForma ? (selForma.options[selForma.selectedIndex] || {}).text || "" : "";
+    return /boleto/i.test(t);
+  }
+  const OPC_STATUS = {
+    boleto: [["a_enviar", "A enviar"], ["enviado", "Enviado"], ["pago", "Pago"]],
+    normal: [["a_pagar", "A pagar"], ["pago", "Pago"]],
+  };
+  function statusInicial(tr, boleto) {
+    const paga = tr.querySelector('[name="parcela_paga"]').value === "1";
+    const env = (tr.querySelector('[name="parcela_enviado"]') || {}).value === "1";
+    if (paga) return "pago";
+    if (boleto) return env ? "enviado" : "a_enviar";
+    return "a_pagar";
+  }
+  function remapStatus(val, boleto) {
+    if (val === "pago") return "pago";
+    if (boleto) return val === "enviado" ? "enviado" : "a_enviar";
+    return "a_pagar";
+  }
+  function sincOcultosStatus(tr, val, boleto) {
+    const hp = tr.querySelector('[name="parcela_paga"]');
+    const he = tr.querySelector('[name="parcela_enviado"]');
+    if (hp) hp.value = val === "pago" ? "1" : "0";
+    if (he) he.value = (val === "enviado" || (val === "pago" && boleto)) ? "1" : "0";
+  }
+  function aplicarStatus(tr) {
+    const sel = tr.querySelector("[data-parcela-status]");
+    if (!sel) return;
+    const boleto = ehBoleto();
+    const alvo = remapStatus(sel.dataset.val || statusInicial(tr, boleto), boleto);
+    sel.innerHTML = OPC_STATUS[boleto ? "boleto" : "normal"]
+      .map(([v, t]) => '<option value="' + v + '">' + t + "</option>").join("");
+    sel.value = alvo;
+    sel.dataset.val = alvo;
+    sincOcultosStatus(tr, alvo, boleto);
+  }
+  function aplicarStatusTodas() { linhas().forEach(aplicarStatus); }
+  if (selForma) selForma.addEventListener("change", aplicarStatusTodas);
+
   function atualizarResumo() {
     const ls = linhas();
     let soma = 0;
@@ -106,6 +148,7 @@
       tr.querySelector('[name="parcela_valor"]').value = dados.valor || "";
     }
     corpo.appendChild(tr);
+    aplicarStatus(tr);
     return tr;
   }
 
@@ -140,7 +183,14 @@
     if (e.target.name === "parcela_valor" || e.target.name === "parcela_data") atualizarResumo();
   });
   corpo.addEventListener("change", (e) => {
-    if (e.target.name === "parcela_paga" || e.target.name === "parcela_data") atualizarResumo();
+    if (e.target.matches("[data-parcela-status]")) {
+      const tr = e.target.closest("tr.parcela");
+      e.target.dataset.val = e.target.value;
+      sincOcultosStatus(tr, e.target.value, ehBoleto());
+      atualizarResumo();
+      return;
+    }
+    if (e.target.name === "parcela_data") atualizarResumo();
   });
 
   const btnAdd = document.getElementById("btn-add-parcela");
@@ -210,13 +260,8 @@
   }
 
   // ---- coluna "Cliente avisado" das parcelas: só para pagamento em boleto ----
-  const selForma = document.getElementById("forma_pagamento_id");
   const tabParcelas = document.getElementById("tab-parcelas");
   if (selForma && tabParcelas) {
-    const ehBoleto = () => {
-      const txt = (selForma.options[selForma.selectedIndex] || {}).text || "";
-      return /boleto/i.test(txt);
-    };
     const syncAviso = () => { tabParcelas.classList.toggle("sem-aviso", !ehBoleto()); };
     selForma.addEventListener("change", syncAviso);
     syncAviso();
@@ -327,7 +372,8 @@
     sincronizar();
   })();
 
-  // ao abrir: trava as parcelas que já vieram pagas
+  // ao abrir: monta os selects de status e trava as parcelas que já vieram pagas
+  aplicarStatusTodas();
   linhas().forEach((tr) => {
     if (tr.querySelector('[name="parcela_paga"]').value === "1") travar(tr);
   });

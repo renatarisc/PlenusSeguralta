@@ -66,6 +66,49 @@
     return Array.from(corpo.querySelectorAll("tr.parcela"));
   }
 
+  // ---- status da parcela: "a enviar / enviado / pago" p/ boleto; "a pagar / pago" p/ o resto ----
+  const selForma = document.getElementById("forma_pagamento_id");
+  function ehBoleto() {
+    const t = selForma ? (selForma.options[selForma.selectedIndex] || {}).text || "" : "";
+    return /boleto/i.test(t);
+  }
+  const OPC_STATUS = {
+    boleto: [["a_enviar", "A enviar"], ["enviado", "Enviado"], ["pago", "Pago"]],
+    normal: [["a_pagar", "A pagar"], ["pago", "Pago"]],
+  };
+  function statusInicial(tr, boleto) {
+    const paga = tr.querySelector('[name="parcela_paga"]').value === "1";
+    const env = (tr.querySelector('[name="parcela_enviado"]') || {}).value === "1";
+    if (paga) return "pago";
+    if (boleto) return env ? "enviado" : "a_enviar";
+    return "a_pagar";
+  }
+  function remapStatus(val, boleto) {
+    if (val === "pago") return "pago";
+    if (boleto) return val === "enviado" ? "enviado" : "a_enviar";
+    return "a_pagar";
+  }
+  function sincOcultosStatus(tr, val, boleto) {
+    const hp = tr.querySelector('[name="parcela_paga"]');
+    const he = tr.querySelector('[name="parcela_enviado"]');
+    if (hp) hp.value = val === "pago" ? "1" : "0";
+    if (he) he.value = (val === "enviado" || (val === "pago" && boleto)) ? "1" : "0";
+  }
+  function aplicarStatus(tr) {
+    const sel = tr.querySelector("[data-parcela-status]");
+    if (!sel) return;
+    const boleto = ehBoleto();
+    const alvo = remapStatus(sel.dataset.val || statusInicial(tr, boleto), boleto);
+    sel.innerHTML = OPC_STATUS[boleto ? "boleto" : "normal"]
+      .map(([v, t]) => '<option value="' + v + '">' + t + "</option>").join("");
+    sel.value = alvo;
+    sel.dataset.val = alvo;
+    sincOcultosStatus(tr, alvo, boleto);
+    tr.classList.toggle("parcela--paga", alvo === "pago");
+  }
+  function aplicarStatusTodas() { linhas().forEach(aplicarStatus); }
+  if (selForma) selForma.addEventListener("change", aplicarStatusTodas);
+
   // ---- parcela já paga abre travada; o lápis libera (igual à apólice) ----
   function editaveis(tr) {
     return Array.from(tr.querySelectorAll("input:not([type=hidden]), select"));
@@ -90,6 +133,7 @@
       tr.querySelector('[name="parcela_valor"]').value = dados.valor || "";
     }
     corpo.appendChild(tr);
+    aplicarStatus(tr);
     return tr;
   }
   function atualizarResumo() {
@@ -139,9 +183,11 @@
     if (e.target.name === "parcela_valor") atualizarResumo();
   });
   corpo.addEventListener("change", (e) => {
-    if (e.target.name === "parcela_paga") {
+    if (e.target.matches("[data-parcela-status]")) {
       const tr = e.target.closest("tr.parcela");
-      tr.classList.toggle("parcela--paga", e.target.value === "1");
+      e.target.dataset.val = e.target.value;
+      sincOcultosStatus(tr, e.target.value, ehBoleto());
+      tr.classList.toggle("parcela--paga", e.target.value === "pago");
     }
   });
 
@@ -180,7 +226,8 @@
   const elValor = document.getElementById("valor");
   if (elValor) elValor.addEventListener("input", atualizarResumo);
 
-  // na carga: parcela já marcada como paga abre travada
+  // na carga: monta os selects de status e trava as parcelas já pagas
+  aplicarStatusTodas();
   linhas().forEach((tr) => {
     const st = tr.querySelector('[name="parcela_paga"]');
     if (st && st.value === "1") travar(tr);

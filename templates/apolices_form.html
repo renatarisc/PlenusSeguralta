@@ -206,23 +206,29 @@
               <th style="width:15%">Cliente avisado</th><th style="width:13%"></th></tr>
         </thead>
         <tbody id="corpo-parcelas">
+          {% set _ns = namespace(boleto=false) %}
+          {% for f in formas %}{% if f.id|string == a.forma_pagamento_id|string and 'boleto' in f.nome|lower %}{% set _ns.boleto = true %}{% endif %}{% endfor %}
           {% for p in a.parcelas or [] %}
+          {% set _st = 'pago' if p.paga else ('enviado' if p.enviado else ('a_enviar' if _ns.boleto else 'a_pagar')) %}
           <tr class="parcela {{ 'parcela--paga' if p.paga }}">
             <td><input name="parcela_identificacao" value="{{ p.identificacao or '' }}"></td>
             <td><input name="parcela_data" type="date" value="{{ p.data or '' }}"></td>
             <td><input name="parcela_valor" inputmode="decimal" data-num value="{{ p.valor or '' }}"></td>
             <td>
-              <select name="parcela_paga" data-parcela-status>
-                <option value="0" {{ 'selected' if not p.paga }}>A pagar</option>
-                <option value="1" {{ 'selected' if p.paga }}>Paga</option>
+              <select data-parcela-status>
+                <option value="a_pagar" {{ 'selected' if _st == 'a_pagar' }}>A pagar</option>
+                <option value="a_enviar" {{ 'selected' if _st == 'a_enviar' }}>A enviar</option>
+                <option value="enviado" {{ 'selected' if _st == 'enviado' }}>Enviado</option>
+                <option value="pago" {{ 'selected' if _st == 'pago' }}>Pago</option>
               </select>
+              <input type="hidden" name="parcela_paga" value="{{ '1' if p.paga else '0' }}">
+              <input type="hidden" name="parcela_enviado" value="{{ '1' if p.enviado else '0' }}">
             </td>
             <td>
               <select name="parcela_aviso">
                 <option value="0" {{ 'selected' if not p.aviso_ok }}>Não</option>
                 <option value="1" {{ 'selected' if p.aviso_ok }}>Sim</option>
               </select>
-              <input type="hidden" name="parcela_enviado" value="{{ '1' if p.enviado else '0' }}">
             </td>
             <td class="acoes">
               <button type="button" class="btn btn--linha btn--mini" data-editar-parcela title="Liberar edição">{{ icone('lapis') }}</button>
@@ -533,17 +539,20 @@
     <td><input name="parcela_data" type="date"></td>
     <td><input name="parcela_valor" inputmode="decimal" data-num></td>
     <td>
-      <select name="parcela_paga" data-parcela-status>
-        <option value="0" selected>A pagar</option>
-        <option value="1">Paga</option>
+      <select data-parcela-status>
+        <option value="a_pagar" selected>A pagar</option>
+        <option value="a_enviar">A enviar</option>
+        <option value="enviado">Enviado</option>
+        <option value="pago">Pago</option>
       </select>
+      <input type="hidden" name="parcela_paga" value="0">
+      <input type="hidden" name="parcela_enviado" value="0">
     </td>
     <td>
       <select name="parcela_aviso">
         <option value="0" selected>Não</option>
         <option value="1">Sim</option>
       </select>
-      <input type="hidden" name="parcela_enviado" value="0">
     </td>
     <td class="acoes">
       <button type="button" class="btn btn--linha btn--mini" data-editar-parcela title="Liberar edição">{{ icone('lapis') }}</button>
