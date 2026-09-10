@@ -94,14 +94,16 @@
             {% endif %}
           </td>
           <td class="acoes">
-            <form method="post" action="{{ url_for('parcela_aviso', parcela_id=p.parcela_id) }}">
+            <form method="post" action="{{ url_for('parcela_aviso', parcela_id=p.parcela_id) }}"
+                  onsubmit="return confirm('Confirmar que você avisou {{ p.cliente_nome or 'o cliente' }} sobre o boleto {{ p.identificacao or '' }}?')">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="aviso" value="1">
               <input type="hidden" name="origem" value="{{ p.origem }}">
               <input type="hidden" name="voltar" value="{{ url_for('dashboard') }}">
               <button class="btn btn--linha btn--mini" type="submit" title="Cliente avisado do boleto">✓ avisei o cliente</button>
             </form>
-            <form method="post" action="{{ url_for('parcela_pagamento', parcela_id=p.parcela_id) }}">
+            <form method="post" action="{{ url_for('parcela_pagamento', parcela_id=p.parcela_id) }}"
+                  onsubmit="return confirm('Marcar o boleto {{ p.identificacao or '' }} de {{ p.cliente_nome or 'cliente' }} como pago?')">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="paga" value="1">
               <input type="hidden" name="origem" value="{{ p.origem }}">
@@ -116,7 +118,7 @@
   </div>
   <p style="margin:12px 0 0;font-size:12px;color:var(--texto-suave)">
     Parcelas de apólices, endossos e consórcios com pagamento em boleto vencendo nos próximos {{ DIAS_ALERTA_BOLETO }} dias (ou já vencidas).
-    O e-mail se repete todo dia, a partir de 10 dias para vencer, até você clicar em <strong>✓ avisei o cliente</strong> (ou marcar a parcela como paga).
+    O e-mail se repete todo dia, a partir de 10 dias para vencer, até você clicar em <strong>✓ avisei o cliente</strong> ou marcar a parcela como <strong>✓ paga</strong>.
   </p>
 </div>
 {% endif %}
@@ -154,7 +156,8 @@
             {% endif %}
           </td>
           <td class="acoes">
-            <form method="post" action="{{ url_for('parcela_enviado', parcela_id=p.parcela_id) }}">
+            <form method="post" action="{{ url_for('parcela_enviado', parcela_id=p.parcela_id) }}"
+                  onsubmit="return confirm('Confirmar que o boleto {{ p.identificacao or '' }} foi enviado a {{ p.cliente_nome or 'o cliente' }}?')">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="enviado" value="1">
               <input type="hidden" name="origem" value="{{ p.origem }}">
@@ -168,8 +171,8 @@
     </table>
   </div>
   <p style="margin:12px 0 0;font-size:12px;color:var(--texto-suave)">
-    Boletos que a corretora precisa repassar ao cliente: de apólices e endossos com pagamento
-    em boleto vencendo nos próximos {{ DIAS_ALERTA_BOLETO }} dias (ou já vencidos), e de consórcios
+    Boletos que a Plenus precisa repassar ao cliente: de apólices e endossos com pagamento
+    em boleto vencendo nos próximos {{ DIAS_ALERTA_BOLETO }} dias (ou já vencidos) e de consórcios
     (status <strong>A enviar</strong>). Clique em <strong>✓ enviei</strong> só depois de mandar
     o boleto para o cliente.
   </p>
@@ -182,14 +185,14 @@
   <div class="tabela-wrap">
     <table class="lista">
       <thead>
-        <tr><th>Descrição</th><th style="text-align:center">Categoria</th><th style="text-align:center">Parcela</th><th>Valor</th><th>Vencimento</th><th></th></tr>
+        <tr><th>Descrição</th><th>Forma de pagamento</th><th>Parcela</th><th>Valor</th><th>Vencimento</th><th></th></tr>
       </thead>
       <tbody>
         {% for s in contas_pagar %}
         <tr>
           <td><a class="cel-nome" href="{{ url_for('saida_form', saida_id=s.id) }}">{{ s.descricao }}</a></td>
-          <td style="text-align:center">{{ s.categoria or '—' }}</td>
-          <td style="text-align:center">{{ s.numero_parcela or '—' }}</td>
+          <td>{{ s.forma_pagamento or '—' }}</td>
+          <td>{{ 'fixa mensal' if s.fixo_mensal else (s.numero_parcela or '—') }}</td>
           <td>{{ s.valor|moeda }}</td>
           <td>
             {{ s.data_vencimento|data_br }}
