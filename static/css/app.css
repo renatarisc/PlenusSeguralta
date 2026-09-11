@@ -301,6 +301,12 @@ table.lista td.acoes > a + a,
 table.lista td.acoes > a + form,
 table.lista td.acoes > form + form { margin-left: 6px; }
 table.lista input.input-ordem { width: 68px; padding: 5px 6px; text-align: center; }
+table.lista input.input-ordem[readonly] { background: var(--fundo); color: var(--texto-suave); cursor: default; }
+table.lista td.col-arrastar { width: 28px; padding-right: 0; color: var(--texto-suave); cursor: grab; }
+table.lista td.col-arrastar:active { cursor: grabbing; }
+table.lista tr.arrastando { opacity: .4; }
+table.lista tr.arrasta-antes { box-shadow: inset 0 2px 0 var(--laranja); }
+table.lista tr.arrasta-depois { box-shadow: inset 0 -2px 0 var(--laranja); }
 .tag-papel {
   display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px;
   font-size: 10.5px; font-weight: 700; background: #fde7d6; color: #9a4a12; vertical-align: middle;

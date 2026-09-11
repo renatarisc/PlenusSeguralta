@@ -32,6 +32,15 @@
       </div>
     </div>
     <div class="campo c-2">
+      <label for="f-seguradora">Seguradora</label>
+      <select id="f-seguradora" name="seguradora">
+        <option value="">Todas</option>
+        {% for s in seguradoras %}
+        <option value="{{ s.id }}" {{ 'selected' if seguradora_id == s.id }}>{{ s.nome }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="campo c-2">
       <label for="f-tipo">Tipo de seguro</label>
       <select id="f-tipo" name="tipo">
         <option value="">Todos</option>
@@ -79,7 +88,7 @@
   </div>
   <div class="filtros__acoes">
     <button class="btn btn--primario" type="submit">{{ icone('busca') }} Buscar</button>
-    {% if busca or tipo_id or mes or mes_fim or quiver or parcela %}
+    {% if busca or tipo_id or seguradora_id or mes or mes_fim or quiver or parcela %}
     <a class="btn btn--linha" href="{{ url_for('apolices', cliente=cliente_filtro.id) if cliente_filtro else url_for('apolices') }}">Limpar</a>
     {% endif %}
   </div>
@@ -134,7 +143,7 @@
   </div>
   {% else %}
   <p class="vazio">
-    {% if busca or tipo_id or mes or mes_fim or quiver or parcela %}Nenhuma apólice encontrada para o filtro.
+    {% if busca or tipo_id or seguradora_id or mes or mes_fim or quiver or parcela %}Nenhuma apólice encontrada para o filtro.
     {% elif cliente_filtro %}Este cliente ainda não tem apólices.
     {% else %}Nenhuma apólice cadastrada ainda.{% endif %}
   </p>

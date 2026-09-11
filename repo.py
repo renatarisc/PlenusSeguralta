@@ -155,8 +155,24 @@ def tipos_seguro_por_cliente():
             " WHERE a.cliente_id IS NOT NULL"
         ).fetchall()
     m = {}
-    for cid, nome in rows:
-        m.setdefault(cid, set()).add(nome or "(sem tipo)")
+    for r in rows:
+        m.setdefault(r["cliente_id"], set()).add(r["nome"] or "(sem tipo)")
+    return {k: sorted(v, key=_sem_acento_minusculo) for k, v in m.items()}
+
+
+def seguradoras_por_cliente():
+    """{cliente_id: [nomes de seguradora das apólices do cliente]} — p/ agrupar
+    a lista de clientes por seguradora (cliente com apólices de várias entra em várias)."""
+    with conexao() as con:
+        rows = con.execute(
+            "SELECT DISTINCT a.cliente_id, s.nome "
+            "  FROM apolice a "
+            "  LEFT JOIN seguradora s ON s.id = a.seguradora_id "
+            " WHERE a.cliente_id IS NOT NULL"
+        ).fetchall()
+    m = {}
+    for r in rows:
+        m.setdefault(r["cliente_id"], set()).add(r["nome"] or "(sem seguradora)")
     return {k: sorted(v, key=_sem_acento_minusculo) for k, v in m.items()}
 
 
@@ -402,9 +418,12 @@ def atualizar_campo_cotacao(campo_id, nome, tipo, ordem=None, papel=None, opcoes
     fazer_backup()
 
 
-def atualizar_campo_cotacao_ordem(campo_id, ordem):
+def reordenar_campos_cotacao(ids_em_ordem):
+    """Redefine a ordem de cada campo em `ids_em_ordem` pra 1, 2, 3... nessa sequência
+    (usado pelo arrastar-e-soltar da lista). Só mexe nos ids recebidos."""
     with conexao() as con:
-        con.execute("UPDATE cotacao_campo SET ordem = %s WHERE id = %s", (int(ordem), campo_id))
+        for posicao, campo_id in enumerate(ids_em_ordem, start=1):
+            con.execute("UPDATE cotacao_campo SET ordem = %s WHERE id = %s", (posicao, int(campo_id)))
     fazer_backup()
 
 
@@ -523,7 +542,7 @@ def _inserir_repasses(con, apolice_id, linhas):
 
 def listar_apolices(cliente_id=None, tipo_seguro_id=None, mes_inicio=None, quiver=None,
                     busca=None, parcela_status=None, mes_fim=None, ordem=None,
-                    forma_pagamento_id=None):
+                    forma_pagamento_id=None, seguradora_id=None):
     sql = """SELECT a.id, a.numero_apolice, a.vigencia_inicio, a.vigencia_fim,
                     a.premio_liquido, a.lancado_quiver, a.aviso_vigencia_ok, a.cliente_id,
                     c.nome AS cliente_nome, c.tipo_pessoa AS cliente_tipo_pessoa,
@@ -548,6 +567,9 @@ def listar_apolices(cliente_id=None, tipo_seguro_id=None, mes_inicio=None, quive
     if tipo_seguro_id:
         filtros.append("a.tipo_seguro_id = %s")
         params.append(tipo_seguro_id)
+    if seguradora_id:
+        filtros.append("a.seguradora_id = %s")
+        params.append(seguradora_id)
     if forma_pagamento_id:
         filtros.append("a.forma_pagamento_id = %s")
         params.append(forma_pagamento_id)

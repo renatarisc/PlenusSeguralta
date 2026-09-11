@@ -3,6 +3,10 @@
 {% block cabecalho %}Cotação — Gerar{% endblock %}
 
 {% block acoes %}
+{% if campos %}
+<button type="button" class="btn btn--primario" data-ler-pdf
+        data-endpoint="{{ url_for('cotacao_ler_pdf') }}">{{ icone('relatorio') }} Ler PDF</button>
+{% endif %}
 <a class="btn btn--linha" href="{{ url_for('cotacao_campos') }}">{{ icone('lapis') }} Campos</a>
 {% endblock %}
 
@@ -15,6 +19,9 @@
   </p>
 </div>
 {% else %}
+<input type="file" id="cotacao-arquivo-pdf" accept="application/pdf" hidden>
+<div class="dica" id="cotacao-ler-pdf-status" style="margin-bottom:12px"></div>
+
 <form class="form" id="form-cotacao" method="post" action="{{ url_for('cotacao_gerar') }}">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
@@ -81,4 +88,5 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/cotacao.js') }}"></script>
+<script src="{{ url_for('static', filename='js/cotacao_ler_pdf.js') }}"></script>
 {% endblock %}

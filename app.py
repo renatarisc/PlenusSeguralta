@@ -18,6 +18,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 import db
 import repo
 import leitura_pdf
+import cotacao_leitura_pdf
 import seguranca
 from validacao import (
     formatar_cpf, formatar_cnpj, formatar_documento, formatar_cep, formatar_telefone, validar_cliente,
@@ -313,23 +314,24 @@ def clientes_lista():
     uf = request.args.get("uf", "").strip().upper() or None
     cidade = request.args.get("cidade", "").strip() or None
     agrupar = request.args.get("g", "")
-    if agrupar not in ("cidade", "uf", "tipo_seguro"):
+    if agrupar not in ("cidade", "uf", "seguradora", "tipo_seguro"):
         agrupar = ""
     clientes = repo.listar_clientes(busca or None, uf, cidade)
 
     grupos = None
     if agrupar:
         baldes = {}
-        if agrupar == "tipo_seguro":
-            # cliente com apólices de vários tipos aparece em vários grupos;
+        if agrupar in ("tipo_seguro", "seguradora"):
+            # cliente com apólices de vários tipos/seguradoras aparece em vários grupos;
             # sem apólice mas com consórcio → grupo "Só consórcio"
-            por_cli = repo.tipos_seguro_por_cliente()
+            por_cli = (repo.tipos_seguro_por_cliente() if agrupar == "tipo_seguro"
+                       else repo.seguradoras_por_cliente())
             com_cons = repo.clientes_com_consorcio()
             for c in clientes:
-                tipos = por_cli.get(c["id"])
-                if tipos:
-                    for t in tipos:
-                        baldes.setdefault(t, []).append(c)
+                chaves = por_cli.get(c["id"])
+                if chaves:
+                    for ch in chaves:
+                        baldes.setdefault(ch, []).append(c)
                 elif c["id"] in com_cons:
                     baldes.setdefault("Só consórcio", []).append(c)
                 else:
@@ -548,6 +550,7 @@ _MESES = ["", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
 def apolices():
     cliente_id = request.args.get("cliente", type=int)
     tipo_id = request.args.get("tipo", type=int)
+    seguradora_id = request.args.get("seguradora", type=int)
     forma_id = request.args.get("forma", type=int)
     mes = request.args.get("mes", type=int)
     if mes not in range(1, 13):
@@ -568,13 +571,14 @@ def apolices():
     return render_template(
         "apolices_lista.html", ativo="apolices",
         apolices=repo.listar_apolices(cliente_id=cliente_id, tipo_seguro_id=tipo_id,
-                                      forma_pagamento_id=forma_id,
+                                      seguradora_id=seguradora_id, forma_pagamento_id=forma_id,
                                       mes_inicio=mes, mes_fim=mes_fim, quiver=quiver,
                                       busca=busca or None, parcela_status=parcela or None,
                                       ordem=ordem or None),
-        cliente_filtro=cliente, busca=busca, tipo_id=tipo_id, forma_id=forma_id,
+        cliente_filtro=cliente, busca=busca, tipo_id=tipo_id, seguradora_id=seguradora_id,
+        forma_id=forma_id,
         mes=mes, mes_fim=mes_fim, quiver=quiver_arg, parcela=parcela, ord=ordem,
-        tipos=repo.listar_simples("tipo_seguro"),
+        tipos=repo.listar_simples("tipo_seguro"), seguradoras=repo.listar_simples("seguradora"),
         formas=repo.listar_simples("forma_pagamento"), MESES=_MESES)
 
 
@@ -1148,20 +1152,19 @@ def cotacao_campo_excluir(campo_id):
     return redirect(url_for("cotacao_campos"))
 
 
-@app.route("/cotacao/campos/<int:campo_id>/ordem", methods=["POST"])
-def cotacao_campo_ordem(campo_id):
-    busca = request.form.get("busca", "").strip()
+@app.route("/cotacao/campos/reordenar", methods=["POST"])
+def cotacao_campos_reordenar():
+    """Arrastar-e-soltar na lista: recebe a nova sequência inteira de ids e
+    renumera a `ordem` de 1 em diante nessa ordem."""
+    dados = request.get_json(silent=True) or {}
     try:
-        nova = int(request.form.get("ordem", ""))
+        ids = [int(i) for i in (dados.get("ids") or [])]
     except (TypeError, ValueError):
-        flash("A ordem deve ser um número inteiro.", "erro")
-        return redirect(url_for("cotacao_campos", busca=busca or None))
-    if repo.campo_cotacao_ordem_existe(nova, ignorar_id=campo_id):
-        flash(f"A ordem {nova} já está em uso por outro campo — cada campo precisa de uma ordem única.", "erro")
-    else:
-        repo.atualizar_campo_cotacao_ordem(campo_id, nova)
-        flash("Ordem atualizada.", "ok")
-    return redirect(url_for("cotacao_campos", busca=busca or None))
+        return jsonify(ok=False, erro="ids inválidos"), 400
+    if not ids:
+        return jsonify(ok=False, erro="lista vazia"), 400
+    repo.reordenar_campos_cotacao(ids)
+    return jsonify(ok=True)
 
 
 @app.route("/cotacao/gerar", methods=["GET", "POST"])
@@ -1197,6 +1200,101 @@ def cotacao_gerar():
 
     return render_template("cotacao_gerar.html", ativo="cotacao_gerar",
                            campos=campos, seguradoras=seguradoras, cliente="")
+
+
+# chave canônica (ver cotacao_leitura_pdf.CHAVES) -> trechos do NOME do campo cadastrado
+# (sem acento/minúsculo, já sem o sufixo de unidade) que identificam esse campo.
+# "valor_seguro" e "num_parcelas" preferem casar pelo `papel` (mais confiável, não muda
+# se a usuária renomear o campo) e só caem aqui se nenhum campo tiver esse papel.
+_CAMPO_COTACAO_PDF_NOME = {
+    "danos_materiais": ("danos materiais",),
+    "danos_corporais": ("danos corporais",),
+    "app_morte": ("app morte",),
+    "danos_morais": ("danos morais",),
+    "assistencia": ("assist",),
+    "vidros": ("vidros",),
+    "carro_reserva": ("carro reserva",),
+    "pequenos_reparos": ("pequenos reparos",),
+    "protecao_roda": ("protecao roda", "protecao de roda", "protecao rodas"),
+    "tipo_oficina": ("tipo de oficina", "oficina"),
+    "valor_franquia": ("franquia",),
+    "valor_seguro": ("valor do seguro",),
+}
+
+
+def _mapear_campos_cotacao_pdf(campos_cadastrados):
+    """Pra cada chave canônica que a leitura de PDF pode devolver, acha o id do campo
+    cadastrado correspondente. Devolve {chave: campo_id}."""
+    mapa = {}
+    for c in campos_cadastrados:
+        if c["papel"] == "base_parcelamento":
+            mapa.setdefault("valor_seguro", c["id"])
+        elif c["papel"] == "num_parcelas":
+            mapa.setdefault("num_parcelas", c["id"])
+    for chave, substrs in _CAMPO_COTACAO_PDF_NOME.items():
+        if chave in mapa:
+            continue
+        for c in campos_cadastrados:
+            nome_norm = repo._sem_acento_minusculo(campo_cotacao_rotulo(c["nome"]))
+            if any(s in nome_norm for s in substrs):
+                mapa[chave] = c["id"]
+                break
+    return mapa
+
+
+def _valor_pdf_para_campo(campo, valor_bruto):
+    """Converte o texto extraído do PDF pro formato que o input desse campo espera.
+    Em tipos de lista (sim/não, seleção), só aceita se casar com uma opção cadastrada —
+    na dúvida, None (o usuário preenche)."""
+    if campo["tipo"] not in ("sim_nao", "selecao"):
+        return valor_bruto
+    alvo = repo._sem_acento_minusculo(valor_bruto)
+    for opc in campo_cotacao_opcoes(campo):
+        o = repo._sem_acento_minusculo(opc)
+        if o == alvo or o in alvo or alvo in o:
+            return opc
+    return None
+
+
+@app.route("/cotacao/ler-pdf", methods=["POST"])
+def cotacao_ler_pdf():
+    arquivo = request.files.get("arquivo")
+    if not arquivo or not arquivo.filename:
+        return jsonify(ok=False, cliente=None, cotacoes=[], aviso="Nenhum arquivo enviado."), 400
+    if not arquivo.filename.lower().endswith(".pdf"):
+        return jsonify(ok=False, cliente=None, cotacoes=[], aviso="Envie um arquivo PDF."), 400
+    dados = arquivo.read()
+    if not dados:
+        return jsonify(ok=False, cliente=None, cotacoes=[], aviso="Arquivo vazio."), 400
+
+    try:
+        lido = cotacao_leitura_pdf.ler_pdf_cotacao(dados)
+    except Exception as e:  # noqa: BLE001 - devolve o erro pro front em vez de 500 seco
+        app.logger.exception("falha ao ler PDF de cotação")
+        return jsonify(ok=False, cliente=None, cotacoes=[], aviso=f"Erro ao ler o PDF: {e}"), 500
+
+    campos_cadastrados = repo.listar_campos_cotacao()
+    mapa = _mapear_campos_cotacao_pdf(campos_cadastrados)
+    por_id = {c["id"]: c for c in campos_cadastrados}
+    ids_sim_nao = [c["id"] for c in campos_cadastrados if c["tipo"] == "sim_nao"]
+
+    cotacoes = []
+    for oferta in lido.get("ofertas", []):
+        valores = {}
+        for chave, bruto in oferta.get("campos", {}).items():
+            campo_id = mapa.get(chave)
+            if not campo_id or not bruto:
+                continue
+            valor = _valor_pdf_para_campo(por_id[campo_id], bruto)
+            if valor:
+                valores[str(campo_id)] = valor
+        # sim/não sem menção no PDF -> assume "Não" (não achamos evidência de que foi contratado)
+        for cid in ids_sim_nao:
+            valores.setdefault(str(cid), "Não")
+        cotacoes.append({"seguradora": oferta.get("seguradora") or "", "valores": valores})
+
+    return jsonify(ok=lido["ok"], origem=lido["origem"], cliente=lido.get("cliente"),
+                   cotacoes=cotacoes, aviso=lido.get("aviso"), texto=lido.get("texto", ""))
 
 
 def _sem_acento_para_arquivo(txt):

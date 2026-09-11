@@ -23,12 +23,16 @@
 
 <div class="cartao" style="padding:0">
   {% if campos %}
+  {% if busca %}
+  <p class="dica" style="margin:12px 16px 0">Arrastar pra reordenar só funciona sem busca ativa — <a href="{{ url_for('cotacao_campos') }}">limpe a busca</a> pra usar.</p>
+  {% endif %}
   <div class="tabela-wrap">
-    <table class="lista">
-      <thead><tr><th>Nome</th><th>Tipo</th><th style="width:150px">Ordem no formulário</th><th></th></tr></thead>
-      <tbody>
+    <table class="lista" id="tabela-campos-cotacao">
+      <thead><tr><th style="width:28px"></th><th>Nome</th><th>Tipo</th><th style="width:150px">Ordem no formulário</th><th></th></tr></thead>
+      <tbody id="corpo-campos-cotacao" data-endpoint="{{ url_for('cotacao_campos_reordenar') }}">
         {% for c in campos %}
-        <tr>
+        <tr data-campo-id="{{ c.id }}"{% if not busca %} draggable="true"{% endif %}>
+          <td class="col-arrastar">{% if not busca %}{{ icone('arrastar') }}{% endif %}</td>
           <td>
             <a class="cel-nome" href="{{ url_for('cotacao_campo_form', campo_id=c.id) }}">{{ c.nome }}</a>
             {% if c.papel %}<span class="tag-papel">{{ PAPEL_CAMPO_COTACAO_LABEL.get(c.papel, c.papel) }}</span>{% endif %}
@@ -41,13 +45,8 @@
             {%- endif -%}
           </td>
           <td>
-            <form method="post" action="{{ url_for('cotacao_campo_ordem', campo_id=c.id) }}" style="margin:0">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <input type="hidden" name="busca" value="{{ busca }}">
-              <input class="input-ordem" type="number" step="1" name="ordem" value="{{ c.ordem }}"
-                     aria-label="Ordem no formulário de “{{ c.nome }}”"
-                     onchange="this.form.submit()">
-            </form>
+            <input class="input-ordem" type="text" value="{{ c.ordem }}" readonly tabindex="-1"
+                   aria-label="Ordem no formulário de “{{ c.nome }}” (edite abrindo o campo)">
           </td>
           <td class="acoes">
             <a class="btn btn--linha btn--mini" href="{{ url_for('cotacao_campo_form', campo_id=c.id) }}">{{ icone('lapis') }}</a>
@@ -66,4 +65,10 @@
   <p class="vazio">{{ 'Nada encontrado para essa busca.' if busca else 'Nenhum campo de cotação cadastrado ainda.' }}</p>
   {% endif %}
 </div>
+{% endblock %}
+
+{% block scripts %}
+{% if campos and not busca %}
+<script src="{{ url_for('static', filename='js/cotacao_campos_ordem.js') }}"></script>
+{% endif %}
 {% endblock %}
