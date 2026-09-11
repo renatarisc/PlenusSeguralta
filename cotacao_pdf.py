@@ -100,9 +100,10 @@ def _banner_seguralta(cnv, w, topo):
     try:
         img = ImageReader(_BANNER)
         iw, ih = img.getSize()
-        alt = 16
+        alt = 30
         larg = alt * iw / ih
-        cnv.drawImage(img, (w - larg) / 2, topo - alt - 4, width=larg, height=alt)
+        cnv.drawImage(img, (w - larg) / 2, topo - alt, width=larg, height=alt,
+                     mask='auto')
     except Exception:
         pass
 
