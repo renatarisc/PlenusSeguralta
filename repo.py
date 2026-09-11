@@ -648,6 +648,18 @@ def apolices_por_tipo():
         return [dict(l) for l in linhas]
 
 
+def apolices_por_seguradora():
+    """[{nome, qtd}] ordenado da maior qtd pra menor; apólice sem seguradora vira '(sem seguradora)'."""
+    with conexao() as con:
+        linhas = con.execute(
+            "SELECT COALESCE(s.nome, '(sem seguradora)') AS nome, COUNT(*) AS qtd "
+            "  FROM apolice a LEFT JOIN seguradora s ON s.id = a.seguradora_id "
+            " GROUP BY COALESCE(s.nome, '(sem seguradora)') "
+            " ORDER BY qtd DESC, nome"
+        ).fetchall()
+        return [dict(l) for l in linhas]
+
+
 def apolices_por_vencer(limite_dias, incluir_avisadas=False):
     """Apólices com vigência a <= limite_dias do fim (inclui as já vencidas), da mais urgente
     pra menos. Cada item ganha `dias_restantes` (negativo = já venceu). Por padrão esconde

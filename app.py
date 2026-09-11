@@ -292,6 +292,7 @@ def _injeta_alertas():
 def dashboard():
     return render_template("dashboard.html", ativo="dashboard",
                            resumo=repo.resumo_painel(),
+                           por_seguradora=repo.apolices_por_seguradora(),
                            por_tipo=repo.apolices_por_tipo(),
                            vencendo=repo.apolices_por_vencer(DIAS_ALERTA_VIGENCIA),
                            boletos=repo.parcelas_boleto_a_vencer(DIAS_ALERTA_BOLETO),

@@ -222,6 +222,24 @@
 {% endif %}
 
 <div class="cartao">
+  <h2>Apólices por seguradora</h2>
+  {% if por_seguradora %}
+  {% set maxq = por_seguradora[0].qtd %}
+  <div class="graf">
+    {% for s in por_seguradora %}
+    <a class="graf__linha" href="{{ url_for('apolices') }}">
+      <span class="graf__rotulo" title="{{ s.nome }}">{{ s.nome }}</span>
+      <span class="graf__trilha"><span class="graf__barra" style="width:{{ (s.qtd / maxq * 100)|round }}%"></span></span>
+      <span class="graf__valor">{{ s.qtd }}</span>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="vazio">Nenhuma apólice cadastrada ainda.</p>
+  {% endif %}
+</div>
+
+<div class="cartao">
   <h2>Apólices por tipo de seguro</h2>
   {% if por_tipo %}
   {% set maxq = por_tipo[0].qtd %}
