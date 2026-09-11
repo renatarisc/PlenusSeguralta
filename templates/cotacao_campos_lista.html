@@ -44,10 +44,7 @@
               {{ TIPO_CAMPO_COTACAO_LABEL.get(c.tipo, c.tipo or '—') }}
             {%- endif -%}
           </td>
-          <td>
-            <input class="input-ordem" type="text" value="{{ c.ordem }}" readonly tabindex="-1"
-                   aria-label="Ordem no formulário de “{{ c.nome }}” (edite abrindo o campo)">
-          </td>
+          <td class="col-ordem">{{ c.ordem }}</td>
           <td class="acoes">
             <a class="btn btn--linha btn--mini" href="{{ url_for('cotacao_campo_form', campo_id=c.id) }}">{{ icone('lapis') }}</a>
             <form method="post" action="{{ url_for('cotacao_campo_excluir', campo_id=c.id) }}"

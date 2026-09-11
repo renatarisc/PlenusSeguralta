@@ -59,8 +59,8 @@
     const linhas = [...corpo.querySelectorAll("tr[data-campo-id]")];
     const ids = linhas.map((tr) => tr.dataset.campoId);
     linhas.forEach((tr, i) => {
-      const input = tr.querySelector("input.input-ordem");
-      if (input) input.value = i + 1;
+      const cel = tr.querySelector(".col-ordem");
+      if (cel) cel.textContent = i + 1;
     });
     const csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || "";
     fetch(corpo.dataset.endpoint, {

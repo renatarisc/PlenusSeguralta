@@ -300,8 +300,6 @@ table.lista td.acoes > form { display: inline-flex; vertical-align: middle; }
 table.lista td.acoes > a + a,
 table.lista td.acoes > a + form,
 table.lista td.acoes > form + form { margin-left: 6px; }
-table.lista input.input-ordem { width: 68px; padding: 5px 6px; text-align: center; }
-table.lista input.input-ordem[readonly] { background: var(--fundo); color: var(--texto-suave); cursor: default; }
 table.lista td.col-arrastar { width: 28px; padding-right: 0; color: var(--texto-suave); cursor: grab; }
 table.lista td.col-arrastar:active { cursor: grabbing; }
 table.lista tr.arrastando { opacity: .4; }
