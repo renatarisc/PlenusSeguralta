@@ -410,8 +410,12 @@ def cliente_form(cliente_id=None):
 
 @app.route("/clientes/<int:cliente_id>/excluir", methods=["POST"])
 def cliente_excluir(cliente_id):
-    repo.excluir_cliente(cliente_id)
-    flash("Cliente excluído.", "ok")
+    try:
+        repo.excluir_cliente(cliente_id)
+        flash("Cliente excluído.", "ok")
+    except IntegrityError:
+        flash("Não é possível excluir: este cliente tem apólice(s) ou consórcio(s) cadastrado(s). "
+              "Exclua-os primeiro.", "erro")
     return redirect(url_for("clientes_lista"))
 
 
@@ -480,8 +484,12 @@ def cadastro_simples_form(slug, item_id=None):
 def cadastro_simples_excluir(slug, item_id):
     cfg = _CADASTROS_SIMPLES.get(slug)
     if cfg:
-        repo.excluir_simples(cfg["tabela"], item_id)
-        flash("Excluído.", "ok")
+        try:
+            repo.excluir_simples(cfg["tabela"], item_id)
+            flash("Excluído.", "ok")
+        except IntegrityError:
+            flash(f"Não é possível excluir: há registros usando {cfg['singular']}. "
+                  "Altere-os primeiro.", "erro")
     return redirect(url_for("cadastro_simples", slug=slug))
 
 
