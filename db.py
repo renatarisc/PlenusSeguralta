@@ -71,6 +71,12 @@ CREATE TABLE IF NOT EXISTS usuario (
     UNIQUE KEY ix_usuario_login_unico (login)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS status_cliente (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nome VARCHAR(191) NOT NULL,
+    UNIQUE KEY ix_status_cliente_nome_unico (nome)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS cliente (
     id INT AUTO_INCREMENT PRIMARY KEY,
     nome TEXT NOT NULL,            -- pessoa fisica: nome; pessoa juridica: razao social
@@ -88,11 +94,15 @@ CREATE TABLE IF NOT EXISTS cliente (
     tel_ddd TEXT,
     tel_numero TEXT,              -- so digitos, sem o DDD
     email TEXT,
+    status_cliente_id INT,
+    observacao TEXT,
+    data_contato TEXT,             -- ISO AAAA-MM-DD (do <input type=date>)
     criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     atualizado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     -- nao deixa cadastrar o mesmo CPF/CNPJ duas vezes (varios NULL sao permitidos no UNIQUE
     -- do MySQL; clientes sem documento continuam livres). Documento gravado so com digitos.
-    UNIQUE KEY ix_cliente_cpf_unico (cpf)
+    UNIQUE KEY ix_cliente_cpf_unico (cpf),
+    CONSTRAINT fk_cliente_status FOREIGN KEY (status_cliente_id) REFERENCES status_cliente(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS tipo_seguro (
@@ -495,9 +505,11 @@ _COLUNAS_ESPERADAS = {
         "end_rua": "TEXT", "end_numero": "TEXT", "end_complemento": "TEXT", "end_bairro": "TEXT",
         "end_cep": "TEXT", "end_cidade": "TEXT", "end_estado": "TEXT",
         "tel_ddd": "TEXT", "tel_numero": "TEXT", "email": "TEXT",
+        "status_cliente_id": "INT", "observacao": "TEXT", "data_contato": "TEXT",
         "criado_em": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
         "atualizado_em": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
     },
+    "status_cliente": {"nome": "VARCHAR(191)"},
     "tipo_seguro": {"nome": "VARCHAR(191)"},
     "forma_pagamento": {"nome": "VARCHAR(191)"},
     "seguradora": {"nome": "VARCHAR(191)"},
@@ -738,6 +750,14 @@ def _colunas_da_tabela(con, tabela):
         "WHERE table_schema = %s AND table_name = %s", (base, tabela)).fetchall()}
 
 
+# FKs que podem faltar num banco que ja tinha a tabela antes da coluna/constraint existir
+# (a coluna em si entra por _COLUNAS_ESPERADAS; aqui so a constraint que falta nela).
+# formato: tabela -> [(nome_da_constraint, coluna, tabela_referenciada)]
+_FKS_ESPERADAS = {
+    "cliente": [("fk_cliente_status", "status_cliente_id", "status_cliente")],
+}
+
+
 def inicializar_db():
     fazer_backup()  # snapshot ANTES de qualquer criacao/migracao
     with conexao() as con:
@@ -745,6 +765,7 @@ def inicializar_db():
         con.executescript(_ESQUEMA_SQL)
         con.execute("SET FOREIGN_KEY_CHECKS = 1")
         _migrar_esquema(con)
+        _migrar_fks(con)
         _backfill_dados(con)
 
 
@@ -756,6 +777,28 @@ def _migrar_esquema(con):
         for coluna, definicao in colunas.items():
             if coluna.lower() not in existentes:
                 con.execute(f"ALTER TABLE {tabela} ADD COLUMN {coluna} {definicao}")
+
+
+def _constraints_fk_da_tabela(con, tabela):
+    base = config_db()["database"]
+    return {r["c"] for r in con.execute(
+        "SELECT LOWER(constraint_name) AS c FROM information_schema.table_constraints "
+        "WHERE table_schema = %s AND table_name = %s AND constraint_type = 'FOREIGN KEY'",
+        (base, tabela)).fetchall()}
+
+
+def _migrar_fks(con):
+    for tabela, fks in _FKS_ESPERADAS.items():
+        existentes = _colunas_da_tabela(con, tabela)
+        if not existentes:
+            continue  # tabela nem existe ainda - nada a migrar
+        constraints = _constraints_fk_da_tabela(con, tabela)
+        for nome, coluna, tabela_ref in fks:
+            if nome.lower() not in constraints:
+                con.execute(
+                    f"ALTER TABLE {tabela} ADD CONSTRAINT {nome} "
+                    f"FOREIGN KEY ({coluna}) REFERENCES {tabela_ref}(id)"
+                )
 
 
 def _backfill_dados(con):

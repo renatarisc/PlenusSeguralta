@@ -11,6 +11,7 @@
   <td>{{ c.cpf|documento if c.cpf else '—' }}</td>
   <td>{{ (c.end_cidade ~ (' / ' ~ c.end_estado if c.end_estado else '')) if c.end_cidade else '—' }}</td>
   <td>{{ telefone(c.tel_ddd, c.tel_numero) or '—' }}</td>
+  <td>{{ c.status_cliente_nome or '—' }}</td>
 </tr>
 {% endmacro %}
 
@@ -70,12 +71,12 @@
   <div class="tabela-wrap">
     <table class="lista">
       <thead>
-        <tr><th>Nome</th><th>CPF / CNPJ</th><th>Cidade/UF</th><th>Telefone</th></tr>
+        <tr><th>Nome</th><th>CPF / CNPJ</th><th>Cidade/UF</th><th>Telefone</th><th>Status</th></tr>
       </thead>
       <tbody>
         {% if grupos %}
           {% for g in grupos %}
-          <tr class="lista-grupo"><td colspan="4">{{ g.rotulo }} <small>({{ g.itens|length }})</small></td></tr>
+          <tr class="lista-grupo"><td colspan="5">{{ g.rotulo }} <small>({{ g.itens|length }})</small></td></tr>
           {% for c in g.itens %}{{ linha_cliente(c) }}{% endfor %}
           {% endfor %}
         {% else %}

@@ -101,7 +101,7 @@ def _sem_acento_minusculo(texto):
 _COLS_CLIENTE = (
     "nome", "tipo_pessoa", "data_nascimento", "sexo", "cpf",
     "end_rua", "end_numero", "end_complemento", "end_bairro", "end_cep", "end_cidade", "end_estado",
-    "tel_ddd", "tel_numero", "email",
+    "tel_ddd", "tel_numero", "email", "status_cliente_id", "observacao", "data_contato",
 )
 
 
@@ -112,6 +112,9 @@ def _valores_cliente(dados):
         if col == "tipo_pessoa":
             valores.append("J" if v.upper() == "J" else "F")  # NOT NULL: sempre F ou J
             continue
+        if col == "status_cliente_id":
+            valores.append(int(v) if v.isdigit() else None)
+            continue
         if col in ("cpf", "end_cep", "tel_ddd", "tel_numero"):
             v = so_digitos(v)
         valores.append(v or None)
@@ -121,8 +124,11 @@ def _valores_cliente(dados):
 def listar_clientes(busca=None, uf=None, cidade=None):
     with conexao() as con:
         linhas = [dict(l) for l in con.execute(
-            "SELECT id, nome, tipo_pessoa, cpf, end_cidade, end_estado, tel_ddd, tel_numero, email "
-            "FROM cliente ORDER BY nome"
+            "SELECT c.id, c.nome, c.tipo_pessoa, c.cpf, c.end_cidade, c.end_estado, "
+            "       c.tel_ddd, c.tel_numero, c.email, sc.nome AS status_cliente_nome "
+            "  FROM cliente c "
+            "  LEFT JOIN status_cliente sc ON sc.id = c.status_cliente_id "
+            " ORDER BY c.nome"
         ).fetchall()]
 
     if uf:
@@ -256,7 +262,8 @@ def excluir_cliente(cliente_id):
 
 # ---------- cadastros simples (tipo_seguro, forma_pagamento) - só nome ----------
 
-_TABELAS_SIMPLES = {"tipo_seguro", "forma_pagamento", "seguradora", "categoria_saida", "tipo_consorcio"}
+_TABELAS_SIMPLES = {"tipo_seguro", "forma_pagamento", "seguradora", "categoria_saida",
+                     "tipo_consorcio", "status_cliente"}
 
 
 def listar_simples(tabela, busca=None):

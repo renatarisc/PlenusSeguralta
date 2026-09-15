@@ -84,6 +84,8 @@ _CADASTROS_SIMPLES = {
                         "singular": "categoria de saída", "acao_novo": "Nova categoria de saída"},
     "tipo-consorcio": {"tabela": "tipo_consorcio", "titulo": "Tipos de Consórcio",
                        "singular": "tipo de consórcio", "acao_novo": "Novo tipo de consórcio"},
+    "status-cliente": {"tabela": "status_cliente", "titulo": "Status do Cliente",
+                       "singular": "status de cliente", "acao_novo": "Novo status de cliente"},
 }
 
 # disponível em todo template (máscaras na exibição, itens do menu)
@@ -122,6 +124,7 @@ app.jinja_env.globals["MENU"] = [
         {"rota": "cadastro_simples", "texto": "Formas de Pagamento", "icone": "pagamento", "slug": "forma-pagamento"},
         {"rota": "cadastro_simples", "texto": "Categorias de Saída", "icone": "tag", "slug": "categoria-saida"},
         {"rota": "cadastro_simples", "texto": "Tipos de Consórcio", "icone": "tag", "slug": "tipo-consorcio"},
+        {"rota": "cadastro_simples", "texto": "Status do Cliente", "icone": "tag", "slug": "status-cliente"},
     ]},
     {"rota": "usuarios_lista", "texto": "Usuários", "icone": "cadeado", "divisoria_antes": True},
 ]
@@ -372,6 +375,7 @@ def cliente_form(cliente_id=None):
             "nome", "tipo_pessoa", "data_nascimento", "sexo", "cpf",
             "end_rua", "end_numero", "end_complemento", "end_bairro",
             "end_cep", "end_cidade", "end_estado", "tel_ddd", "tel_numero", "email",
+            "status_cliente_id", "observacao", "data_contato",
         )}
         ehpj = (dados.get("tipo_pessoa") or "").upper() == "J"
         rotulo_doc = "CNPJ" if ehpj else "CPF"
@@ -386,7 +390,8 @@ def cliente_form(cliente_id=None):
             for e in erros:
                 flash(e, "erro")
             return render_template("clientes_form.html", ativo="clientes_lista",
-                                   cliente={**dados, "id": cliente_id})
+                                   cliente={**dados, "id": cliente_id},
+                                   status_opcoes=repo.listar_simples("status_cliente"))
         try:
             if cliente_id:
                 repo.atualizar_cliente(cliente_id, dados)
@@ -397,7 +402,8 @@ def cliente_form(cliente_id=None):
         except IntegrityError:
             flash(f"Já existe um cliente com esse {rotulo_doc}.", "erro")
             return render_template("clientes_form.html", ativo="clientes_lista",
-                                   cliente={**dados, "id": cliente_id})
+                                   cliente={**dados, "id": cliente_id},
+                                   status_opcoes=repo.listar_simples("status_cliente"))
         return redirect(url_for("clientes_lista"))
 
     cliente = repo.obter_cliente(cliente_id) if cliente_id else None
@@ -406,7 +412,8 @@ def cliente_form(cliente_id=None):
         return redirect(url_for("clientes_lista"))
     qtd_apolices = repo.contar_apolices_do_cliente(cliente_id) if cliente_id else 0
     return render_template("clientes_form.html", ativo="clientes_lista", cliente=cliente,
-                           qtd_apolices=qtd_apolices)
+                           qtd_apolices=qtd_apolices,
+                           status_opcoes=repo.listar_simples("status_cliente"))
 
 
 @app.route("/clientes/<int:cliente_id>/excluir", methods=["POST"])

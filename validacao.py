@@ -497,14 +497,10 @@ def validar_cliente(dados):
     if tipo not in ("F", "J"):
         tipo = "F"
     doc = (dados.get("cpf") or "").strip()
-    if tipo == "J":
-        if not doc:
-            erros.append("CNPJ é obrigatório.")
-        elif not cnpj_valido(doc):
-            erros.append("CNPJ inválido.")
-    else:
-        if not doc:
-            erros.append("CPF é obrigatório.")
+    if doc:
+        if tipo == "J":
+            if not cnpj_valido(doc):
+                erros.append("CNPJ inválido.")
         elif not cpf_valido(doc):
             erros.append("CPF inválido.")
     cep = dados.get("end_cep")
