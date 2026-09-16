@@ -86,6 +86,8 @@ _CADASTROS_SIMPLES = {
                        "singular": "tipo de consórcio", "acao_novo": "Novo tipo de consórcio"},
     "status-cliente": {"tabela": "status_cliente", "titulo": "Status do Cliente",
                        "singular": "status de cliente", "acao_novo": "Novo status de cliente"},
+    "conta-origem": {"tabela": "conta_origem", "titulo": "Contas de Origem",
+                     "singular": "conta de origem", "acao_novo": "Nova conta de origem"},
 }
 
 # disponível em todo template (máscaras na exibição, itens do menu)
@@ -125,6 +127,7 @@ app.jinja_env.globals["MENU"] = [
         {"rota": "cadastro_simples", "texto": "Categorias de Saída", "icone": "tag", "slug": "categoria-saida"},
         {"rota": "cadastro_simples", "texto": "Tipos de Consórcio", "icone": "tag", "slug": "tipo-consorcio"},
         {"rota": "cadastro_simples", "texto": "Status do Cliente", "icone": "tag", "slug": "status-cliente"},
+        {"rota": "cadastro_simples", "texto": "Contas de Origem", "icone": "tag", "slug": "conta-origem"},
     ]},
     {"rota": "usuarios_lista", "texto": "Usuários", "icone": "cadeado", "divisoria_antes": True},
 ]
@@ -1357,7 +1360,8 @@ def saidas_lista():
 
 def _selects_saida():
     return {"categorias": repo.categorias_saida(),
-            "formas": repo.listar_simples("forma_pagamento")}
+            "formas": repo.listar_simples("forma_pagamento"),
+            "contas_origem": repo.contas_origem()}
 
 
 @app.route("/financeiro/saidas/nova", methods=["GET", "POST"])
@@ -1377,6 +1381,7 @@ def saida_form(saida_id=None):
             "descricao": request.form.get("descricao", ""),
             "categoria_id": request.form.get("categoria_id", ""),
             "forma_pagamento_id": request.form.get("forma_pagamento_id", ""),
+            "conta_origem_id": request.form.get("conta_origem_id", ""),
             "fixo_mensal": "1" if request.form.get("fixo_mensal") else "0",
         }
         linhas, erros = preparar_lancamentos_saida(

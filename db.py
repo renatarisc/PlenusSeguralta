@@ -134,6 +134,12 @@ CREATE TABLE IF NOT EXISTS tipo_consorcio (
     UNIQUE KEY ix_tipo_consorcio_nome_unico (nome)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS conta_origem (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nome VARCHAR(191) NOT NULL,
+    UNIQUE KEY ix_conta_origem_nome_unico (nome)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- campos configuraveis da cotacao (montam o formulario de cotacao)
 CREATE TABLE IF NOT EXISTS cotacao_campo (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -469,6 +475,7 @@ CREATE TABLE IF NOT EXISTS saida (
     descricao TEXT NOT NULL,
     categoria_id INT,
     forma_pagamento_id INT,
+    conta_origem_id INT,
     valor REAL,
     data_vencimento TEXT,          -- ISO AAAA-MM-DD
     data_pagamento TEXT,           -- NULL = ainda nao paga
@@ -478,7 +485,8 @@ CREATE TABLE IF NOT EXISTS saida (
     criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     atualizado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_saida_categoria FOREIGN KEY (categoria_id)      REFERENCES categoria_saida(id),
-    CONSTRAINT fk_saida_formapgto FOREIGN KEY (forma_pagamento_id) REFERENCES forma_pagamento(id)
+    CONSTRAINT fk_saida_formapgto FOREIGN KEY (forma_pagamento_id) REFERENCES forma_pagamento(id),
+    CONSTRAINT fk_saida_contaorigem FOREIGN KEY (conta_origem_id)  REFERENCES conta_origem(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- eventos criados no Google Agenda (1 por apolice/parcela) para nao duplicar
@@ -515,6 +523,7 @@ _COLUNAS_ESPERADAS = {
     "seguradora": {"nome": "VARCHAR(191)"},
     "categoria_saida": {"nome": "TEXT"},
     "tipo_consorcio": {"nome": "VARCHAR(191)"},
+    "conta_origem": {"nome": "VARCHAR(191)"},
     "cotacao_campo": {
         "nome": "TEXT", "tipo": "TEXT", "ordem": "INT NOT NULL DEFAULT 0",
         "papel": "VARCHAR(40) NOT NULL DEFAULT ''", "opcoes": "TEXT",
@@ -653,6 +662,7 @@ _COLUNAS_ESPERADAS = {
     },
     "saida": {
         "descricao": "TEXT", "categoria_id": "INT", "forma_pagamento_id": "INT",
+        "conta_origem_id": "INT",
         "valor": "REAL",
         "data_vencimento": "TEXT", "data_pagamento": "TEXT", "numero_parcela": "TEXT",
         "fixo_mensal": "INT NOT NULL DEFAULT 0", "serie_id": "TEXT",
@@ -755,6 +765,7 @@ def _colunas_da_tabela(con, tabela):
 # formato: tabela -> [(nome_da_constraint, coluna, tabela_referenciada)]
 _FKS_ESPERADAS = {
     "cliente": [("fk_cliente_status", "status_cliente_id", "status_cliente")],
+    "saida": [("fk_saida_contaorigem", "conta_origem_id", "conta_origem")],
 }
 
 

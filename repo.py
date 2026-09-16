@@ -263,7 +263,7 @@ def excluir_cliente(cliente_id):
 # ---------- cadastros simples (tipo_seguro, forma_pagamento) - só nome ----------
 
 _TABELAS_SIMPLES = {"tipo_seguro", "forma_pagamento", "seguradora", "categoria_saida",
-                     "tipo_consorcio", "status_cliente"}
+                     "tipo_consorcio", "status_cliente", "conta_origem"}
 
 
 def listar_simples(tabela, busca=None):
@@ -1583,7 +1583,7 @@ def eventos_agenda_todos():
 
 # ---------- fluxo de caixa: saídas ----------
 
-_COLS_SAIDA = ("descricao", "categoria_id", "forma_pagamento_id", "valor",
+_COLS_SAIDA = ("descricao", "categoria_id", "forma_pagamento_id", "conta_origem_id", "valor",
                "data_vencimento", "data_pagamento", "numero_parcela", "fixo_mensal", "serie_id")
 
 
@@ -1599,6 +1599,7 @@ def _valores_saida(dados):
         (dados.get("descricao") or "").strip() or None,
         _para_int(dados.get("categoria_id")),
         _para_int(dados.get("forma_pagamento_id")),
+        _para_int(dados.get("conta_origem_id")),
         para_decimal(dados.get("valor")),
         (dados.get("data_vencimento") or "").strip() or None,
         (dados.get("data_pagamento") or "").strip() or None,
@@ -1641,6 +1642,7 @@ def obter_grupo_saida(saida_id):
         "descricao": s.get("descricao"),
         "categoria_id": s.get("categoria_id"),
         "forma_pagamento_id": s.get("forma_pagamento_id"),
+        "conta_origem_id": s.get("conta_origem_id"),
         "fixo_mensal": s.get("fixo_mensal"),
         "lancamentos": [
             {"id": l["id"], "data_vencimento": l["data_vencimento"], "valor": l["valor"],
@@ -1731,13 +1733,15 @@ def listar_saidas(mes=None, status=None, categoria_id=None, busca=None,
     'vencimento' → `data_vencimento`; 'pagamento' → `data_pagamento` (exclui não pagas)."""
     with conexao() as con:
         linhas = [dict(l) for l in con.execute(
-            "SELECT s.id, s.descricao, s.categoria_id, s.forma_pagamento_id, s.valor, "
+            "SELECT s.id, s.descricao, s.categoria_id, s.forma_pagamento_id, s.conta_origem_id, "
+            "       s.valor, "
             "       s.data_vencimento, s.data_pagamento, s.numero_parcela, s.fixo_mensal, "
             "       s.serie_id, s.criado_em, s.atualizado_em, "
-            "       c.nome AS categoria, fp.nome AS forma_pagamento "
+            "       c.nome AS categoria, fp.nome AS forma_pagamento, co.nome AS conta_origem "
             "FROM saida s "
             "LEFT JOIN categoria_saida c ON c.id = s.categoria_id "
             "LEFT JOIN forma_pagamento fp ON fp.id = s.forma_pagamento_id "
+            "LEFT JOIN conta_origem co ON co.id = s.conta_origem_id "
             "ORDER BY COALESCE(s.data_vencimento, ''), s.id"
         ).fetchall()]
     hoje = date.today().isoformat()
@@ -1786,6 +1790,11 @@ def listar_saidas(mes=None, status=None, categoria_id=None, busca=None,
 def categorias_saida():
     """Lista o cadastro de categorias de saída ([{id, nome}])."""
     return listar_simples("categoria_saida")
+
+
+def contas_origem():
+    """Lista o cadastro de contas de origem ([{id, nome}])."""
+    return listar_simples("conta_origem")
 
 
 def descricoes_saida():
