@@ -252,6 +252,15 @@
         {% endfor %}
       </select>
     </div>
+    <div class="campo c-2">
+      <label for="r-conta-origem">Conta de origem</label>
+      <select id="r-conta-origem" name="conta_origem_id">
+        <option value="">Todas</option>
+        {% for co in contas_origem %}
+        <option value="{{ co.id }}" {{ 'selected' if conta_origem_id == co.id }}>{{ co.nome }}</option>
+        {% endfor %}
+      </select>
+    </div>
     <div class="campo c-3">
       <label for="r-fixa">Fixa mensal</label>
       <select id="r-fixa" name="fixo">

@@ -161,6 +161,8 @@ def _filtros_ativos(ctx):
         p.append("categoria: " + ctx["categoria_nome"])
     if ctx.get("forma_nome"):
         p.append("forma de pgto: " + ctx["forma_nome"])
+    if ctx.get("conta_origem_nome"):
+        p.append("conta de origem: " + ctx["conta_origem_nome"])
     if ctx.get("fixo") == "1":
         p.append("só fixas mensais")
     elif ctx.get("fixo") == "0":

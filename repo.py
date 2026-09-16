@@ -1727,7 +1727,7 @@ def _status_saida(s, hoje):
 
 
 def listar_saidas(mes=None, status=None, categoria_id=None, busca=None,
-                  forma_pagamento_id=None, fixo=None,
+                  forma_pagamento_id=None, conta_origem_id=None, fixo=None,
                   data_ini=None, data_fim=None, base_data="vencimento"):
     """`data_ini`/`data_fim` (ISO, inclusivo) recortam por `base_data`:
     'vencimento' → `data_vencimento`; 'pagamento' → `data_pagamento` (exclui não pagas)."""
@@ -1777,6 +1777,8 @@ def listar_saidas(mes=None, status=None, categoria_id=None, busca=None,
         linhas = [s for s in linhas if s.get("categoria_id") == int(categoria_id)]
     if forma_pagamento_id:
         linhas = [s for s in linhas if s.get("forma_pagamento_id") == int(forma_pagamento_id)]
+    if conta_origem_id:
+        linhas = [s for s in linhas if s.get("conta_origem_id") == int(conta_origem_id)]
     if fixo in ("0", "1", 0, 1):
         alvo_fixo = int(fixo)
         linhas = [s for s in linhas if (1 if s.get("fixo_mensal") else 0) == alvo_fixo]

@@ -71,6 +71,15 @@
         {% endfor %}
       </select>
     </div>
+    <div class="campo c-2">
+      <label for="f-conta-origem">Conta de origem</label>
+      <select id="f-conta-origem" name="conta_origem_id">
+        <option value="">Todas</option>
+        {% for co in contas_origem %}
+        <option value="{{ co.id }}" {{ 'selected' if conta_origem_id == co.id }}>{{ co.nome }}</option>
+        {% endfor %}
+      </select>
+    </div>
   </div>
   <div class="filtros__acoes">
     <button class="btn btn--primario" type="submit">{{ icone('busca') }} Buscar</button>

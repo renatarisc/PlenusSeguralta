@@ -1339,22 +1339,26 @@ def saidas_lista():
     status = request.args.get("status", "")
     categoria_id = request.args.get("categoria_id", type=int)
     forma_id = request.args.get("forma_pagamento_id", type=int)
+    conta_origem_id = request.args.get("conta_origem_id", type=int)
     fixo = request.args.get("fixo", "")
     if fixo not in ("0", "1"):
         fixo = ""
     busca = request.args.get("busca", "").strip()
     saidas = repo.listar_saidas(mes=mes, status=status or None,
                                 categoria_id=categoria_id or None, busca=busca or None,
-                                forma_pagamento_id=forma_id or None, fixo=fixo or None)
+                                forma_pagamento_id=forma_id or None,
+                                conta_origem_id=conta_origem_id or None, fixo=fixo or None)
     total = sum(s["valor"] or 0 for s in saidas)
-    tem_filtro = bool(busca or status or categoria_id or forma_id or fixo) or mes != date.today().month
+    tem_filtro = (bool(busca or status or categoria_id or forma_id or conta_origem_id or fixo)
+                  or mes != date.today().month)
     return render_template("saidas_lista.html", ativo="saidas_lista",
                            saidas=saidas, total=total, resumo=repo.resumo_saidas(),
                            mes=mes, status=status, categoria_id=categoria_id, busca=busca,
-                           forma_id=forma_id, fixo=fixo,
+                           forma_id=forma_id, conta_origem_id=conta_origem_id, fixo=fixo,
                            tem_filtro=tem_filtro, mes_atual=date.today().month,
                            categorias=repo.categorias_saida(),
                            formas=repo.listar_simples("forma_pagamento"),
+                           contas_origem=repo.contas_origem(),
                            descricoes=repo.descricoes_saida(), MESES=_MESES)
 
 
@@ -2011,6 +2015,7 @@ def _relatorio_contexto(slug, limpar_url=None):
     status = request.args.get("status", "")
     categoria_id = request.args.get("categoria_id", type=int)
     forma_id = request.args.get("forma_pagamento_id", type=int)
+    conta_origem_id = request.args.get("conta_origem_id", type=int)
     fixo = request.args.get("fixo", "")
     if fixo not in ("0", "1"):
         fixo = ""
@@ -2061,7 +2066,8 @@ def _relatorio_contexto(slug, limpar_url=None):
     elif tipo == "saidas":
         linhas = repo.listar_saidas(
             status=status or None, categoria_id=categoria_id or None,
-            forma_pagamento_id=forma_id or None, fixo=fixo or None, busca=busca or None,
+            forma_pagamento_id=forma_id or None, conta_origem_id=conta_origem_id or None,
+            fixo=fixo or None, busca=busca or None,
             data_ini=data_ini or None, data_fim=data_fim or None, base_data=base_data)
         ordkey = {
             "vencimento": lambda s: s.get("data_vencimento") or "",
@@ -2084,19 +2090,22 @@ def _relatorio_contexto(slug, limpar_url=None):
         tem_filtro = bool(data_ini or data_fim or situacao or g1 or g2
                           or modo in ("resumo", "grupos"))
     else:
-        tem_filtro = bool(status or categoria_id or forma_id or fixo or busca
+        tem_filtro = bool(status or categoria_id or forma_id or conta_origem_id or fixo or busca
                           or data_ini or data_fim or g1 or base_data)
     titulo = "Fluxo de caixa — Relatório de " + ("saídas" if tipo == "saidas" else "entradas")
     cat_nome = next((c["nome"] for c in repo.categorias_saida() if c["id"] == categoria_id), None)
     forma_nome = next((f["nome"] for f in repo.listar_simples("forma_pagamento")
                        if f["id"] == forma_id), None)
+    conta_origem_nome = next((c["nome"] for c in repo.contas_origem()
+                              if c["id"] == conta_origem_id), None)
     agora = datetime.now()
     return dict(
         tipo=tipo, titulo=titulo,
         emissao_data=agora.strftime("%d/%m/%Y"), emissao_hora=agora.strftime("%H:%M"),
         data_ini=data_ini, data_fim=data_fim, base_data=base_data, status=status,
-        categoria_id=categoria_id, forma_id=forma_id, fixo=fixo, busca=busca,
-        categoria_nome=cat_nome, forma_nome=forma_nome,
+        categoria_id=categoria_id, forma_id=forma_id, conta_origem_id=conta_origem_id, fixo=fixo,
+        busca=busca, categoria_nome=cat_nome, forma_nome=forma_nome,
+        conta_origem_nome=conta_origem_nome,
         g1=g1, g2=g2, ordem=ordem, ordem_dir=ordem_dir, modo=modo, tem_filtro=tem_filtro,
         situacao=situacao, grupo_opcoes_entrada=_GRUPO_OPCOES_ENTRADA,
         limpar_url=limpar_url or url_for("fluxo_relatorios", slug=tipo),
@@ -2112,6 +2121,7 @@ def fluxo_relatorios(slug):
     return render_template(
         "relatorios.html", ativo="fluxo_relatorios", **ctx,
         categorias=repo.categorias_saida(), formas=repo.listar_simples("forma_pagamento"),
+        contas_origem=repo.contas_origem(),
         descricoes=repo.descricoes_saida(), grupo_opcoes=_GRUPO_OPCOES,
         ordem_opcoes=_ORDEM_OPCOES, MESES=_MESES)
 
