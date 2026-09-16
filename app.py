@@ -1458,7 +1458,15 @@ def entradas_lista():
         situacao = ""
     tipo_id = request.args.get("tipo_id", type=int)
 
-    apolices = repo.comissoes_repasses_por_apolice(data_ini or None, data_fim or None)
+    # só uma das duas datas preenchida = filtra por ESSE dia exato, não por
+    # período aberto (ex.: só "De" não deve trazer "daquele dia em diante").
+    data_ini_busca, data_fim_busca = data_ini, data_fim
+    if data_ini and not data_fim:
+        data_fim_busca = data_ini
+    elif data_fim and not data_ini:
+        data_ini_busca = data_fim
+
+    apolices = repo.comissoes_repasses_por_apolice(data_ini_busca or None, data_fim_busca or None)
     if tipo_id:
         apolices = [a for a in apolices if a.get("tipo_seguro_id") == tipo_id]
     if busca:
@@ -1466,7 +1474,8 @@ def entradas_lista():
         apolices = [a for a in apolices
                     if alvo in repo._sem_acento_minusculo(a.get("cliente_nome") or "")
                     or alvo in repo._sem_acento_minusculo(a.get("numero_apolice") or "")]
-    arvore_blocos, qtd_apolices = _blocos_entrada(apolices, [], situacao)
+    arvore_blocos, qtd_apolices = _blocos_entrada(
+        apolices, [], situacao, data_ini_busca or None, data_fim_busca or None)
     a_receber_mes, a_receber_total = _cards_a_receber()
 
     return render_template(
@@ -1692,9 +1701,12 @@ _GRUPOS_ENTRADA = {
         repo._sem_acento_minusculo(l.get("seguradora_nome") or "") or "zzz",
         l.get("seguradora_nome") or "Sem seguradora")),
     "mes": ("Mês da parcela", lambda l: (l["mes_key"], l["mes_rotulo"])),
+    "data": ("Data da parcela", lambda l: (
+        l.get("data") or "9999-99-99", formatar_data_br(l.get("data")) if l.get("data") else "Sem data")),
 }
 _GRUPO_OPCOES_ENTRADA = [("", "—"), ("tipo", "Tipo de seguro"),
-                         ("seguradora", "Seguradora"), ("mes", "Mês da parcela")]
+                         ("seguradora", "Seguradora"), ("mes", "Mês da parcela"),
+                         ("data", "Data da parcela")]
 
 
 def _divergencia_repasse(apolice_id, divs):
@@ -1801,10 +1813,24 @@ def _agrupar_blocos(blocos, chaves):
     return {"campo": campo_rotulo, "grupos": grupos}
 
 
-def _blocos_entrada(apolices, chaves, situacao):
+def _blocos_entrada(apolices, chaves, situacao, data_ini=None, data_fim=None):
     """`apolices` = repo.comissoes_repasses_por_apolice(...). Casa as duas
     tabelas, aplica o filtro de situação ('quais apólices aparecem') e agrupa.
-    Devolve `(arvore, qtd_de_blocos)`."""
+    Marca em cada linha `bate_filtro` (situação + período batem NESSA parcela)
+    — o template usa isso pra esconder, dentro do bloco, as parcelas que não
+    são o motivo da apólice ter aparecido na busca (sem tirá-las do formulário,
+    pro "Salvar" continuar regravando a tabela inteira). Devolve `(arvore, qtd_de_blocos)`."""
+    def _bate_filtro(l):
+        if situacao == "paga" and not l["paga"]:
+            return False
+        if situacao == "nao_paga" and l["paga"]:
+            return False
+        if data_ini or data_fim:
+            d = l.get("ple_data")
+            if not d or (data_ini and d < data_ini) or (data_fim and d > data_fim):
+                return False
+        return True
+
     blocos = []
     for ap in apolices:
         linhas = _merge_linhas_bloco(ap["comissoes"], ap["repasses"])
@@ -1812,13 +1838,17 @@ def _blocos_entrada(apolices, chaves, situacao):
             continue
         if situacao == "nao_paga" and not any(not l["paga"] for l in linhas):
             continue
+        for l in linhas:
+            l["bate_filtro"] = _bate_filtro(l)
         primeira_data = next((l["seg_data"] or l["ple_data"] for l in linhas
                               if l["seg_data"] or l["ple_data"]), None)
         mes_key, mes_rotulo = _rotulo_mes_iso(primeira_data)
-        # soma das colunas de entrada REAL do bloco (Seguralta = Recebido; Plenus = Pago).
-        # O JS re-soma ao vivo.
-        soma_seguralta = round(sum(l["seg_recebido"] or 0 for l in linhas), 2)
-        soma_plenus = round(sum(l["ple_recebido"] or 0 for l in linhas), 2)
+        # soma das colunas de entrada REAL do bloco (Seguralta = Recebido; Plenus = Pago),
+        # só das parcelas visíveis (que batem o filtro) — o JS re-soma ao vivo do
+        # mesmo jeito quando alguma linha é editada/adicionada/revelada.
+        linhas_visiveis = [l for l in linhas if l["bate_filtro"]]
+        soma_seguralta = round(sum(l["seg_recebido"] or 0 for l in linhas_visiveis), 2)
+        soma_plenus = round(sum(l["ple_recebido"] or 0 for l in linhas_visiveis), 2)
         prem, pct = ap.get("premio_liquido"), ap.get("comissao_percentual")
         comissao_valor = round(prem * pct / 100, 2) if prem is not None and pct is not None else None
         # Rateio calculado pelo sistema (mesma regra do Panorama, ver _calc_panorama):

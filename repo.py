@@ -2178,8 +2178,9 @@ def comissoes_repasses_por_apolice(data_ini=None, data_fim=None):
       da própria apólice (lado Seguralta sem data — não existe coluna pra isso).
 
     `data_ini`/`data_fim` (ISO) filtram QUAIS apólices entram (tem ao menos uma
-    parcela com `data` no intervalo, ou tem parcela sem data). NÃO recortam as
-    linhas de dentro do bloco — o "salvar" regrava a tabela inteira da apólice."""
+    parcela do lado Plenus — repasse — com `data` no intervalo, ou tem parcela
+    de repasse sem data). NÃO recortam as linhas de dentro do bloco — o "salvar"
+    regrava a tabela inteira da apólice."""
     cols_apolice = (
         "       c.nome AS cliente_nome, a.tipo_seguro_id, t.nome AS tipo_seguro_nome, "
         "       sg.nome AS seguradora_nome, "
@@ -2274,18 +2275,16 @@ def comissoes_repasses_por_apolice(data_ini=None, data_fim=None):
         por_cons_rep.setdefault(r["consorcio_id"], []).append(dict(r))
 
     def _no_periodo(linhas):
-        """True se alguma linha tem data no intervalo, ou tem linha sem data."""
+        """True se alguma linha tem data preenchida dentro do intervalo.
+        Parcela sem data (ainda não paga) não conta — ela só entra quando
+        for lançada uma data de pagamento dentro do período buscado."""
         if not data_ini and not data_fim:
             return True
-        algum_com_data = False
         for l in linhas:
             d = l.get("data")
-            if not d:
+            if d and (not data_ini or d >= data_ini) and (not data_fim or d <= data_fim):
                 return True
-            algum_com_data = True
-            if (not data_ini or d >= data_ini) and (not data_fim or d <= data_fim):
-                return True
-        return not algum_com_data
+        return False
 
     saida = []
     for row in apolices:
@@ -2310,7 +2309,7 @@ def comissoes_repasses_por_apolice(data_ini=None, data_fim=None):
                     "valor_recebido": ap["comissao_valor_plenus_recebido"],
                     "data": ap["data_plenus_recebido"],
                     "conferido_banco": ap["plenus_conferido_banco"]}]
-        if not _no_periodo(com + rep):
+        if not _no_periodo(rep):
             continue
         ap["comissoes"] = com
         ap["repasses"] = rep
@@ -2339,7 +2338,7 @@ def comissoes_repasses_por_apolice(data_ini=None, data_fim=None):
                     "valor_recebido": e["comissao_valor_plenus_recebido"],
                     "data": e["data_plenus_recebido"],
                     "conferido_banco": e["plenus_conferido_banco"]}]
-        if not _no_periodo(com + rep):
+        if not _no_periodo(rep):
             continue
         e["is_endosso"] = True
         e["comissoes"] = com
@@ -2369,7 +2368,7 @@ def comissoes_repasses_por_apolice(data_ini=None, data_fim=None):
                     "valor_recebido": co["comissao_valor_plenus_recebido"],
                     "data": co["data_plenus_recebido"],
                     "conferido_banco": co["plenus_conferido_banco"]}]
-        if not _no_periodo(com + rep):
+        if not _no_periodo(rep):
             continue
         co["is_consorcio"] = True
         co["apolice_id"] = f"cons:{cid}"

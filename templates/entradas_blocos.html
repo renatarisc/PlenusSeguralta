@@ -4,7 +4,7 @@
 {% from "base.html" import icone with context %}
 
 {% macro linha_ed(ln) %}
-<tr class="fluxo-linha{{ ' linha-travada' if ln.paga }}">
+<tr class="fluxo-linha{{ ' linha-travada' if ln.paga }}"{% if ln.bate_filtro is defined and not ln.bate_filtro %} style="display:none" data-fora-do-filtro{% endif %}>
   <td class="ent-col-parc">
     <input class="ent-parcela" data-parcela value="{{ ln.parcela }}" aria-label="Parcela" autocomplete="off">
     <input type="hidden" name="comissao_parcela" data-com-parcela value="{{ ln.seg_parcela or '' }}">
@@ -68,7 +68,7 @@
       {%- if b.seguradora_nome %} · {{ b.seguradora_nome }}{% endif %}
       · {{ 'valor da carta' if b.is_consorcio else 'valor' if b.is_endosso else 'prêmio líquido' }} {{ b.premio_liquido|moeda }}
       · comissão {% if b.comissao_percentual is not none %}{{ (b.comissao_percentual|numero).rstrip('0').rstrip(',') }}%{% else %}—{% endif %}
-      {%- if b.comissao_valor is not none %} ({{ b.comissao_valor|moeda }} — Seguralta {{ b.comissao_seguralta|moeda }} | Plenus {{ b.comissao_plenus|moeda }}{% if b.tipo_seguro_nome and 'vida' in b.tipo_seguro_nome|lower and not b.is_endosso and not b.is_consorcio %} - Valores mensais{% endif %}){% endif %}
+      {%- if b.comissao_valor is not none %} (Seguralta {{ b.comissao_seguralta|moeda }} | Plenus {{ b.comissao_plenus|moeda }}{% if b.tipo_seguro_nome and 'vida' in b.tipo_seguro_nome|lower and not b.is_endosso and not b.is_consorcio %} - Valores mensais{% endif %}){% endif %}
       {%- if not b.comissao_parcelada %} · repasse único{% endif %}
       {%- if b.cocorretagem %} · COCORRETAGEM{% endif %}</small>
   </header>
@@ -109,11 +109,14 @@
     <div class="ent-bloco__acoes">
       {% if b.comissao_parcelada %}
       <button type="button" class="btn btn--linha btn--mini" data-add-linha>{{ icone('mais') }} Adicionar mês</button>
+      {% set escondidas = b.linhas|rejectattr('bate_filtro')|list %}
+      {% if escondidas %}
+      <button type="button" class="btn btn--linha btn--mini" data-ver-todas>Ver +{{ escondidas|length }} parcela{{ 's' if escondidas|length != 1 else '' }} fora do filtro</button>
+      {% endif %}
       {% endif %}
       <button type="submit" class="btn btn--primario btn--mini">Salvar {{ 'este consórcio' if b.is_consorcio else 'este endosso' if b.is_endosso else 'esta apólice' }}</button>
       <small class="ent-bloco__soma">
-        <span data-soma>Seguralta {{ b.soma_seguralta|moeda }} | Plenus {{ b.soma_plenus|moeda }}</span>
-        (soma das colunas Recebido x Pago)
+        <span data-soma>Seguralta recebido {{ b.soma_seguralta|moeda }} | Plenus pago {{ b.soma_plenus|moeda }}</span>
       </small>
     </div>
   </form>

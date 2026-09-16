@@ -22,16 +22,20 @@
   const fmt = (n) =>
     (Number(n) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  // soma da entrada REAL: Seguralta = Recebido; Plenus = Pago
+  // soma da entrada REAL: Seguralta = Recebido; Plenus = Pago.
+  // Só das linhas visíveis — uma parcela escondida por "fora do filtro"
+  // (data-fora-do-filtro) não entra até o "Ver todas" revelar ela.
   function recomputarSoma(sec) {
     const alvo = sec.querySelector("[data-soma]");
     const corpo = sec.querySelector("[data-corpo]");
     if (!alvo || !corpo) return;
     const somar = (sel) =>
-      Array.from(corpo.querySelectorAll(sel)).reduce((t, el) => t + num(el.value), 0);
+      Array.from(corpo.querySelectorAll(sel))
+        .filter((el) => !el.closest("tr").hasAttribute("data-fora-do-filtro"))
+        .reduce((t, el) => t + num(el.value), 0);
     const seg = somar('input[name="comissao_recebido"], input[name="comissao_valor_seguralta_recebido"]');
     const ple = somar('input[name="repasse_recebido"], input[name="comissao_valor_plenus_recebido"]');
-    alvo.textContent = "Seguralta R$ " + fmt(seg) + " | Plenus R$ " + fmt(ple);
+    alvo.textContent = "Seguralta recebido R$ " + fmt(seg) + " | Plenus pago R$ " + fmt(ple);
   }
   function addMeses(iso, k) {
     const p = (iso || "").split("-").map(Number);
@@ -113,8 +117,16 @@
       const bEdit = e.target.closest("[data-editar]");
       const bDel = e.target.closest("[data-remover]");
       const bAdd = e.target.closest("[data-add-linha]");
+      const bVerTodas = e.target.closest("[data-ver-todas]");
 
-      if (bEdit) {
+      if (bVerTodas) {
+        corpo.querySelectorAll("tr[data-fora-do-filtro]").forEach((tr) => {
+          tr.style.display = "";
+          tr.removeAttribute("data-fora-do-filtro");
+        });
+        bVerTodas.remove();
+        recomputarSoma(sec);
+      } else if (bEdit) {
         const tr = bEdit.closest("tr");
         if (tr.classList.contains("linha-liberada")) {
           sincTodas();
