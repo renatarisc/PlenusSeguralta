@@ -1591,7 +1591,7 @@ def recibo_form(recibo_id=None):
         flash("Recibo não encontrado.", "erro")
         return redirect(url_for("recibos_lista"))
     if recibo is None:
-        recibo = {"aliquota": "11.6"}  # aliquota padrao usual - a usuaria troca se precisar
+        recibo = {"aliquota": "11.26"}  # aliquota padrao usual - a usuaria troca se precisar
         nf_id = request.args.get("nota_fiscal_id", type=int)
         if nf_id and repo.obter_nota_fiscal(nf_id):
             recibo["nota_fiscal_id"] = nf_id
