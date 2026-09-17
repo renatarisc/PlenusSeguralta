@@ -1430,7 +1430,8 @@ def saida_pagamento(saida_id):
 
 # ---------- Notas fiscais (+ recibos) ----------
 
-_CAMPOS_NOTA_FISCAL = ("numero", "valor", "data_emissao", "data_pagamento", "data_depositado")
+_CAMPOS_NOTA_FISCAL = ("numero", "valor", "data_emissao", "data_pagamento", "data_depositado",
+                       "observacao")
 
 
 def _nota_fiscal_para_form(nf):

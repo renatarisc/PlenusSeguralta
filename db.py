@@ -504,6 +504,7 @@ CREATE TABLE IF NOT EXISTS nota_fiscal (
     data_emissao TEXT,             -- ISO AAAA-MM-DD
     data_pagamento TEXT,           -- NULL = ainda nao paga
     data_depositado TEXT,          -- NULL = ainda nao depositado
+    observacao TEXT,
     criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     atualizado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -708,6 +709,7 @@ _COLUNAS_ESPERADAS = {
     "nota_fiscal": {
         "numero": "TEXT", "valor": "REAL",
         "data_emissao": "TEXT", "data_pagamento": "TEXT", "data_depositado": "TEXT",
+        "observacao": "TEXT",
         "criado_em": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
         "atualizado_em": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
     },

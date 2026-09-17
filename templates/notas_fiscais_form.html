@@ -46,6 +46,10 @@
         <label for="data_depositado">Depositado</label>
         <input id="data_depositado" name="data_depositado" type="date" value="{{ nf.data_depositado or '' }}">
       </div>
+      <div class="campo c-12">
+        <label for="observacao">Observação</label>
+        <textarea id="observacao" name="observacao" rows="3">{{ nf.observacao or '' }}</textarea>
+      </div>
     </div>
   </div>
 

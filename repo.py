@@ -1846,7 +1846,8 @@ def resumo_saidas():
 
 # ---------- notas fiscais (+ recibos) ----------
 
-_COLS_NOTA_FISCAL = ("numero", "valor", "data_emissao", "data_pagamento", "data_depositado")
+_COLS_NOTA_FISCAL = ("numero", "valor", "data_emissao", "data_pagamento", "data_depositado",
+                     "observacao")
 
 
 def _valores_nota_fiscal(dados):
@@ -1856,6 +1857,7 @@ def _valores_nota_fiscal(dados):
         (dados.get("data_emissao") or "").strip() or None,
         (dados.get("data_pagamento") or "").strip() or None,
         (dados.get("data_depositado") or "").strip() or None,
+        (dados.get("observacao") or "").strip() or None,
     ]
 
 
