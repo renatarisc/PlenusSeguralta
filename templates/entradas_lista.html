@@ -9,6 +9,13 @@
     <div class="stat__rotulo">Apólices com comissão lançada</div>
   </div>
   <div class="stat">
+    <div class="stat__valor">{{ soma_filtrada|moeda }}</div>
+    <div class="stat__rotulo">
+      Soma das parcelas filtradas —
+      {{ 'recebido Seguralta' if data_base == 'seguralta' else 'pago Plenus' }}
+    </div>
+  </div>
+  <div class="stat">
     <div class="stat__valor">{{ a_receber_mes|moeda }}</div>
     <div class="stat__rotulo">A receber neste mês – {{ MESES[mes_atual] }}</div>
   </div>

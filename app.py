@@ -1665,13 +1665,13 @@ def entradas_lista():
         apolices = [a for a in apolices
                     if alvo in repo._sem_acento_minusculo(a.get("cliente_nome") or "")
                     or alvo in repo._sem_acento_minusculo(a.get("numero_apolice") or "")]
-    arvore_blocos, qtd_apolices = _blocos_entrada(
+    arvore_blocos, qtd_apolices, soma_filtrada = _blocos_entrada(
         apolices, [], situacao, data_ini_busca or None, data_fim_busca or None, lado=data_base)
     a_receber_mes, a_receber_total = _cards_a_receber()
 
     return render_template(
         "entradas_lista.html", ativo="entradas_lista",
-        arvore_blocos=arvore_blocos, qtd_apolices=qtd_apolices,
+        arvore_blocos=arvore_blocos, qtd_apolices=qtd_apolices, soma_filtrada=soma_filtrada,
         a_receber_mes=a_receber_mes, a_receber_total=a_receber_total,
         busca=busca, data_ini=data_ini, data_fim=data_fim, situacao=situacao,
         tipo_id=tipo_id, tipos=repo.listar_simples("tipo_seguro"), data_base=data_base,
@@ -2013,8 +2013,9 @@ def _blocos_entrada(apolices, chaves, situacao, data_ini=None, data_fim=None, la
     — o template usa isso pra esconder, dentro do bloco, as parcelas que não
     são o motivo da apólice ter aparecido na busca (sem tirá-las do formulário,
     pro "Salvar" continuar regravando a tabela inteira). `lado` escolhe qual data
-    o período considera: "plenus" (repasse, padrão) ou "seguralta" (comissão).
-    Devolve `(arvore, qtd_de_blocos)`."""
+    o período considera: "plenus" (repasse, padrão) ou "seguralta" (comissão) —
+    e também qual soma (recebido Seguralta ou pago Plenus) entra no total.
+    Devolve `(arvore, qtd_de_blocos, soma_filtrada)`."""
     campo_data = "seg_data" if lado == "seguralta" else "ple_data"
 
     def _bate_filtro(l):
@@ -2080,7 +2081,9 @@ def _blocos_entrada(apolices, chaves, situacao, data_ini=None, data_fim=None, la
             "consorcio_grupo": ap.get("consorcio_grupo") or ap.get("numero_grupo"),
             "linhas": linhas, "mes_key": mes_key, "mes_rotulo": mes_rotulo,
         })
-    return _agrupar_blocos(blocos, chaves), len(blocos)
+    soma_filtrada = round(sum((b["soma_seguralta"] if lado == "seguralta" else b["soma_plenus"])
+                              for b in blocos), 2)
+    return _agrupar_blocos(blocos, chaves), len(blocos), soma_filtrada
 
 
 @app.route("/financeiro/entradas/<int:apolice_id>/comissoes", methods=["POST"])
