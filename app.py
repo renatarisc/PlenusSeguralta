@@ -1644,6 +1644,9 @@ def entradas_lista():
     if situacao not in ("paga", "nao_paga"):
         situacao = ""
     tipo_id = request.args.get("tipo_id", type=int)
+    data_base = request.args.get("data_base", "plenus")
+    if data_base not in ("plenus", "seguralta"):
+        data_base = "plenus"
 
     # só uma das duas datas preenchida = filtra por ESSE dia exato, não por
     # período aberto (ex.: só "De" não deve trazer "daquele dia em diante").
@@ -1653,7 +1656,8 @@ def entradas_lista():
     elif data_fim and not data_ini:
         data_ini_busca = data_fim
 
-    apolices = repo.comissoes_repasses_por_apolice(data_ini_busca or None, data_fim_busca or None)
+    apolices = repo.comissoes_repasses_por_apolice(
+        data_ini_busca or None, data_fim_busca or None, lado=data_base)
     if tipo_id:
         apolices = [a for a in apolices if a.get("tipo_seguro_id") == tipo_id]
     if busca:
@@ -1662,7 +1666,7 @@ def entradas_lista():
                     if alvo in repo._sem_acento_minusculo(a.get("cliente_nome") or "")
                     or alvo in repo._sem_acento_minusculo(a.get("numero_apolice") or "")]
     arvore_blocos, qtd_apolices = _blocos_entrada(
-        apolices, [], situacao, data_ini_busca or None, data_fim_busca or None)
+        apolices, [], situacao, data_ini_busca or None, data_fim_busca or None, lado=data_base)
     a_receber_mes, a_receber_total = _cards_a_receber()
 
     return render_template(
@@ -1670,8 +1674,8 @@ def entradas_lista():
         arvore_blocos=arvore_blocos, qtd_apolices=qtd_apolices,
         a_receber_mes=a_receber_mes, a_receber_total=a_receber_total,
         busca=busca, data_ini=data_ini, data_fim=data_fim, situacao=situacao,
-        tipo_id=tipo_id, tipos=repo.listar_simples("tipo_seguro"),
-        tem_filtro=bool(busca or data_ini or data_fim or situacao or tipo_id),
+        tipo_id=tipo_id, tipos=repo.listar_simples("tipo_seguro"), data_base=data_base,
+        tem_filtro=bool(busca or data_ini or data_fim or situacao or tipo_id or data_base != "plenus"),
         mes_atual=date.today().month, MESES=_MESES, presets=_presets_periodo())
 
 
@@ -2002,20 +2006,24 @@ def _agrupar_blocos(blocos, chaves):
     return {"campo": campo_rotulo, "grupos": grupos}
 
 
-def _blocos_entrada(apolices, chaves, situacao, data_ini=None, data_fim=None):
+def _blocos_entrada(apolices, chaves, situacao, data_ini=None, data_fim=None, lado="plenus"):
     """`apolices` = repo.comissoes_repasses_por_apolice(...). Casa as duas
     tabelas, aplica o filtro de situação ('quais apólices aparecem') e agrupa.
     Marca em cada linha `bate_filtro` (situação + período batem NESSA parcela)
     — o template usa isso pra esconder, dentro do bloco, as parcelas que não
     são o motivo da apólice ter aparecido na busca (sem tirá-las do formulário,
-    pro "Salvar" continuar regravando a tabela inteira). Devolve `(arvore, qtd_de_blocos)`."""
+    pro "Salvar" continuar regravando a tabela inteira). `lado` escolhe qual data
+    o período considera: "plenus" (repasse, padrão) ou "seguralta" (comissão).
+    Devolve `(arvore, qtd_de_blocos)`."""
+    campo_data = "seg_data" if lado == "seguralta" else "ple_data"
+
     def _bate_filtro(l):
         if situacao == "paga" and not l["paga"]:
             return False
         if situacao == "nao_paga" and l["paga"]:
             return False
         if data_ini or data_fim:
-            d = l.get("ple_data")
+            d = l.get(campo_data)
             if not d or (data_ini and d < data_ini) or (data_fim and d > data_fim):
                 return False
         return True

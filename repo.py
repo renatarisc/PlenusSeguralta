@@ -2513,7 +2513,7 @@ def repasse_vs_relatorio_plenus():
     return {r["apolice_id"]: dict(r) for r in rows}
 
 
-def comissoes_repasses_por_apolice(data_ini=None, data_fim=None):
+def comissoes_repasses_por_apolice(data_ini=None, data_fim=None, lado="plenus"):
     """Uma entrada por APÓLICE com dado de comissão, trazendo as DUAS tabelas
     (lado Seguralta = `apolice_comissao`; lado Plenus = `apolice_repasse`) para a
     grade editável do menu Entradas. Junta os mesmos dois casos do relatório:
@@ -2523,9 +2523,10 @@ def comissoes_repasses_por_apolice(data_ini=None, data_fim=None):
       da própria apólice (lado Seguralta sem data — não existe coluna pra isso).
 
     `data_ini`/`data_fim` (ISO) filtram QUAIS apólices entram (tem ao menos uma
-    parcela do lado Plenus — repasse — com `data` no intervalo, ou tem parcela
-    de repasse sem data). NÃO recortam as linhas de dentro do bloco — o "salvar"
-    regrava a tabela inteira da apólice."""
+    parcela do lado escolhido em `lado` — "plenus" (repasse, padrão) ou
+    "seguralta" (comissão) — com `data` no intervalo, ou tem parcela sem data).
+    NÃO recortam as linhas de dentro do bloco — o "salvar" regrava a tabela
+    inteira da apólice."""
     cols_apolice = (
         "       c.nome AS cliente_nome, a.tipo_seguro_id, t.nome AS tipo_seguro_nome, "
         "       sg.nome AS seguradora_nome, "
@@ -2658,7 +2659,7 @@ def comissoes_repasses_por_apolice(data_ini=None, data_fim=None):
                     "valor_recebido": ap["comissao_valor_plenus_recebido"],
                     "data": ap["data_plenus_recebido"],
                     "recibo_id": ap["recibo_id"], "recibo_numero": ap.get("recibo_numero")}]
-        if not _no_periodo(rep):
+        if not _no_periodo(com if lado == "seguralta" else rep):
             continue
         ap["comissoes"] = com
         ap["repasses"] = rep
@@ -2687,7 +2688,7 @@ def comissoes_repasses_por_apolice(data_ini=None, data_fim=None):
                     "valor_recebido": e["comissao_valor_plenus_recebido"],
                     "data": e["data_plenus_recebido"],
                     "recibo_id": e["recibo_id"], "recibo_numero": e.get("recibo_numero")}]
-        if not _no_periodo(rep):
+        if not _no_periodo(com if lado == "seguralta" else rep):
             continue
         e["is_endosso"] = True
         e["comissoes"] = com
@@ -2717,7 +2718,7 @@ def comissoes_repasses_por_apolice(data_ini=None, data_fim=None):
                     "valor_recebido": co["comissao_valor_plenus_recebido"],
                     "data": co["data_plenus_recebido"],
                     "conferido_banco": co["plenus_conferido_banco"]}]
-        if not _no_periodo(rep):
+        if not _no_periodo(com if lado == "seguralta" else rep):
             continue
         co["is_consorcio"] = True
         co["apolice_id"] = f"cons:{cid}"

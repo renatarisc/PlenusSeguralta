@@ -31,6 +31,13 @@
             <label for="r-fim">Até</label>
             <input id="r-fim" type="date" name="data_fim" value="{{ data_fim }}">
           </div>
+          <div class="campo" style="width:230px">
+            <label for="r-data-base">Data de</label>
+            <select id="r-data-base" name="data_base">
+              <option value="plenus" {{ 'selected' if data_base == 'plenus' }}>Repasse — pagamento à Plenus</option>
+              <option value="seguralta" {{ 'selected' if data_base == 'seguralta' }}>Comissão — recebido pela Seguralta</option>
+            </select>
+          </div>
           <div class="campo rel-periodo__atalhos">
             <label aria-hidden="true">&nbsp;</label>
             <div class="rel-presets">
@@ -39,7 +46,10 @@
             </div>
           </div>
         </div>
-        <p class="dica" style="margin:4px 0 0">Data de pagamento da parcela para a Plenus.</p>
+        <p class="dica" style="margin:4px 0 0">
+          {% if data_base == 'seguralta' %}Data de recebido da parcela pela Seguralta (Comissão).
+          {% else %}Data de pagamento da parcela para a Plenus (Repasse).{% endif %}
+        </p>
       </div>
     </div>
 
