@@ -283,8 +283,6 @@ def validar_apolice(dados):
     erros = []
     if not (dados.get("cliente_id") or "").strip():
         erros.append("Selecione o cliente.")
-    if not (dados.get("tipo_seguro_id") or "").strip():
-        erros.append("Selecione o tipo de seguro.")
     if not (dados.get("seguradora_id") or "").strip():
         erros.append("Selecione a seguradora.")
     if not (dados.get("numero_apolice") or "").strip():
@@ -292,10 +290,6 @@ def validar_apolice(dados):
 
     ini = (dados.get("vigencia_inicio") or "").strip()
     fim = (dados.get("vigencia_fim") or "").strip()
-    if not ini:
-        erros.append("Informe o início da vigência.")
-    if not fim:
-        erros.append("Informe o fim da vigência.")
     if ini and fim and fim < ini:
         erros.append("O fim da vigência é anterior ao início.")
 

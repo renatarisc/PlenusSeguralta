@@ -79,10 +79,10 @@
       </div>
 
       <div class="campo c-3">
-        <label for="tipo_seguro_id">Tipo de seguro *
+        <label for="tipo_seguro_id">Tipo de seguro
           <a class="link-abrir" href="{{ url_for('cadastro_simples_form', slug='tipo-seguro') }}" target="_blank" rel="noopener">＋ novo</a>
         </label>
-        <select id="tipo_seguro_id" name="tipo_seguro_id" required>
+        <select id="tipo_seguro_id" name="tipo_seguro_id">
           <option value="">—</option>
           {% for t in tipos %}
           <option value="{{ t.id }}" {{ 'selected' if a.tipo_seguro_id|string == t.id|string }}>{{ t.nome }}</option>
@@ -94,12 +94,12 @@
         <input id="numero_apolice" name="numero_apolice" value="{{ a.numero_apolice or '' }}">
       </div>
       <div class="campo c-3">
-        <label for="vigencia_inicio">Vigência — início *</label>
-        <input id="vigencia_inicio" name="vigencia_inicio" type="date" required value="{{ a.vigencia_inicio or '' }}">
+        <label for="vigencia_inicio">Vigência — início</label>
+        <input id="vigencia_inicio" name="vigencia_inicio" type="date" value="{{ a.vigencia_inicio or '' }}">
       </div>
       <div class="campo c-3">
-        <label for="vigencia_fim">Vigência — fim *</label>
-        <input id="vigencia_fim" name="vigencia_fim" type="date" required value="{{ a.vigencia_fim or '' }}">
+        <label for="vigencia_fim">Vigência — fim</label>
+        <input id="vigencia_fim" name="vigencia_fim" type="date" value="{{ a.vigencia_fim or '' }}">
       </div>
 
       <div class="grade__linha" aria-hidden="true"></div>
