@@ -2089,7 +2089,8 @@ def parcelas_repasse_por_data(data, recibo_id=None):
     linhas = []
     with conexao() as con:
         rows = con.execute(
-            "SELECT r.id, r.recibo_id, r.valor_recebido, a.numero_apolice, c.nome AS cliente_nome "
+            "SELECT r.id, r.recibo_id, r.valor_recebido, r.parcela, a.numero_apolice, c.nome AS cliente_nome, "
+            "       (SELECT COUNT(*) FROM apolice_repasse r2 WHERE r2.apolice_id = r.apolice_id) AS total_parcelas "
             "  FROM apolice_repasse r "
             "  JOIN apolice a ON a.id = r.apolice_id "
             "  LEFT JOIN cliente c ON c.id = a.cliente_id "
@@ -2100,7 +2101,8 @@ def parcelas_repasse_por_data(data, recibo_id=None):
         for r in rows:
             linhas.append({"origem": "apolice_repasse", "id": r["id"], "recibo_id": r["recibo_id"],
                            "valor_recebido": r["valor_recebido"], "numero_apolice": r["numero_apolice"],
-                           "cliente_nome": r["cliente_nome"], "parcela_rotulo": "parcela"})
+                           "cliente_nome": r["cliente_nome"],
+                           "parcela_rotulo": f"{r['parcela'] or '?'}/{r['total_parcelas']}"})
         rows = con.execute(
             "SELECT a.id, a.recibo_id, a.comissao_valor_plenus_recebido AS valor_recebido, "
             "       a.numero_apolice, c.nome AS cliente_nome "
@@ -2115,8 +2117,9 @@ def parcelas_repasse_por_data(data, recibo_id=None):
                            "valor_recebido": r["valor_recebido"], "numero_apolice": r["numero_apolice"],
                            "cliente_nome": r["cliente_nome"], "parcela_rotulo": "única"})
         rows = con.execute(
-            "SELECT r.id, r.recibo_id, r.valor_recebido, e.numero AS endosso_numero, "
-            "       a.numero_apolice, c.nome AS cliente_nome "
+            "SELECT r.id, r.recibo_id, r.valor_recebido, r.parcela, e.numero AS endosso_numero, "
+            "       a.numero_apolice, c.nome AS cliente_nome, "
+            "       (SELECT COUNT(*) FROM apolice_endosso_repasse r2 WHERE r2.endosso_id = r.endosso_id) AS total_parcelas "
             "  FROM apolice_endosso_repasse r "
             "  JOIN apolice_endosso e ON e.id = r.endosso_id "
             "  JOIN apolice a ON a.id = e.apolice_id "
@@ -2128,7 +2131,8 @@ def parcelas_repasse_por_data(data, recibo_id=None):
             linhas.append({"origem": "endosso_repasse", "id": r["id"], "recibo_id": r["recibo_id"],
                            "valor_recebido": r["valor_recebido"],
                            "numero_apolice": f"{r['numero_apolice']} (endosso {r['endosso_numero']})",
-                           "cliente_nome": r["cliente_nome"], "parcela_rotulo": "parcela"})
+                           "cliente_nome": r["cliente_nome"],
+                           "parcela_rotulo": f"{r['parcela'] or '?'}/{r['total_parcelas']}"})
         rows = con.execute(
             "SELECT e.id, e.recibo_id, e.comissao_valor_plenus_recebido AS valor_recebido, "
             "       e.numero AS endosso_numero, a.numero_apolice, c.nome AS cliente_nome "
