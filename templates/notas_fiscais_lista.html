@@ -51,12 +51,12 @@
     <table class="lista">
       <thead>
         <tr>
-          <th>Número</th>
+          <th style="width:90px">Número</th>
           <th style="width:130px">Emissão</th>
           <th style="width:130px;text-align:right">Valor</th>
-          <th style="width:150px">Pagamento</th>
           <th style="width:150px">Depositado</th>
           <th style="width:110px">Recibos</th>
+          <th>Observação</th>
           <th style="width:130px"></th>
         </tr>
       </thead>
@@ -67,10 +67,6 @@
           <td>{{ nf.data_emissao|data_br }}</td>
           <td style="text-align:right">{{ nf.valor|moeda }}</td>
           <td>
-            {% if nf.data_pagamento %}{{ nf.data_pagamento|data_br }}
-            {% else %}<span class="selo-apagar">aberta</span>{% endif %}
-          </td>
-          <td>
             {% if nf.data_depositado %}{{ nf.data_depositado|data_br }}
             {% else %}—{% endif %}
           </td>
@@ -78,6 +74,7 @@
             {{ nf.qtd_recibos }} {{ 'recibo' if nf.qtd_recibos == 1 else 'recibos' }}
             {% if nf.qtd_recibos %}<span class="meta">{{ nf.soma_recibos_liquido|moeda }}</span>{% endif %}
           </td>
+          <td>{{ nf.observacao or '—' }}</td>
           <td class="acoes">
             <a class="btn btn--linha btn--mini" href="{{ url_for('nota_fiscal_form', nota_fiscal_id=nf.id, voltar=url_lista) }}" title="Editar">{{ icone('lapis') }}</a>
             <form method="post" action="{{ url_for('nota_fiscal_excluir', nota_fiscal_id=nf.id) }}"
