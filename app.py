@@ -1541,9 +1541,12 @@ def recibos_lista():
     recibos = repo.listar_recibos(busca=busca or None, status=status or None,
                                   vinculado=vinculado or None, mes=mes)
     tem_filtro = bool(busca or status or vinculado or mes)
+    total_bruto = sum(r["valor_bruto"] or 0 for r in recibos)
+    total_liquido = sum(r["valor_liquido"] or 0 for r in recibos)
     return render_template("recibos_lista.html", ativo="recibos_lista",
                            recibos=recibos, busca=busca, status=status, vinculado=vinculado,
-                           mes=mes, tem_filtro=tem_filtro, MESES=_MESES)
+                           mes=mes, tem_filtro=tem_filtro, MESES=_MESES,
+                           total_bruto=total_bruto, total_liquido=total_liquido)
 
 
 @app.route("/recibos/novo", methods=["GET", "POST"])

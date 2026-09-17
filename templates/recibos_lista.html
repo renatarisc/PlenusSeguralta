@@ -7,6 +7,17 @@
 {% endblock %}
 
 {% block conteudo %}
+<div class="stats">
+  <div class="stat">
+    <div class="stat__valor">{{ total_bruto|moeda }}</div>
+    <div class="stat__rotulo">Soma bruto — {{ MESES[mes] if mes else 'todos os meses' }}</div>
+  </div>
+  <div class="stat">
+    <div class="stat__valor">{{ total_liquido|moeda }}</div>
+    <div class="stat__rotulo">Soma líquido — {{ MESES[mes] if mes else 'todos os meses' }}</div>
+  </div>
+</div>
+
 <form class="cartao filtros" method="get">
   <div class="grade">
     <div class="campo c-4">
