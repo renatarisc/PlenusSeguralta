@@ -218,10 +218,38 @@ def preparar_comissoes(parcelas, previstos, recebidos, datas):
     return linhas, erros
 
 
-def preparar_repasses(parcelas, previstos, recebidos, datas, conferidos=None):
+def preparar_repasses(parcelas, previstos, recebidos, datas, recibo_ids=None):
     """Tabela "Repasses" (Plenus recebe da corretora). Mesma estrutura da comissão:
-    {parcela, valor_previsto(float|None), valor_recebido, data, conferido_banco}.
-    `conferido_banco` (0/1) = o depósito já foi conferido no extrato bancário da Plenus."""
+    {parcela, valor_previsto(float|None), valor_recebido, data, recibo_id}.
+    `recibo_id` = a qual recibo esta parcela esta associada (vinculo feito na tela
+    do recibo; aqui só se preserva o valor que veio no hidden do formulário)."""
+    linhas, erros = [], []
+    z = zip_longest(parcelas or [], previstos or [], recebidos or [], datas or [],
+                    recibo_ids or [], fillvalue="")
+    n = 0
+    for parc, prev, receb, data, rid in z:
+        parc = (parc or "").strip()
+        prev_txt = (prev or "").strip()
+        receb_txt = (receb or "").strip()
+        data = (data or "").strip()
+        if not (parc or prev_txt or receb_txt or data):
+            continue
+        n += 1
+        vp, vr = para_decimal(prev_txt), para_decimal(receb_txt)
+        if prev_txt and vp is None:
+            erros.append(f"Repasse {n}: previsto inválido.")
+        if receb_txt and vr is None:
+            erros.append(f"Repasse {n}: recebido inválido.")
+        rid_txt = (rid or "").strip()
+        linhas.append({"parcela": parc or None, "valor_previsto": vp,
+                       "valor_recebido": vr, "data": data or None,
+                       "recibo_id": int(rid_txt) if rid_txt.isdigit() else None})
+    return linhas, erros
+
+
+def preparar_repasses_consorcio(parcelas, previstos, recebidos, datas, conferidos=None):
+    """Igual a `preparar_repasses`, mas pro CONSÓRCIO - que continua com "conferido no
+    banco" (sim/não), sem o vínculo com recibo (fora do escopo dessa mudança)."""
     linhas, erros = [], []
     z = zip_longest(parcelas or [], previstos or [], recebidos or [], datas or [],
                     conferidos or [], fillvalue="")
@@ -272,8 +300,11 @@ def gerar_repasses_cocorretagem(comissoes, premio_liquido, comissao_percentual):
         else:
             parte = round(total / n, 2)
         acum += parte
+        # usada tanto pela apolice/endosso (le "recibo_id") quanto pelo consorcio
+        # (le "conferido_banco") - inclui as duas chaves neutras pros dois lados
         saida.append({"parcela": c.get("parcela"), "valor_previsto": parte,
-                      "valor_recebido": None, "data": c.get("data"), "conferido_banco": 0})
+                      "valor_recebido": None, "data": c.get("data"),
+                      "recibo_id": None, "conferido_banco": 0})
     return saida
 
 
@@ -477,6 +508,38 @@ def preparar_lancamentos_saida(ids, datas, valores, parcelas, pagamentos):
             "numero_parcela": parcela or None, "data_pagamento": pago or None,
         })
     return linhas, erros
+
+
+# ---------- nota fiscal (+ recibos) ----------
+# o campo "valor" vem sugerido pelo JS (soma do valor líquido dos recibos marcados),
+# mas continua editável à mão - por isso é validado como um número normal.
+
+def validar_nota_fiscal(dados):
+    erros = []
+    if not (dados.get("numero") or "").strip():
+        erros.append("Informe o número da nota fiscal.")
+    if _numero_preenchido_invalido(dados.get("valor")):
+        erros.append("Valor: número inválido.")
+    return erros
+
+
+def validar_recibo(dados):
+    """O recibo existe (e e enviado) independente da nota fiscal - o vinculo com ela
+    e opcional, por isso nao entra na validacao."""
+    erros = []
+    if not (dados.get("numero") or "").strip():
+        erros.append("Informe o número do recibo.")
+    for campo, rotulo in (("valor_bruto", "Valor bruto"), ("valor_liquido", "Valor líquido")):
+        if _numero_preenchido_invalido(dados.get(campo)):
+            erros.append(f"{rotulo}: valor numérico inválido.")
+    aliq_txt = (dados.get("aliquota") or "").strip()
+    if aliq_txt:
+        aliq = para_decimal(aliq_txt)
+        if aliq is None:
+            erros.append("Alíquota (%): valor numérico inválido.")
+        elif not (0 <= aliq <= 100):
+            erros.append("Alíquota (%) deve ficar entre 0 e 100.")
+    return erros
 
 
 # ---------- validação do formulário de cliente ----------

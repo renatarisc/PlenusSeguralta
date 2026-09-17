@@ -281,7 +281,7 @@ def _tabela(ctx):
 
 
 # ---------- relatório de ENTRADAS (repasses de comissão) ----------
-COLS_ENT = ["Parcela", "Data", "Pendente Plenus", "Pago Plenus", "Conf.", "Situação"]
+COLS_ENT = ["Parcela", "Data", "Pendente Plenus", "Pago Plenus", "Recibo", "Situação"]
 COL_W_ENT = [92, 62, 98, 98, 58, 119]   # soma = 527
 
 
@@ -292,12 +292,18 @@ def _sit_ent(p):
 def _linha_ent(p):
     parc = escape(str(p.get("parcela") or "—"))
     receb = _m(p["valor_recebido"]) if p.get("valor_recebido") is not None else "—"
+    # consorcio continua com "conferido no banco" (sim/nao); apolice/endosso mostra
+    # o numero do recibo associado.
+    if p.get("origem") == "consorcio":
+        conf_ou_recibo = "Sim" if p.get("conferido_banco") else "Não"
+    else:
+        conf_ou_recibo = p.get("recibo_numero") or "—"
     return [
         Paragraph(parc, _desc),
         _p(_d(p.get("data")), _cel_c),
         _p(_m(p.get("valor_previsto")), _cel_r),
         _p(receb, _cel_r),
-        _p("Sim" if p.get("conferido_banco") else "Não", _cel_c),
+        _p(conf_ou_recibo, _cel_c),
         _p(_sit_ent(p), _cel_c),
     ]
 

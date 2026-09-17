@@ -24,9 +24,11 @@ from validacao import (
     formatar_cpf, formatar_cnpj, formatar_documento, formatar_cep, formatar_telefone, validar_cliente,
     formatar_numero, formatar_moeda, formatar_data_br, dias_ate_data,
     validar_apolice, preparar_parcelas, preparar_comissoes, preparar_repasses,
+    preparar_repasses_consorcio,
     gerar_repasses_cocorretagem, para_decimal,
     validar_saida, preparar_lancamentos_saida, validar_endosso,
     validar_consorcio, preparar_parcela_valores, preparar_boletos,
+    validar_nota_fiscal, validar_recibo,
 )
 
 _HTTPS = os.environ.get("PLENUS_HTTPS") == "1"
@@ -119,6 +121,8 @@ app.jinja_env.globals["MENU"] = [
         {"rota": "fluxo_relatorios", "slug": "saidas", "texto": "Relatório de saídas", "icone": "relatorio"},
         {"rota": "fluxo_relatorios", "slug": "entradas", "texto": "Relatório de entradas", "icone": "relatorio"},
         {"rota": "entradas_panorama", "texto": "Comissões recebidas", "icone": "relatorio"},
+        {"rota": "notas_fiscais_lista", "texto": "Notas fiscais", "icone": "endosso"},
+        {"rota": "recibos_lista", "texto": "Recibos", "icone": "pagamento"},
     ]},
     {"grupo": "Cadastros auxiliares", "icone": "pasta", "divisoria_antes": True, "filhos": [
         {"rota": "cadastro_simples", "texto": "Seguradoras", "icone": "predio", "slug": "seguradora"},
@@ -513,7 +517,7 @@ _CAMPOS_APOLICE = (
     "forma_pagamento_id", "comissao_percentual",
     "comissao_valor_seguralta_receber", "comissao_valor_plenus_receber",
     "comissao_valor_seguralta_recebido", "comissao_valor_plenus_recebido",
-    "data_seguralta_recebido", "data_plenus_recebido", "plenus_conferido_banco",
+    "data_seguralta_recebido", "data_plenus_recebido", "recibo_id",
     "comissao_parcelada", "comissao_cocorretagem",
     "previsto_relatorio_seguralta", "recebido_relatorio_seguralta",
     "previsto_relatorio_plenus", "recebido_relatorio_plenus",
@@ -538,9 +542,6 @@ def _apolice_para_form(ap, parcelas=None):
         ap[campo] = formatar_numero(ap.get(campo))
     # percentual: sem forçar as 2 casas — "15" e não "15,00"; mantém "15,5" quando há
     ap["comissao_percentual"] = formatar_numero(ap.get("comissao_percentual")).rstrip("0").rstrip(",")
-    # flag 0/1 vinda ora do banco (int), ora do form re-renderizado após erro (str "0"/"1"):
-    # normaliza p/ o template não tratar a string "0" como verdadeira
-    ap["plenus_conferido_banco"] = 1 if str(ap.get("plenus_conferido_banco") or "").strip() in ("1", "sim", "on", "true") else 0
     fonte = parcelas if parcelas is not None else ap.get("parcelas", [])
     ap["parcelas"] = [{**p, "valor": formatar_numero(p.get("valor"))} for p in fonte]
     ap["comissoes"] = [{**c, "valor_previsto": formatar_numero(c.get("valor_previsto")),
@@ -625,7 +626,7 @@ def apolice_form(apolice_id=None):
             request.form.getlist("repasse_previsto"),
             request.form.getlist("repasse_recebido"),
             request.form.getlist("repasse_data"),
-            request.form.getlist("repasse_conferido"),
+            request.form.getlist("repasse_recibo_id"),
         )
         # cocorretagem: se o repasse veio vazio, o sistema o gera dos 75% da
         # comissão (fica editável — ver comissao.js). Só no salvar e só se vazio.
@@ -688,7 +689,7 @@ _CAMPOS_ENDOSSO = (
     "comissao_parcelada", "comissao_percentual",
     "comissao_valor_seguralta_receber", "comissao_valor_seguralta_recebido",
     "comissao_valor_plenus_receber", "comissao_valor_plenus_recebido",
-    "data_seguralta_recebido", "data_plenus_recebido", "plenus_conferido_banco",
+    "data_seguralta_recebido", "data_plenus_recebido", "recibo_id",
     "previsto_relatorio_seguralta", "recebido_relatorio_seguralta",
     "previsto_relatorio_plenus", "recebido_relatorio_plenus",
     "lancado_quiver", "link_onedrive",
@@ -712,7 +713,6 @@ def _endosso_para_form(e, parcelas=None, comissoes=None, repasses=None):
                   "previsto_relatorio_seguralta", "recebido_relatorio_seguralta",
                   "previsto_relatorio_plenus", "recebido_relatorio_plenus"):
         e[campo] = formatar_numero(e.get(campo))
-    e["plenus_conferido_banco"] = 1 if str(e.get("plenus_conferido_banco") or "").strip() in ("1", "sim", "on", "true") else 0
     e["comissao_parcelada"] = 1 if str(e.get("comissao_parcelada") or "").strip() in ("1", "sim", "on", "true") else 0
     e["lancado_quiver"] = 1 if str(e.get("lancado_quiver") or "").strip() in ("1", "sim", "on", "true") else 0
     fonte = parcelas if parcelas is not None else e.get("parcelas", [])
@@ -769,12 +769,12 @@ def endosso_form(endosso_id=None):
             request.form.getlist("repasse_previsto"),
             request.form.getlist("repasse_recebido"),
             request.form.getlist("repasse_data"),
-            request.form.getlist("repasse_conferido"))
+            request.form.getlist("repasse_recibo_id"))
         if dados.get("comissao_parcelada") == "1":
             # comissão em parcelas: zera os campos planos de comissão
             for k in ("comissao_valor_seguralta_receber", "comissao_valor_seguralta_recebido",
                       "comissao_valor_plenus_receber", "comissao_valor_plenus_recebido",
-                      "data_seguralta_recebido", "data_plenus_recebido", "plenus_conferido_banco"):
+                      "data_seguralta_recebido", "data_plenus_recebido", "recibo_id"):
                 dados[k] = ""
         else:
             comissoes, repasses, erros_com, erros_rep = [], [], [], []
@@ -789,7 +789,7 @@ def endosso_form(endosso_id=None):
             for k in ("valor", "forma_pagamento_id", "comissao_percentual",
                       "comissao_valor_seguralta_receber", "comissao_valor_seguralta_recebido",
                       "comissao_valor_plenus_receber", "comissao_valor_plenus_recebido",
-                      "data_seguralta_recebido", "data_plenus_recebido", "plenus_conferido_banco",
+                      "data_seguralta_recebido", "data_plenus_recebido", "recibo_id",
                       "previsto_relatorio_seguralta", "recebido_relatorio_seguralta",
                       "previsto_relatorio_plenus", "recebido_relatorio_plenus"):
                 dados[k] = ""
@@ -919,7 +919,7 @@ def consorcio_form(consorcio_id=None):
             request.form.getlist("comissao_previsto"),
             request.form.getlist("comissao_recebido"),
             request.form.getlist("comissao_data"))
-        repasses, erros_rep = preparar_repasses(
+        repasses, erros_rep = preparar_repasses_consorcio(
             request.form.getlist("repasse_parcela"),
             request.form.getlist("repasse_previsto"),
             request.form.getlist("repasse_recebido"),
@@ -1428,6 +1428,189 @@ def saida_pagamento(saida_id):
     return _voltar_seguro()
 
 
+# ---------- Notas fiscais (+ recibos) ----------
+
+_CAMPOS_NOTA_FISCAL = ("numero", "valor", "data_emissao", "data_pagamento", "data_depositado")
+
+
+def _nota_fiscal_para_form(nf):
+    """Deixa os números como texto pt-BR pros inputs (edição vinda do banco). Os
+    recibos vinculados (se algum) vêm só pra exibição - cada recibo é cadastrado e
+    editado na tela dele mesmo."""
+    if nf is None:
+        return None
+    nf = dict(nf)
+    nf["valor"] = formatar_numero(nf.get("valor"))
+    nf["recibos"] = [{**r, "valor_bruto": formatar_numero(r.get("valor_bruto")),
+                      "aliquota": formatar_numero(r.get("aliquota")).rstrip("0").rstrip(","),
+                      "valor_liquido": formatar_numero(r.get("valor_liquido"))}
+                     for r in (nf.get("recibos") or [])]
+    return nf
+
+
+@app.route("/notas-fiscais")
+def notas_fiscais_lista():
+    busca = request.args.get("busca", "").strip()
+    status = request.args.get("status", "")
+    if status not in ("aberta", "paga", "depositada"):
+        status = ""
+    mes = request.args.get("mes", type=int)
+    if mes not in range(1, 13):
+        mes = None
+    notas = repo.listar_notas_fiscais(busca=busca or None, status=status or None, mes_emissao=mes)
+    tem_filtro = bool(busca or status or mes)
+    return render_template("notas_fiscais_lista.html", ativo="notas_fiscais_lista",
+                           notas=notas, busca=busca, status=status, mes=mes,
+                           tem_filtro=tem_filtro, MESES=_MESES)
+
+
+@app.route("/notas-fiscais/nova", methods=["GET", "POST"])
+@app.route("/notas-fiscais/<int:nota_fiscal_id>", methods=["GET", "POST"])
+def nota_fiscal_form(nota_fiscal_id=None):
+    voltar = request.form.get("voltar") or request.args.get("voltar") or ""
+    if not (voltar.startswith("/") and not voltar.startswith("//")):
+        voltar = ""
+
+    if request.method == "POST":
+        dados = {k: request.form.get(k, "") for k in _CAMPOS_NOTA_FISCAL}
+        recibo_ids = request.form.getlist("recibo_ids")
+        erros = validar_nota_fiscal(dados)
+        if erros:
+            for e in erros:
+                flash(e, "erro")
+            nota = _nota_fiscal_para_form({**dados, "id": nota_fiscal_id})
+            return render_template("notas_fiscais_form.html", ativo="notas_fiscais_lista",
+                                   nota=nota, voltar=voltar,
+                                   recibos_candidatos=repo.recibos_selecionaveis(nota_fiscal_id),
+                                   recibo_ids_marcados=set(recibo_ids))
+        if nota_fiscal_id:
+            repo.atualizar_nota_fiscal(nota_fiscal_id, dados, recibo_ids)
+            flash("Nota fiscal atualizada.", "ok")
+        else:
+            nota_fiscal_id = repo.criar_nota_fiscal(dados, recibo_ids)
+            flash("Nota fiscal cadastrada.", "ok")
+        return redirect(voltar or url_for("notas_fiscais_lista"))
+
+    nota = repo.obter_nota_fiscal(nota_fiscal_id) if nota_fiscal_id else None
+    if nota_fiscal_id and not nota:
+        flash("Nota fiscal não encontrada.", "erro")
+        return redirect(url_for("notas_fiscais_lista"))
+    marcados = {str(r["id"]) for r in (nota.get("recibos") if nota else [])}
+    return render_template("notas_fiscais_form.html", ativo="notas_fiscais_lista",
+                           nota=_nota_fiscal_para_form(nota), voltar=voltar,
+                           recibos_candidatos=repo.recibos_selecionaveis(nota_fiscal_id),
+                           recibo_ids_marcados=marcados)
+
+
+@app.route("/notas-fiscais/<int:nota_fiscal_id>/excluir", methods=["POST"])
+def nota_fiscal_excluir(nota_fiscal_id):
+    repo.excluir_nota_fiscal(nota_fiscal_id)
+    flash("Nota fiscal excluída.", "ok")
+    return _voltar_seguro() if request.form.get("voltar") else redirect(url_for("notas_fiscais_lista"))
+
+
+# ---------- Recibos (independentes - o vínculo com a nota fiscal é opcional e pode
+#             ser feito depois, quando ela existir) ----------
+
+_CAMPOS_RECIBO = ("nota_fiscal_id", "numero", "data", "valor_bruto", "aliquota",
+                  "valor_liquido", "data_envio")
+
+
+def _recibo_para_form(r):
+    if r is None:
+        return None
+    r = dict(r)
+    r["valor_bruto"] = formatar_numero(r.get("valor_bruto"))
+    r["valor_liquido"] = formatar_numero(r.get("valor_liquido"))
+    r["aliquota"] = formatar_numero(r.get("aliquota")).rstrip("0").rstrip(",")
+    return r
+
+
+@app.route("/recibos")
+def recibos_lista():
+    busca = request.args.get("busca", "").strip()
+    status = request.args.get("status", "")
+    if status not in ("enviado", "pendente"):
+        status = ""
+    vinculado = request.args.get("vinculado", "")
+    if vinculado not in ("sim", "nao"):
+        vinculado = ""
+    mes = request.args.get("mes", type=int)
+    if mes not in range(1, 13):
+        mes = None
+    recibos = repo.listar_recibos(busca=busca or None, status=status or None,
+                                  vinculado=vinculado or None, mes=mes)
+    tem_filtro = bool(busca or status or vinculado or mes)
+    return render_template("recibos_lista.html", ativo="recibos_lista",
+                           recibos=recibos, busca=busca, status=status, vinculado=vinculado,
+                           mes=mes, tem_filtro=tem_filtro, MESES=_MESES)
+
+
+@app.route("/recibos/novo", methods=["GET", "POST"])
+@app.route("/recibos/<int:recibo_id>", methods=["GET", "POST"])
+def recibo_form(recibo_id=None):
+    voltar = request.form.get("voltar") or request.args.get("voltar") or ""
+    if not (voltar.startswith("/") and not voltar.startswith("//")):
+        voltar = ""
+
+    if request.method == "POST":
+        dados = {k: request.form.get(k, "") for k in _CAMPOS_RECIBO}
+        parcela_refs = request.form.getlist("parcela_refs")
+
+        if request.form.get("acao") == "buscar":
+            candidatos = repo.parcelas_repasse_por_data(dados.get("data"), recibo_id)
+            ja_vinculadas = {f"{c['origem']}:{c['id']}" for c in candidatos if c.get("recibo_id")}
+            recibo = _recibo_para_form({**dados, "id": recibo_id})
+            return render_template("recibos_form.html", ativo="recibos_lista",
+                                   recibo=recibo, notas_fiscais=repo.notas_fiscais_para_select(),
+                                   parcelas_candidatas=candidatos,
+                                   parcela_refs_marcados=set(parcela_refs) | ja_vinculadas,
+                                   voltar=voltar)
+
+        erros = validar_recibo(dados)
+        if erros:
+            for e in erros:
+                flash(e, "erro")
+            recibo = _recibo_para_form({**dados, "id": recibo_id})
+            candidatos = repo.parcelas_repasse_por_data(dados.get("data"), recibo_id)
+            return render_template("recibos_form.html", ativo="recibos_lista",
+                                   recibo=recibo, notas_fiscais=repo.notas_fiscais_para_select(),
+                                   parcelas_candidatas=candidatos,
+                                   parcela_refs_marcados=set(parcela_refs), voltar=voltar)
+        if recibo_id:
+            repo.atualizar_recibo(recibo_id, dados)
+            flash("Recibo atualizado.", "ok")
+        else:
+            recibo_id = repo.criar_recibo(dados)
+            flash("Recibo cadastrado.", "ok")
+        repo.aplicar_parcelas_do_recibo(recibo_id, parcela_refs)
+        return redirect(voltar or url_for("recibos_lista"))
+
+    recibo = repo.obter_recibo(recibo_id) if recibo_id else None
+    if recibo_id and not recibo:
+        flash("Recibo não encontrado.", "erro")
+        return redirect(url_for("recibos_lista"))
+    if recibo is None:
+        recibo = {"aliquota": "11.6"}  # aliquota padrao usual - a usuaria troca se precisar
+        nf_id = request.args.get("nota_fiscal_id", type=int)
+        if nf_id and repo.obter_nota_fiscal(nf_id):
+            recibo["nota_fiscal_id"] = nf_id
+    candidatos = repo.parcelas_repasse_por_data((recibo or {}).get("data"), recibo_id)
+    marcados = {f"{c['origem']}:{c['id']}" for c in candidatos if c.get("recibo_id")}
+    return render_template("recibos_form.html", ativo="recibos_lista",
+                           recibo=_recibo_para_form(recibo),
+                           notas_fiscais=repo.notas_fiscais_para_select(),
+                           parcelas_candidatas=candidatos, parcela_refs_marcados=marcados,
+                           voltar=voltar)
+
+
+@app.route("/recibos/<int:recibo_id>/excluir", methods=["POST"])
+def recibo_excluir(recibo_id):
+    repo.excluir_recibo(recibo_id)
+    flash("Recibo excluído.", "ok")
+    return _voltar_seguro() if request.form.get("voltar") else redirect(url_for("recibos_lista"))
+
+
 def _cards_a_receber():
     """(a_receber_mes, a_receber_total) — repasse Plenus ainda NÃO recebido
     (`apolice_repasse.valor_recebido` vazio → soma `valor_previsto`). "mês" =
@@ -1792,7 +1975,9 @@ def _merge_linhas_bloco(com, rep):
             "seg_previsto": c.get("valor_previsto"), "seg_recebido": c.get("valor_recebido"),
             "seg_data": c.get("data"),
             "ple_previsto": r.get("valor_previsto"), "ple_recebido": pg,
-            "ple_data": r.get("data"), "conferido_banco": bool(r.get("conferido_banco")),
+            "ple_data": r.get("data"),
+            "recibo_id": r.get("recibo_id"), "recibo_numero": r.get("recibo_numero"),
+            "conferido_banco": bool(r.get("conferido_banco")),
             "paga": pg is not None,
         })
     return linhas
@@ -1900,7 +2085,7 @@ def entradas_salvar_apolice(apolice_id):
             request.form.getlist("repasse_previsto"),
             request.form.getlist("repasse_recebido"),
             request.form.getlist("repasse_data"),
-            request.form.getlist("repasse_conferido"))
+            request.form.getlist("repasse_recibo_id"))
         erros = erros_c + erros_r
         if erros:
             for e in erros:
@@ -1920,7 +2105,7 @@ def entradas_salvar_apolice(apolice_id):
                 para_decimal(request.form.get("comissao_valor_plenus_recebido")),
             "data_seguralta_recebido": (request.form.get("data_seguralta_recebido") or "").strip(),
             "data_plenus_recebido": (request.form.get("data_plenus_recebido") or "").strip(),
-            "plenus_conferido_banco": request.form.get("plenus_conferido_banco"),
+            "recibo_id": request.form.get("recibo_id"),
         }
         repo.salvar_comissao_unica(apolice_id, valores)
         flash("Comissão da apólice atualizada.", "ok")
@@ -1941,7 +2126,7 @@ def entradas_salvar_endosso(endosso_id):
             request.form.getlist("repasse_previsto"),
             request.form.getlist("repasse_recebido"),
             request.form.getlist("repasse_data"),
-            request.form.getlist("repasse_conferido"))
+            request.form.getlist("repasse_recibo_id"))
         erros = erros_c + erros_r
         if erros:
             for e in erros:
@@ -1961,7 +2146,7 @@ def entradas_salvar_endosso(endosso_id):
             para_decimal(request.form.get("comissao_valor_plenus_recebido")),
         "data_seguralta_recebido": (request.form.get("data_seguralta_recebido") or "").strip(),
         "data_plenus_recebido": (request.form.get("data_plenus_recebido") or "").strip(),
-        "plenus_conferido_banco": request.form.get("plenus_conferido_banco"),
+        "recibo_id": request.form.get("recibo_id"),
     }
     repo.salvar_comissao_endosso(endosso_id, valores)
     flash("Comissão do endosso atualizada.", "ok")
@@ -1977,7 +2162,7 @@ def entradas_salvar_consorcio(consorcio_id):
             request.form.getlist("comissao_previsto"),
             request.form.getlist("comissao_recebido"),
             request.form.getlist("comissao_data"))
-        repasses, erros_r = preparar_repasses(
+        repasses, erros_r = preparar_repasses_consorcio(
             request.form.getlist("repasse_parcela"),
             request.form.getlist("repasse_previsto"),
             request.form.getlist("repasse_recebido"),

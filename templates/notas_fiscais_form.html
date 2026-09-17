@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% set nf = nota or {} %}
+{% set candidatos = recibos_candidatos or [] %}
+{% set marcados = recibo_ids_marcados or [] %}
+{% block titulo %}{{ 'Editar nota fiscal' if nf.id else 'Nova nota fiscal' }}{% endblock %}
+{% block cabecalho %}{{ 'Editar nota fiscal' if nf.id else 'Nova nota fiscal' }}{% endblock %}
+
+{% block acoes %}
+<a class="btn btn--linha" href="{{ voltar or url_for('notas_fiscais_lista') }}">{{ icone('voltar') }} Voltar</a>
+{% if nf.id %}
+<form method="post" action="{{ url_for('nota_fiscal_excluir', nota_fiscal_id=nf.id) }}" style="display:inline"
+      onsubmit="return confirm('Excluir a nota fiscal {{ nf.numero or nf.id }}? Os recibos vinculados NÃO são excluídos, só ficam sem nota fiscal.')">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="voltar" value="{{ voltar }}">
+  <button type="submit" class="btn btn--perigo">{{ icone('lixo') }} Excluir</button>
+</form>
+{% endif %}
+{% endblock %}
+
+{% block conteudo %}
+<form class="form" method="post" novalidate
+      action="{{ url_for('nota_fiscal_form', nota_fiscal_id=nf.id) if nf.id else url_for('nota_fiscal_form') }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="voltar" value="{{ voltar }}">
+
+  <div class="cartao">
+    <h2>Dados da nota fiscal</h2>
+    <div class="grade">
+      <div class="campo c-3">
+        <label for="numero">Número *</label>
+        <input id="numero" name="numero" required autofocus value="{{ nf.numero or '' }}">
+      </div>
+      <div class="campo c-3">
+        <label for="valor">Valor (R$)</label>
+        <input id="valor" name="valor" inputmode="decimal" data-num value="{{ nf.valor or '' }}">
+      </div>
+      <div class="campo c-2">
+        <label for="data_emissao">Emissão</label>
+        <input id="data_emissao" name="data_emissao" type="date" value="{{ nf.data_emissao or '' }}">
+      </div>
+      <div class="campo c-2">
+        <label for="data_pagamento">Pagamento</label>
+        <input id="data_pagamento" name="data_pagamento" type="date" value="{{ nf.data_pagamento or '' }}">
+      </div>
+      <div class="campo c-2">
+        <label for="data_depositado">Depositado</label>
+        <input id="data_depositado" name="data_depositado" type="date" value="{{ nf.data_depositado or '' }}">
+      </div>
+    </div>
+  </div>
+
+  <div class="cartao">
+    <h2>Recibos associados</h2>
+    <p class="dica" style="margin:-4px 0 12px">
+      Marque os recibos desta nota fiscal - o valor acima é sugerido pela soma dos
+      valores líquidos marcados, mas pode ser alterado à mão.
+    </p>
+    {% if candidatos %}
+    <div class="tabela-wrap">
+      <table class="lista">
+        <thead>
+          <tr><th style="width:36px"></th><th>Número</th><th>Data</th>
+              <th style="text-align:right">Valor líquido</th><th>Envio</th></tr>
+        </thead>
+        <tbody id="corpo-recibos-nf">
+          {% for c in candidatos %}
+          <tr>
+            <td><input type="checkbox" name="recibo_ids" value="{{ c.id }}"
+                       data-valor-liquido="{{ c.valor_liquido or 0 }}"
+                       {{ 'checked' if c.id|string in marcados }}></td>
+            <td>{{ c.numero or '—' }}</td>
+            <td>{{ c.data|data_br }}</td>
+            <td style="text-align:right">{{ c.valor_liquido|moeda }}</td>
+            <td>{% if c.data_envio %}{{ c.data_envio|data_br }}{% else %}<span class="selo-apagar">a enviar</span>{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="vazio">Nenhum recibo disponível para vincular ainda.</p>
+    {% endif %}
+    <div style="padding:10px 0 0">
+      <a class="btn btn--linha"
+         href="{{ url_for('recibo_form', nota_fiscal_id=nf.id, voltar=request.path) if nf.id else url_for('recibo_form', voltar=request.path) }}"
+         target="_blank" rel="noopener">{{ icone('mais') }} Novo recibo</a>
+    </div>
+  </div>
+
+  <div class="rodape-form">
+    <a class="btn btn--linha" href="{{ voltar or url_for('notas_fiscais_lista') }}">Cancelar</a>
+    <button class="btn btn--primario" type="submit">Salvar</button>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/nota_fiscal.js') }}"></script>
+{% endblock %}

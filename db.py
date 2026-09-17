@@ -170,7 +170,7 @@ CREATE TABLE IF NOT EXISTS apolice (
     comissao_valor_plenus_recebido REAL,     -- lancado a mao
     data_seguralta_recebido TEXT,            -- data em que a SEGURALTA recebeu (ISO), repasse unico
     data_plenus_recebido TEXT,               -- data em que a Plenus recebeu (ISO)
-    plenus_conferido_banco INT NOT NULL DEFAULT 0,  -- 1 = repasse unico conferido no extrato
+    recibo_id INT,                                  -- repasse unico: recibo ao qual esta associado
     comissao_parcelada INT NOT NULL DEFAULT 0,      -- 1 = repasse mensal (apolice_comissao/repasse)
     comissao_cocorretagem INT NOT NULL DEFAULT 0,   -- 1 = cocorretagem (SEGURALTA 25% / Plenus 75%)
     previsto_relatorio_seguralta REAL,
@@ -194,7 +194,8 @@ CREATE TABLE IF NOT EXISTS apolice (
     CONSTRAINT fk_apolice_cliente     FOREIGN KEY (cliente_id)        REFERENCES cliente(id),
     CONSTRAINT fk_apolice_seguradora  FOREIGN KEY (seguradora_id)     REFERENCES seguradora(id),
     CONSTRAINT fk_apolice_tiposeguro  FOREIGN KEY (tipo_seguro_id)    REFERENCES tipo_seguro(id),
-    CONSTRAINT fk_apolice_formapgto   FOREIGN KEY (forma_pagamento_id) REFERENCES forma_pagamento(id)
+    CONSTRAINT fk_apolice_formapgto   FOREIGN KEY (forma_pagamento_id) REFERENCES forma_pagamento(id),
+    CONSTRAINT fk_apolice_recibo      FOREIGN KEY (recibo_id)         REFERENCES recibo(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS apolice_parcela (
@@ -236,11 +237,13 @@ CREATE TABLE IF NOT EXISTS apolice_repasse (
     valor_previsto REAL,
     valor_recebido REAL,
     data TEXT,
-    conferido_banco INT NOT NULL DEFAULT 0,  -- 1 = deposito conferido no extrato da Plenus
+    recibo_id INT,                            -- recibo ao qual esta parcela esta associada
     ordem INT NOT NULL DEFAULT 0,
     KEY ix_apolice_repasse_apolice (apolice_id),
     CONSTRAINT fk_apolice_repasse_apolice FOREIGN KEY (apolice_id)
-        REFERENCES apolice(id) ON DELETE CASCADE
+        REFERENCES apolice(id) ON DELETE CASCADE,
+    CONSTRAINT fk_apolice_repasse_recibo FOREIGN KEY (recibo_id)
+        REFERENCES recibo(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- endosso da apolice: alteracao apos a emissao
@@ -264,7 +267,7 @@ CREATE TABLE IF NOT EXISTS apolice_endosso (
     comissao_valor_plenus_recebido REAL,
     data_seguralta_recebido TEXT,
     data_plenus_recebido TEXT,
-    plenus_conferido_banco INT NOT NULL DEFAULT 0,
+    recibo_id INT,                            -- repasse unico: recibo ao qual esta associado
     previsto_relatorio_seguralta REAL,
     recebido_relatorio_seguralta REAL,
     previsto_relatorio_plenus REAL,
@@ -277,7 +280,9 @@ CREATE TABLE IF NOT EXISTS apolice_endosso (
     CONSTRAINT fk_apolice_endosso_apolice FOREIGN KEY (apolice_id)
         REFERENCES apolice(id) ON DELETE CASCADE,
     CONSTRAINT fk_apolice_endosso_formapgto FOREIGN KEY (forma_pagamento_id)
-        REFERENCES forma_pagamento(id)
+        REFERENCES forma_pagamento(id),
+    CONSTRAINT fk_apolice_endosso_recibo FOREIGN KEY (recibo_id)
+        REFERENCES recibo(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS apolice_endosso_comissao (
@@ -294,10 +299,12 @@ CREATE TABLE IF NOT EXISTS apolice_endosso_repasse (
     id INT AUTO_INCREMENT PRIMARY KEY,
     endosso_id INT NOT NULL,
     parcela TEXT, valor_previsto REAL, valor_recebido REAL, data TEXT,
-    conferido_banco INT NOT NULL DEFAULT 0, ordem INT NOT NULL DEFAULT 0,
+    recibo_id INT, ordem INT NOT NULL DEFAULT 0,
     KEY ix_end_repasse_endosso (endosso_id),
     CONSTRAINT fk_end_repasse_endosso FOREIGN KEY (endosso_id)
-        REFERENCES apolice_endosso(id) ON DELETE CASCADE
+        REFERENCES apolice_endosso(id) ON DELETE CASCADE,
+    CONSTRAINT fk_end_repasse_recibo FOREIGN KEY (recibo_id)
+        REFERENCES recibo(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS apolice_endosso_parcela (
@@ -489,6 +496,36 @@ CREATE TABLE IF NOT EXISTS saida (
     CONSTRAINT fk_saida_contaorigem FOREIGN KEY (conta_origem_id)  REFERENCES conta_origem(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- nota fiscal emitida pela Plenus; pode ter varios recibos associados
+CREATE TABLE IF NOT EXISTS nota_fiscal (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    numero TEXT,
+    valor REAL,
+    data_emissao TEXT,             -- ISO AAAA-MM-DD
+    data_pagamento TEXT,           -- NULL = ainda nao paga
+    data_depositado TEXT,          -- NULL = ainda nao depositado
+    criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    atualizado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- recibo: cadastrado e enviado ao cliente antes de existir a nota fiscal - o vinculo
+-- com a nota fiscal (1 nota fiscal -> N recibos) e opcional e' preenchido depois.
+CREATE TABLE IF NOT EXISTS recibo (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nota_fiscal_id INT,             -- NULL = ainda sem nota fiscal vinculada
+    numero TEXT,
+    data TEXT,                     -- ISO AAAA-MM-DD
+    valor_bruto REAL,
+    aliquota REAL,                 -- percentual
+    valor_liquido REAL,
+    data_envio TEXT,               -- NULL = ainda nao enviado
+    criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    atualizado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY ix_recibo_notafiscal (nota_fiscal_id),
+    CONSTRAINT fk_recibo_notafiscal FOREIGN KEY (nota_fiscal_id)
+        REFERENCES nota_fiscal(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- eventos criados no Google Agenda (1 por apolice/parcela) para nao duplicar
 CREATE TABLE IF NOT EXISTS evento_agenda (
     chave VARCHAR(191) PRIMARY KEY,  -- 'vigencia:<apolice_id>' | 'boleto:<parcela_id>'
@@ -538,7 +575,6 @@ _COLUNAS_ESPERADAS = {
         "comissao_valor_seguralta_receber": "REAL", "comissao_valor_plenus_receber": "REAL",
         "comissao_valor_seguralta_recebido": "REAL", "comissao_valor_plenus_recebido": "REAL",
         "data_seguralta_recebido": "TEXT", "data_plenus_recebido": "TEXT",
-        "plenus_conferido_banco": "INT NOT NULL DEFAULT 0",
         "comissao_parcelada": "INT NOT NULL DEFAULT 0",
         "comissao_cocorretagem": "INT NOT NULL DEFAULT 0",
         "previsto_relatorio_seguralta": "REAL", "recebido_relatorio_seguralta": "REAL",
@@ -565,7 +601,7 @@ _COLUNAS_ESPERADAS = {
     "apolice_repasse": {
         "apolice_id": "INT", "parcela": "TEXT", "valor_previsto": "REAL",
         "valor_recebido": "REAL", "data": "TEXT",
-        "conferido_banco": "INT NOT NULL DEFAULT 0", "ordem": "INT NOT NULL DEFAULT 0",
+        "ordem": "INT NOT NULL DEFAULT 0",
     },
     "apolice_endosso": {
         "apolice_id": "INT", "numero": "TEXT",
@@ -578,7 +614,6 @@ _COLUNAS_ESPERADAS = {
         "comissao_valor_seguralta_receber": "REAL", "comissao_valor_seguralta_recebido": "REAL",
         "comissao_valor_plenus_receber": "REAL", "comissao_valor_plenus_recebido": "REAL",
         "data_seguralta_recebido": "TEXT", "data_plenus_recebido": "TEXT",
-        "plenus_conferido_banco": "INT NOT NULL DEFAULT 0",
         "previsto_relatorio_seguralta": "REAL", "recebido_relatorio_seguralta": "REAL",
         "previsto_relatorio_plenus": "REAL", "recebido_relatorio_plenus": "REAL",
         "lancado_quiver": "INT NOT NULL DEFAULT 0", "link_onedrive": "TEXT",
@@ -598,7 +633,7 @@ _COLUNAS_ESPERADAS = {
     "apolice_endosso_repasse": {
         "endosso_id": "INT", "parcela": "TEXT", "valor_previsto": "REAL",
         "valor_recebido": "REAL", "data": "TEXT",
-        "conferido_banco": "INT NOT NULL DEFAULT 0", "ordem": "INT NOT NULL DEFAULT 0",
+        "ordem": "INT NOT NULL DEFAULT 0",
     },
     "notificacao_endosso_parcela": {
         "parcela_id": "INT", "marco": "INT", "data_vencimento": "VARCHAR(32)",
@@ -666,6 +701,19 @@ _COLUNAS_ESPERADAS = {
         "valor": "REAL",
         "data_vencimento": "TEXT", "data_pagamento": "TEXT", "numero_parcela": "TEXT",
         "fixo_mensal": "INT NOT NULL DEFAULT 0", "serie_id": "TEXT",
+        "criado_em": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+        "atualizado_em": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+    },
+    "nota_fiscal": {
+        "numero": "TEXT", "valor": "REAL",
+        "data_emissao": "TEXT", "data_pagamento": "TEXT", "data_depositado": "TEXT",
+        "criado_em": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+        "atualizado_em": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+    },
+    "recibo": {
+        "nota_fiscal_id": "INT", "numero": "TEXT", "data": "TEXT",
+        "valor_bruto": "REAL", "aliquota": "REAL", "valor_liquido": "REAL",
+        "data_envio": "TEXT",
         "criado_em": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
         "atualizado_em": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
     },
@@ -777,7 +825,65 @@ def inicializar_db():
         con.execute("SET FOREIGN_KEY_CHECKS = 1")
         _migrar_esquema(con)
         _migrar_fks(con)
+        _migrar_recibo_opcional(con)
+        _migrar_conf_banco_para_recibo(con)
         _backfill_dados(con)
+
+
+def _migrar_recibo_opcional(con):
+    """recibo.nota_fiscal_id passou de obrigatorio (NOT NULL + ON DELETE CASCADE) pra
+    opcional (o recibo e cadastrado e enviado antes de existir a nota fiscal, e so
+    depois e vinculado a ela) - bancos que ja tinham a coluna na versao antiga migram
+    pra NULL + ON DELETE SET NULL. Idempotente: banco novo (coluna ja nulavel) pula."""
+    if "nota_fiscal_id" not in _colunas_da_tabela(con, "recibo"):
+        return  # tabela nem existe ainda, ou ja esta no formato novo desde a criacao
+    base = config_db()["database"]
+    nulavel = _um(con.execute(
+        "SELECT is_nullable FROM information_schema.columns "
+        "WHERE table_schema = %s AND table_name = 'recibo' AND column_name = 'nota_fiscal_id'",
+        (base,)))
+    if nulavel == "NO":
+        con.execute("ALTER TABLE recibo DROP FOREIGN KEY fk_recibo_notafiscal")
+        con.execute("ALTER TABLE recibo MODIFY nota_fiscal_id INT NULL")
+        con.execute(
+            "ALTER TABLE recibo ADD CONSTRAINT fk_recibo_notafiscal "
+            "FOREIGN KEY (nota_fiscal_id) REFERENCES nota_fiscal(id) ON DELETE SET NULL"
+        )
+
+
+# "conferido no banco" (0/1) virou vinculo com o recibo (FK opcional) - so em apolice
+# e endosso (consorcio continua com o campo 0/1 antigo, sem mudanca). Formato:
+# tabela -> (coluna antiga, coluna nova, nome da constraint FK).
+_CONF_BANCO_PARA_RECIBO = [
+    ("apolice", "plenus_conferido_banco", "recibo_id", "fk_apolice_recibo"),
+    ("apolice_repasse", "conferido_banco", "recibo_id", "fk_apolice_repasse_recibo"),
+    ("apolice_endosso", "plenus_conferido_banco", "recibo_id", "fk_apolice_endosso_recibo"),
+    ("apolice_endosso_repasse", "conferido_banco", "recibo_id", "fk_end_repasse_recibo"),
+]
+
+
+def _migrar_conf_banco_para_recibo(con):
+    """O campo booleano "conferido no banco" (repasse de comissao ja conferido no
+    extrato) virou uma referencia a QUAL RECIBO aquele repasse esta associado - o
+    controle de conferencia agora e o proprio vinculo ao recibo. Nao da pra saber
+    automaticamente a qual recibo cada marcacao antiga pertenceria, entao só o DADO
+    desse campo e resetado (decisao combinada com a usuaria) - nenhuma outra coluna e
+    tocada. Idempotente: banco novo (coluna ja se chama `recibo_id`) pula."""
+    for tabela, antigo, novo, fk_nome in _CONF_BANCO_PARA_RECIBO:
+        cols = _colunas_da_tabela(con, tabela)
+        if not cols:
+            continue  # tabela nem existe ainda
+        if antigo in cols and novo not in cols:
+            con.execute(f"ALTER TABLE {tabela} MODIFY {antigo} INT NULL")
+            con.execute(f"UPDATE {tabela} SET {antigo} = NULL")
+            con.execute(f"ALTER TABLE {tabela} CHANGE {antigo} {novo} INT NULL")
+        if novo in _colunas_da_tabela(con, tabela):
+            constraints = _constraints_fk_da_tabela(con, tabela)
+            if fk_nome not in constraints:
+                con.execute(
+                    f"ALTER TABLE {tabela} ADD CONSTRAINT {fk_nome} "
+                    f"FOREIGN KEY ({novo}) REFERENCES recibo(id) ON DELETE SET NULL"
+                )
 
 
 def _migrar_esquema(con):

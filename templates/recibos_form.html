@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% set r = recibo or {} %}
+{% block titulo %}{{ 'Editar recibo' if r.id else 'Novo recibo' }}{% endblock %}
+{% block cabecalho %}{{ 'Editar recibo' if r.id else 'Novo recibo' }}{% endblock %}
+
+{% block acoes %}
+<a class="btn btn--linha" href="{{ voltar or url_for('recibos_lista') }}">{{ icone('voltar') }} Voltar</a>
+{% if r.id %}
+<form method="post" action="{{ url_for('recibo_excluir', recibo_id=r.id) }}" style="display:inline"
+      onsubmit="return confirm('Excluir o recibo {{ r.numero or r.id }}?')">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="voltar" value="{{ voltar }}">
+  <button type="submit" class="btn btn--perigo">{{ icone('lixo') }} Excluir</button>
+</form>
+{% endif %}
+{% endblock %}
+
+{% block conteudo %}
+<form class="form" method="post" novalidate
+      action="{{ url_for('recibo_form', recibo_id=r.id) if r.id else url_for('recibo_form') }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="voltar" value="{{ voltar }}">
+  <input type="hidden" name="acao" id="recibo-acao" value="">
+
+  <div class="cartao">
+    <h2>Dados do recibo</h2>
+    <p class="dica" style="margin:-4px 0 12px">
+      O recibo é cadastrado e enviado antes de existir a nota fiscal. Quando ela for
+      enviada, escolha-a abaixo.
+    </p>
+    <div class="grade">
+      <div class="campo c-3">
+        <label for="numero">Número *</label>
+        <input id="numero" name="numero" required autofocus value="{{ r.numero or '' }}">
+      </div>
+      <div class="campo c-3">
+        <label for="data">Data</label>
+        <input id="data" name="data" type="date" value="{{ r.data or '' }}">
+        <button type="button" id="btn-buscar-parcelas" class="btn btn--primario" style="margin-top:6px;width:100%">Buscar parcelas dessa data</button>
+      </div>
+      <div class="campo c-3">
+        <label for="valor_bruto">Valor bruto (R$)</label>
+        <input id="valor_bruto" name="valor_bruto" inputmode="decimal" data-num value="{{ r.valor_bruto or '' }}">
+      </div>
+      <div class="campo c-3">
+        <label for="aliquota">Alíquota (%)</label>
+        <input id="aliquota" name="aliquota" inputmode="decimal" data-num value="{{ r.aliquota or '' }}">
+      </div>
+      <div class="campo c-3">
+        <label for="valor_liquido">Valor líquido (R$)</label>
+        <input id="valor_liquido" name="valor_liquido" inputmode="decimal" data-num value="{{ r.valor_liquido or '' }}">
+      </div>
+      <div class="campo c-3">
+        <label for="data_envio">Envio</label>
+        <input id="data_envio" name="data_envio" type="date" value="{{ r.data_envio or '' }}">
+      </div>
+      <div class="campo c-6">
+        <label for="nota_fiscal_id">Nota fiscal
+          <a class="link-abrir" href="{{ url_for('nota_fiscal_form') }}" target="_blank" rel="noopener">＋ nova</a>
+        </label>
+        <select id="nota_fiscal_id" name="nota_fiscal_id">
+          <option value="">— sem nota fiscal ainda —</option>
+          {% for nf in notas_fiscais %}
+          <option value="{{ nf.id }}" {{ 'selected' if r.nota_fiscal_id|string == nf.id|string }}>{{ nf.numero or ('#' ~ nf.id) }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="cartao">
+    <h2>Parcelas de comissão associadas</h2>
+    <p class="dica" style="margin:-4px 0 12px">
+      Parcelas de comissão (o que a Plenus recebeu da corretora) pagas na data acima,
+      excluindo cocorretagem. Marque as que pertencem a este recibo.
+    </p>
+    {% if not (r.data or '') %}
+    <p class="vazio">Informe a data do recibo e clique em "Buscar parcelas dessa data".</p>
+    {% elif not parcelas_candidatas %}
+    <p class="vazio">Nenhuma parcela de comissão paga nessa data (ou já vinculada a outro recibo).</p>
+    {% else %}
+    <div class="tabela-wrap">
+      <table class="lista">
+        <thead>
+          <tr><th style="width:36px"></th><th>Cliente</th><th>Apólice</th><th>Parcela</th>
+              <th style="text-align:right">Valor recebido</th></tr>
+        </thead>
+        <tbody id="corpo-parcelas-recibo">
+          {% for c in parcelas_candidatas %}
+          {% set ref = c.origem ~ ':' ~ c.id %}
+          <tr>
+            <td><input type="checkbox" name="parcela_refs" value="{{ ref }}" data-valor="{{ c.valor_recebido or 0 }}"
+                       {{ 'checked' if ref in parcela_refs_marcados }}></td>
+            <td>{{ c.cliente_nome or '—' }}</td>
+            <td>{{ c.numero_apolice or '—' }}</td>
+            <td>{{ c.parcela_rotulo }}</td>
+            <td style="text-align:right">{{ c.valor_recebido|moeda }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="dica" id="resumo-parcelas-recibo" style="margin:8px 0 0"></p>
+    {% endif %}
+  </div>
+
+  <div class="rodape-form">
+    <a class="btn btn--linha" href="{{ voltar or url_for('recibos_lista') }}">Cancelar</a>
+    <button class="btn btn--primario" type="submit">Salvar</button>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/recibo.js') }}"></script>
+{% endblock %}

@@ -449,7 +449,7 @@ _COLS_APOLICE = (
     "forma_pagamento_id", "comissao_percentual",
     "comissao_valor_seguralta_receber", "comissao_valor_plenus_receber",
     "comissao_valor_seguralta_recebido", "comissao_valor_plenus_recebido",
-    "data_seguralta_recebido", "data_plenus_recebido", "plenus_conferido_banco",
+    "data_seguralta_recebido", "data_plenus_recebido", "recibo_id",
     "comissao_parcelada", "comissao_cocorretagem",
     "previsto_relatorio_seguralta", "recebido_relatorio_seguralta",
     "previsto_relatorio_plenus", "recebido_relatorio_plenus",
@@ -484,7 +484,7 @@ def _valores_apolice(dados):
         para_decimal(dados.get("comissao_valor_plenus_recebido")),
         (dados.get("data_seguralta_recebido") or "").strip() or None,
         (dados.get("data_plenus_recebido") or "").strip() or None,
-        _sim_nao(dados.get("plenus_conferido_banco")),
+        _int_ou_none(dados.get("recibo_id")),
         _sim_nao(dados.get("comissao_parcelada")),
         _sim_nao(dados.get("comissao_cocorretagem")),
         para_decimal(dados.get("previsto_relatorio_seguralta")),
@@ -537,13 +537,12 @@ def _inserir_comissoes(con, apolice_id, linhas):
 
 def _inserir_repasses(con, apolice_id, linhas):
     for i, r in enumerate(linhas or []):
-        conf = 1 if r.get("conferido_banco") in (1, "1", True, "sim", "on") else 0
         con.execute(
             "INSERT INTO apolice_repasse "
-            "(apolice_id, parcela, valor_previsto, valor_recebido, data, conferido_banco, ordem) "
+            "(apolice_id, parcela, valor_previsto, valor_recebido, data, recibo_id, ordem) "
             "VALUES (%s, %s, %s, %s, %s, %s, %s)",
             (apolice_id, r.get("parcela"), r.get("valor_previsto"),
-             r.get("valor_recebido"), r.get("data"), conf, i),
+             r.get("valor_recebido"), r.get("data"), _int_ou_none(r.get("recibo_id")), i),
         )
 
 
@@ -699,6 +698,9 @@ def obter_apolice(apolice_id):
         if not l:
             return None
         ap = dict(l)
+        if ap.get("recibo_id"):
+            rec = con.execute("SELECT numero FROM recibo WHERE id = %s", (ap["recibo_id"],)).fetchone()
+            ap["recibo_numero"] = rec["numero"] if rec else None
         ap["parcelas"] = [dict(p) for p in con.execute(
             "SELECT id, identificacao, data, valor, paga, pago_em, aviso_ok, aviso_ok_em, "
             "       enviado, enviado_em "
@@ -711,8 +713,10 @@ def obter_apolice(apolice_id):
             (apolice_id,),
         ).fetchall()]
         ap["repasses"] = [dict(x) for x in con.execute(
-            "SELECT id, parcela, valor_previsto, valor_recebido, data, conferido_banco "
-            "FROM apolice_repasse WHERE apolice_id = %s ORDER BY ordem, id",
+            "SELECT r.id, r.parcela, r.valor_previsto, r.valor_recebido, r.data, r.recibo_id, "
+            "       rec.numero AS recibo_numero "
+            "FROM apolice_repasse r LEFT JOIN recibo rec ON rec.id = r.recibo_id "
+            "WHERE r.apolice_id = %s ORDER BY r.ordem, r.id",
             (apolice_id,),
         ).fetchall()]
         return ap
@@ -802,7 +806,7 @@ _COLS_ENDOSSO = (
     "comissao_parcelada", "comissao_percentual",
     "comissao_valor_seguralta_receber", "comissao_valor_seguralta_recebido",
     "comissao_valor_plenus_receber", "comissao_valor_plenus_recebido",
-    "data_seguralta_recebido", "data_plenus_recebido", "plenus_conferido_banco",
+    "data_seguralta_recebido", "data_plenus_recebido", "recibo_id",
     "previsto_relatorio_seguralta", "recebido_relatorio_seguralta",
     "previsto_relatorio_plenus", "recebido_relatorio_plenus",
     "lancado_quiver", "link_onedrive",
@@ -829,7 +833,7 @@ def _valores_endosso(d):
         para_decimal(d.get("comissao_valor_plenus_recebido")),
         (d.get("data_seguralta_recebido") or "").strip() or None,
         (d.get("data_plenus_recebido") or "").strip() or None,
-        _sim_nao(d.get("plenus_conferido_banco")),
+        _int_ou_none(d.get("recibo_id")),
         para_decimal(d.get("previsto_relatorio_seguralta")),
         para_decimal(d.get("recebido_relatorio_seguralta")),
         para_decimal(d.get("previsto_relatorio_plenus")),
@@ -851,13 +855,12 @@ def _inserir_endosso_comissoes(con, endosso_id, linhas):
 
 def _inserir_endosso_repasses(con, endosso_id, linhas):
     for i, r in enumerate(linhas or []):
-        conf = 1 if r.get("conferido_banco") in (1, "1", True, "sim", "on") else 0
         con.execute(
             "INSERT INTO apolice_endosso_repasse "
-            "(endosso_id, parcela, valor_previsto, valor_recebido, data, conferido_banco, ordem) "
+            "(endosso_id, parcela, valor_previsto, valor_recebido, data, recibo_id, ordem) "
             "VALUES (%s, %s, %s, %s, %s, %s, %s)",
             (endosso_id, r.get("parcela"), r.get("valor_previsto"),
-             r.get("valor_recebido"), r.get("data"), conf, i))
+             r.get("valor_recebido"), r.get("data"), _int_ou_none(r.get("recibo_id")), i))
 
 
 def _inserir_endosso_parcelas(con, endosso_id, parcelas):
@@ -920,6 +923,9 @@ def obter_endosso(endosso_id):
         if not l:
             return None
         e = dict(l)
+        if e.get("recibo_id"):
+            rec = con.execute("SELECT numero FROM recibo WHERE id = %s", (e["recibo_id"],)).fetchone()
+            e["recibo_numero"] = rec["numero"] if rec else None
         e["parcelas"] = [dict(p) for p in con.execute(
             "SELECT id, identificacao, data, valor, paga, pago_em, aviso_ok, aviso_ok_em, "
             "       enviado, enviado_em "
@@ -930,8 +936,10 @@ def obter_endosso(endosso_id):
             "FROM apolice_endosso_comissao WHERE endosso_id = %s ORDER BY ordem, id",
             (endosso_id,)).fetchall()]
         e["repasses"] = [dict(x) for x in con.execute(
-            "SELECT id, parcela, valor_previsto, valor_recebido, data, conferido_banco "
-            "FROM apolice_endosso_repasse WHERE endosso_id = %s ORDER BY ordem, id",
+            "SELECT r.id, r.parcela, r.valor_previsto, r.valor_recebido, r.data, r.recibo_id, "
+            "       rec.numero AS recibo_numero "
+            "FROM apolice_endosso_repasse r LEFT JOIN recibo rec ON rec.id = r.recibo_id "
+            "WHERE r.endosso_id = %s ORDER BY r.ordem, r.id",
             (endosso_id,)).fetchall()]
         return e
 
@@ -1224,7 +1232,7 @@ def salvar_comissao_unica(apolice_id, valores):
             "  comissao_valor_plenus_recebido = %s, "
             "  data_seguralta_recebido = %s, "
             "  data_plenus_recebido = %s, "
-            "  plenus_conferido_banco = %s, "
+            "  recibo_id = %s, "
             "  atualizado_em = NOW() "
             "WHERE id = %s",
             (valores.get("comissao_valor_seguralta_receber"),
@@ -1233,7 +1241,7 @@ def salvar_comissao_unica(apolice_id, valores):
              valores.get("comissao_valor_plenus_recebido"),
              (valores.get("data_seguralta_recebido") or None),
              (valores.get("data_plenus_recebido") or None),
-             1 if valores.get("plenus_conferido_banco") in (1, "1", True, "sim", "on") else 0,
+             _int_ou_none(valores.get("recibo_id")),
              apolice_id),
         )
     fazer_backup()
@@ -1259,7 +1267,7 @@ def salvar_comissao_endosso(endosso_id, valores):
             "  comissao_valor_seguralta_receber = %s, comissao_valor_seguralta_recebido = %s, "
             "  comissao_valor_plenus_receber = %s, comissao_valor_plenus_recebido = %s, "
             "  data_seguralta_recebido = %s, data_plenus_recebido = %s, "
-            "  plenus_conferido_banco = %s, atualizado_em = NOW() "
+            "  recibo_id = %s, atualizado_em = NOW() "
             "WHERE id = %s",
             (valores.get("comissao_valor_seguralta_receber"),
              valores.get("comissao_valor_seguralta_recebido"),
@@ -1267,7 +1275,7 @@ def salvar_comissao_endosso(endosso_id, valores):
              valores.get("comissao_valor_plenus_recebido"),
              (valores.get("data_seguralta_recebido") or None),
              (valores.get("data_plenus_recebido") or None),
-             1 if valores.get("plenus_conferido_banco") in (1, "1", True, "sim", "on") else 0,
+             _int_ou_none(valores.get("recibo_id")),
              endosso_id),
         )
     fazer_backup()
@@ -1836,6 +1844,332 @@ def resumo_saidas():
     return {"a_pagar_mes": a_pagar_mes, "vencido": vencido}
 
 
+# ---------- notas fiscais (+ recibos) ----------
+
+_COLS_NOTA_FISCAL = ("numero", "valor", "data_emissao", "data_pagamento", "data_depositado")
+
+
+def _valores_nota_fiscal(dados):
+    return [
+        (dados.get("numero") or "").strip() or None,
+        para_decimal(dados.get("valor")),
+        (dados.get("data_emissao") or "").strip() or None,
+        (dados.get("data_pagamento") or "").strip() or None,
+        (dados.get("data_depositado") or "").strip() or None,
+    ]
+
+
+def _aplicar_recibos_da_nota_fiscal(con, nota_fiscal_id, recibo_ids):
+    """Vincula exatamente os recibos de `recibo_ids` a esta nota fiscal (desvincula os
+    que estavam e nao vieram mais). O campo "valor" NAO e mexido aqui - ele e sugerido
+    pelo JS (soma dos recibos marcados) mas continua editavel, igual ao premio_total
+    da apolice."""
+    ids = {int(x) for x in (recibo_ids or []) if str(x).strip().isdigit()}
+    con.execute(
+        "UPDATE recibo SET nota_fiscal_id = NULL, atualizado_em = NOW() "
+        "WHERE nota_fiscal_id = %s", (nota_fiscal_id,))
+    if ids:
+        marcadores = ", ".join("%s" for _ in ids)
+        con.execute(
+            f"UPDATE recibo SET nota_fiscal_id = %s, atualizado_em = NOW() "
+            f"WHERE id IN ({marcadores})",
+            [nota_fiscal_id, *ids],
+        )
+
+
+def obter_nota_fiscal(nota_fiscal_id):
+    with conexao() as con:
+        l = con.execute("SELECT * FROM nota_fiscal WHERE id = %s", (nota_fiscal_id,)).fetchone()
+        if not l:
+            return None
+        nf = dict(l)
+        # recibos vinculados: so leitura aqui - cada recibo e cadastrado/editado na
+        # tela dele mesmo (existe independente da nota fiscal, ver secao mais abaixo)
+        nf["recibos"] = [dict(r) for r in con.execute(
+            "SELECT id, numero, data, valor_bruto, aliquota, valor_liquido, data_envio "
+            "FROM recibo WHERE nota_fiscal_id = %s ORDER BY COALESCE(data, ''), id",
+            (nota_fiscal_id,),
+        ).fetchall()]
+        return nf
+
+
+def criar_nota_fiscal(dados, recibo_ids=None):
+    with conexao() as con:
+        marcadores = ", ".join("%s" for _ in _COLS_NOTA_FISCAL)
+        cur = con.execute(
+            f"INSERT INTO nota_fiscal ({', '.join(_COLS_NOTA_FISCAL)}) VALUES ({marcadores})",
+            _valores_nota_fiscal(dados),
+        )
+        novo_id = cur.lastrowid
+        _aplicar_recibos_da_nota_fiscal(con, novo_id, recibo_ids)
+    fazer_backup()
+    return novo_id
+
+
+def atualizar_nota_fiscal(nota_fiscal_id, dados, recibo_ids=None):
+    with conexao() as con:
+        atrib = ", ".join(f"{c} = %s" for c in _COLS_NOTA_FISCAL)
+        con.execute(
+            f"UPDATE nota_fiscal SET {atrib}, atualizado_em = NOW() WHERE id = %s",
+            _valores_nota_fiscal(dados) + [nota_fiscal_id],
+        )
+        _aplicar_recibos_da_nota_fiscal(con, nota_fiscal_id, recibo_ids)
+    fazer_backup()
+
+
+def excluir_nota_fiscal(nota_fiscal_id):
+    # os recibos vinculados NAO somem - so ficam sem nota fiscal (ON DELETE SET NULL)
+    with conexao() as con:
+        con.execute("DELETE FROM nota_fiscal WHERE id = %s", (nota_fiscal_id,))
+    fazer_backup()
+
+
+def notas_fiscais_para_select():
+    """[{id, numero}] pro <select> de vinculo no formulario do recibo."""
+    with conexao() as con:
+        return [dict(l) for l in con.execute(
+            "SELECT id, numero FROM nota_fiscal ORDER BY COALESCE(data_emissao, '') DESC, id DESC"
+        ).fetchall()]
+
+
+def recibos_selecionaveis(nota_fiscal_id=None):
+    """Recibos sem nota fiscal OU ja vinculados a `nota_fiscal_id` - pro checklist de
+    "recibos associados" do formulario da nota fiscal. Um recibo vinculado a OUTRA
+    nota fiscal nao aparece (evita "roubar" o recibo de outra nota sem querer)."""
+    with conexao() as con:
+        if nota_fiscal_id:
+            linhas = con.execute(
+                "SELECT * FROM recibo WHERE nota_fiscal_id IS NULL OR nota_fiscal_id = %s "
+                "ORDER BY COALESCE(data, ''), id", (nota_fiscal_id,)).fetchall()
+        else:
+            linhas = con.execute(
+                "SELECT * FROM recibo WHERE nota_fiscal_id IS NULL "
+                "ORDER BY COALESCE(data, ''), id").fetchall()
+        return [dict(l) for l in linhas]
+
+
+def _status_nota_fiscal(nf):
+    if nf.get("data_depositado"):
+        return "depositada"
+    if nf.get("data_pagamento"):
+        return "paga"
+    return "aberta"
+
+
+def listar_notas_fiscais(busca=None, status=None, mes_emissao=None):
+    with conexao() as con:
+        linhas = [dict(l) for l in con.execute(
+            "SELECT nf.*, "
+            "       (SELECT COUNT(*) FROM recibo r WHERE r.nota_fiscal_id = nf.id) AS qtd_recibos, "
+            "       (SELECT COALESCE(SUM(r.valor_liquido), 0) FROM recibo r "
+            "          WHERE r.nota_fiscal_id = nf.id) AS soma_recibos_liquido "
+            "FROM nota_fiscal nf "
+            "ORDER BY COALESCE(nf.data_emissao, ''), nf.id"
+        ).fetchall()]
+    for nf in linhas:
+        nf["status"] = _status_nota_fiscal(nf)
+
+    if mes_emissao:
+        linhas = [nf for nf in linhas
+                 if (nf.get("data_emissao") or "")[5:7] == f"{int(mes_emissao):02d}"]
+    if status in ("aberta", "paga", "depositada"):
+        linhas = [nf for nf in linhas if nf["status"] == status]
+    termo = (busca or "").strip()
+    if termo:
+        alvo = _sem_acento_minusculo(termo)
+        linhas = [nf for nf in linhas if alvo in _sem_acento_minusculo(nf.get("numero") or "")]
+    return linhas
+
+
+# ---------- recibos (cadastrados/enviados antes de existir a nota fiscal;
+#             o vinculo com ela e opcional e' feito depois, editando o recibo) ----------
+
+_COLS_RECIBO = ("nota_fiscal_id", "numero", "data", "valor_bruto", "aliquota",
+               "valor_liquido", "data_envio")
+
+
+def _valores_recibo(dados):
+    return [
+        _int_ou_none(dados.get("nota_fiscal_id")),
+        (dados.get("numero") or "").strip() or None,
+        (dados.get("data") or "").strip() or None,
+        para_decimal(dados.get("valor_bruto")),
+        para_decimal(dados.get("aliquota")),
+        para_decimal(dados.get("valor_liquido")),
+        (dados.get("data_envio") or "").strip() or None,
+    ]
+
+
+def obter_recibo(recibo_id):
+    with conexao() as con:
+        l = con.execute("SELECT * FROM recibo WHERE id = %s", (recibo_id,)).fetchone()
+        return dict(l) if l else None
+
+
+def criar_recibo(dados):
+    with conexao() as con:
+        marcadores = ", ".join("%s" for _ in _COLS_RECIBO)
+        cur = con.execute(
+            f"INSERT INTO recibo ({', '.join(_COLS_RECIBO)}) VALUES ({marcadores})",
+            _valores_recibo(dados),
+        )
+        novo_id = cur.lastrowid
+    fazer_backup()
+    return novo_id
+
+
+def atualizar_recibo(recibo_id, dados):
+    with conexao() as con:
+        atrib = ", ".join(f"{c} = %s" for c in _COLS_RECIBO)
+        con.execute(
+            f"UPDATE recibo SET {atrib}, atualizado_em = NOW() WHERE id = %s",
+            _valores_recibo(dados) + [recibo_id],
+        )
+    fazer_backup()
+
+
+def excluir_recibo(recibo_id):
+    with conexao() as con:
+        con.execute("DELETE FROM recibo WHERE id = %s", (recibo_id,))
+    fazer_backup()
+
+
+def _status_recibo(r):
+    return "enviado" if r.get("data_envio") else "pendente"
+
+
+def listar_recibos(busca=None, status=None, vinculado=None, mes=None):
+    with conexao() as con:
+        linhas = [dict(l) for l in con.execute(
+            "SELECT r.*, nf.numero AS nota_fiscal_numero "
+            "FROM recibo r "
+            "LEFT JOIN nota_fiscal nf ON nf.id = r.nota_fiscal_id "
+            "ORDER BY COALESCE(r.data, ''), r.id"
+        ).fetchall()]
+    for r in linhas:
+        r["status"] = _status_recibo(r)
+
+    if mes:
+        linhas = [r for r in linhas if (r.get("data") or "")[5:7] == f"{int(mes):02d}"]
+    if status in ("enviado", "pendente"):
+        linhas = [r for r in linhas if r["status"] == status]
+    if vinculado in ("sim", "nao"):
+        alvo = vinculado == "sim"
+        linhas = [r for r in linhas if bool(r.get("nota_fiscal_id")) == alvo]
+    termo = (busca or "").strip()
+    if termo:
+        alvo_txt = _sem_acento_minusculo(termo)
+        linhas = [r for r in linhas if alvo_txt in _sem_acento_minusculo(r.get("numero") or "")]
+    return linhas
+
+
+# ---------- vinculo entre recibo e parcela de comissao ----------
+# o recibo e cadastrado (e enviado) antes de existir a nota fiscal; da mesma forma,
+# ele e' o dono do vinculo com as parcelas de repasse (o que a Plenus recebe da
+# corretora) - o campo que antes guardava "conferido no banco" (sim/nao) agora guarda
+# o id do recibo associado. So apolice + endosso (parcelada e unica); consorcio fica
+# de fora por enquanto.
+
+# origem -> (tabela, coluna do vinculo, tem coluna atualizado_em)
+_ORIGENS_REPASSE = {
+    "apolice_repasse": ("apolice_repasse", "recibo_id", False),
+    "endosso_repasse": ("apolice_endosso_repasse", "recibo_id", False),
+    "apolice_unica": ("apolice", "recibo_id", True),
+    "endosso_unica": ("apolice_endosso", "recibo_id", True),
+}
+
+
+def parcelas_repasse_por_data(data, recibo_id=None):
+    """Parcelas de repasse (comissao que a Plenus recebe) PAGAS na `data` informada,
+    excluindo cocorretagem - candidatas a serem vinculadas a um recibo. So mostra as
+    que estao sem recibo OU ja vinculadas a `recibo_id` (edicao de um recibo
+    existente) - uma parcela vinculada a OUTRO recibo nao aparece."""
+    if not (data or "").strip():
+        return []
+    linhas = []
+    with conexao() as con:
+        rows = con.execute(
+            "SELECT r.id, r.recibo_id, r.valor_recebido, a.numero_apolice, c.nome AS cliente_nome "
+            "  FROM apolice_repasse r "
+            "  JOIN apolice a ON a.id = r.apolice_id "
+            "  LEFT JOIN cliente c ON c.id = a.cliente_id "
+            " WHERE r.data = %s AND r.valor_recebido IS NOT NULL "
+            "   AND COALESCE(a.comissao_cocorretagem, 0) = 0 "
+            "   AND (r.recibo_id IS NULL OR r.recibo_id = %s)",
+            (data, recibo_id)).fetchall()
+        for r in rows:
+            linhas.append({"origem": "apolice_repasse", "id": r["id"], "recibo_id": r["recibo_id"],
+                           "valor_recebido": r["valor_recebido"], "numero_apolice": r["numero_apolice"],
+                           "cliente_nome": r["cliente_nome"], "parcela_rotulo": "parcela"})
+        rows = con.execute(
+            "SELECT a.id, a.recibo_id, a.comissao_valor_plenus_recebido AS valor_recebido, "
+            "       a.numero_apolice, c.nome AS cliente_nome "
+            "  FROM apolice a LEFT JOIN cliente c ON c.id = a.cliente_id "
+            " WHERE a.data_plenus_recebido = %s AND a.comissao_valor_plenus_recebido IS NOT NULL "
+            "   AND COALESCE(a.comissao_cocorretagem, 0) = 0 "
+            "   AND COALESCE(a.comissao_parcelada, 0) = 0 "
+            "   AND (a.recibo_id IS NULL OR a.recibo_id = %s)",
+            (data, recibo_id)).fetchall()
+        for r in rows:
+            linhas.append({"origem": "apolice_unica", "id": r["id"], "recibo_id": r["recibo_id"],
+                           "valor_recebido": r["valor_recebido"], "numero_apolice": r["numero_apolice"],
+                           "cliente_nome": r["cliente_nome"], "parcela_rotulo": "única"})
+        rows = con.execute(
+            "SELECT r.id, r.recibo_id, r.valor_recebido, e.numero AS endosso_numero, "
+            "       a.numero_apolice, c.nome AS cliente_nome "
+            "  FROM apolice_endosso_repasse r "
+            "  JOIN apolice_endosso e ON e.id = r.endosso_id "
+            "  JOIN apolice a ON a.id = e.apolice_id "
+            "  LEFT JOIN cliente c ON c.id = a.cliente_id "
+            " WHERE r.data = %s AND r.valor_recebido IS NOT NULL "
+            "   AND (r.recibo_id IS NULL OR r.recibo_id = %s)",
+            (data, recibo_id)).fetchall()
+        for r in rows:
+            linhas.append({"origem": "endosso_repasse", "id": r["id"], "recibo_id": r["recibo_id"],
+                           "valor_recebido": r["valor_recebido"],
+                           "numero_apolice": f"{r['numero_apolice']} (endosso {r['endosso_numero']})",
+                           "cliente_nome": r["cliente_nome"], "parcela_rotulo": "parcela"})
+        rows = con.execute(
+            "SELECT e.id, e.recibo_id, e.comissao_valor_plenus_recebido AS valor_recebido, "
+            "       e.numero AS endosso_numero, a.numero_apolice, c.nome AS cliente_nome "
+            "  FROM apolice_endosso e "
+            "  JOIN apolice a ON a.id = e.apolice_id "
+            "  LEFT JOIN cliente c ON c.id = a.cliente_id "
+            " WHERE e.data_plenus_recebido = %s AND e.comissao_valor_plenus_recebido IS NOT NULL "
+            "   AND COALESCE(e.comissao_parcelada, 0) = 0 "
+            "   AND (e.recibo_id IS NULL OR e.recibo_id = %s)",
+            (data, recibo_id)).fetchall()
+        for r in rows:
+            linhas.append({"origem": "endosso_unica", "id": r["id"], "recibo_id": r["recibo_id"],
+                           "valor_recebido": r["valor_recebido"],
+                           "numero_apolice": f"{r['numero_apolice']} (endosso {r['endosso_numero']})",
+                           "cliente_nome": r["cliente_nome"], "parcela_rotulo": "única"})
+    return linhas
+
+
+def aplicar_parcelas_do_recibo(recibo_id, refs):
+    """`refs` = ["origem:id", ...] vindos do checklist do formulario do recibo.
+    Desvincula tudo que estava associado a este recibo e nao veio mais marcado, e
+    vincula exatamente as linhas de `refs`."""
+    alvos = {}
+    for ref in (refs or []):
+        origem, _, rid = (ref or "").partition(":")
+        if origem in _ORIGENS_REPASSE and rid.isdigit():
+            alvos.setdefault(origem, set()).add(int(rid))
+    with conexao() as con:
+        for origem, (tabela, coluna, tem_timestamp) in _ORIGENS_REPASSE.items():
+            ids = alvos.get(origem, set())
+            sufixo = ", atualizado_em = NOW()" if tem_timestamp else ""
+            con.execute(f"UPDATE {tabela} SET {coluna} = NULL{sufixo} WHERE {coluna} = %s",
+                       (recibo_id,))
+            if ids:
+                marcadores = ", ".join("%s" for _ in ids)
+                con.execute(
+                    f"UPDATE {tabela} SET {coluna} = %s{sufixo} WHERE id IN ({marcadores})",
+                    [recibo_id, *ids])
+    fazer_backup()
+
+
 # ---------- entradas (contas a receber = repasses de comissão) ----------
 
 def listar_entradas_repasse(data_ini=None, data_fim=None):
@@ -1851,7 +2185,7 @@ def listar_entradas_repasse(data_ini=None, data_fim=None):
     (paga × a receber) é aplicada depois, na camada da rota. Cada dict traz:
     apolice_id, cliente_nome, tipo_seguro_nome, seguradora_nome, numero_apolice,
     premio_liquido, comissao_percentual, parcela, data, valor_previsto,
-    valor_recebido, conferido_banco, origem."""
+    valor_recebido, recibo_id, recibo_numero, origem."""
     cols_apolice = (
         "       c.nome AS cliente_nome, t.nome AS tipo_seguro_nome, "
         "       sg.nome AS seguradora_nome, "
@@ -1865,12 +2199,13 @@ def listar_entradas_repasse(data_ini=None, data_fim=None):
         parceladas = con.execute(
             "SELECT a.id AS apolice_id, " + cols_apolice + ", "
             "       r.parcela, r.data, r.valor_previsto, r.valor_recebido, "
-            "       COALESCE(r.conferido_banco, 0) AS conferido_banco "
+            "       r.recibo_id, rec.numero AS recibo_numero "
             "  FROM apolice_repasse r "
             "  JOIN apolice a          ON a.id = r.apolice_id "
             "  LEFT JOIN cliente c     ON c.id = a.cliente_id "
             "  LEFT JOIN tipo_seguro t ON t.id = a.tipo_seguro_id "
             "  LEFT JOIN seguradora sg ON sg.id = a.seguradora_id "
+            "  LEFT JOIN recibo rec    ON rec.id = r.recibo_id "
             " ORDER BY a.id, r.ordem, r.id"
         ).fetchall()
         unicas = con.execute(
@@ -1878,8 +2213,9 @@ def listar_entradas_repasse(data_ini=None, data_fim=None):
             "       a.comissao_valor_plenus_receber  AS valor_previsto, "
             "       a.comissao_valor_plenus_recebido AS valor_recebido, "
             "       a.data_plenus_recebido           AS data, "
-            "       COALESCE(a.plenus_conferido_banco, 0) AS conferido_banco "
+            "       a.recibo_id, rec.numero AS recibo_numero "
             + joins +
+            "  LEFT JOIN recibo rec ON rec.id = a.recibo_id "
             " WHERE NOT EXISTS (SELECT 1 FROM apolice_repasse r WHERE r.apolice_id = a.id) "
             " ORDER BY a.id"
         ).fetchall()
@@ -1890,12 +2226,13 @@ def listar_entradas_repasse(data_ini=None, data_fim=None):
             "       e.comissao_valor_plenus_receber  AS valor_previsto, "
             "       e.comissao_valor_plenus_recebido AS valor_recebido, "
             "       e.data_plenus_recebido           AS data, "
-            "       COALESCE(e.plenus_conferido_banco, 0) AS conferido_banco "
+            "       e.recibo_id, rec.numero AS recibo_numero "
             "  FROM apolice_endosso e "
             "  JOIN apolice a          ON a.id = e.apolice_id "
             "  LEFT JOIN cliente c     ON c.id = a.cliente_id "
             "  LEFT JOIN tipo_seguro t ON t.id = a.tipo_seguro_id "
             "  LEFT JOIN seguradora sg ON sg.id = a.seguradora_id "
+            "  LEFT JOIN recibo rec    ON rec.id = e.recibo_id "
             " WHERE COALESCE(e.comissao_parcelada, 0) = 0 "
             " ORDER BY a.id, e.id"
         ).fetchall()
@@ -1904,13 +2241,14 @@ def listar_entradas_repasse(data_ini=None, data_fim=None):
             "SELECT a.id AS apolice_id, " + cols_apolice + ", "
             "       e.numero AS _end_num, r.parcela AS _end_parc, "
             "       r.data, r.valor_previsto, r.valor_recebido, "
-            "       COALESCE(r.conferido_banco, 0) AS conferido_banco "
+            "       r.recibo_id, rec.numero AS recibo_numero "
             "  FROM apolice_endosso_repasse r "
             "  JOIN apolice_endosso e  ON e.id = r.endosso_id "
             "  JOIN apolice a          ON a.id = e.apolice_id "
             "  LEFT JOIN cliente c     ON c.id = a.cliente_id "
             "  LEFT JOIN tipo_seguro t ON t.id = a.tipo_seguro_id "
             "  LEFT JOIN seguradora sg ON sg.id = a.seguradora_id "
+            "  LEFT JOIN recibo rec    ON rec.id = r.recibo_id "
             " ORDER BY a.id, e.id, r.ordem, r.id"
         ).fetchall()
         cols_cons = (
@@ -2193,11 +2531,12 @@ def comissoes_repasses_por_apolice(data_ini=None, data_fim=None):
             "       a.comissao_valor_seguralta_receber, a.comissao_valor_seguralta_recebido, "
             "       a.comissao_valor_plenus_receber,   a.comissao_valor_plenus_recebido, "
             "       a.data_seguralta_recebido, a.data_plenus_recebido, "
-            "       COALESCE(a.plenus_conferido_banco, 0) AS plenus_conferido_banco "
+            "       a.recibo_id, rec.numero AS recibo_numero "
             "  FROM apolice a "
             "  LEFT JOIN cliente c     ON c.id = a.cliente_id "
             "  LEFT JOIN tipo_seguro t ON t.id = a.tipo_seguro_id "
             "  LEFT JOIN seguradora sg ON sg.id = a.seguradora_id "
+            "  LEFT JOIN recibo rec    ON rec.id = a.recibo_id "
             " ORDER BY a.id"
         ).fetchall()
         comissoes = con.execute(
@@ -2205,17 +2544,19 @@ def comissoes_repasses_por_apolice(data_ini=None, data_fim=None):
             "  FROM apolice_comissao ORDER BY apolice_id, ordem, id"
         ).fetchall()
         repasses = con.execute(
-            "SELECT apolice_id, parcela, valor_previsto, valor_recebido, data, "
-            "       COALESCE(conferido_banco, 0) AS conferido_banco "
-            "  FROM apolice_repasse ORDER BY apolice_id, ordem, id"
+            "SELECT r.apolice_id, r.parcela, r.valor_previsto, r.valor_recebido, r.data, "
+            "       r.recibo_id, rec.numero AS recibo_numero "
+            "  FROM apolice_repasse r LEFT JOIN recibo rec ON rec.id = r.recibo_id "
+            " ORDER BY r.apolice_id, r.ordem, r.id"
         ).fetchall()
         end_com = con.execute(
             "SELECT endosso_id, parcela, valor_previsto, valor_recebido, data "
             "  FROM apolice_endosso_comissao ORDER BY endosso_id, ordem, id").fetchall()
         end_rep = con.execute(
-            "SELECT endosso_id, parcela, valor_previsto, valor_recebido, data, "
-            "       COALESCE(conferido_banco, 0) AS conferido_banco "
-            "  FROM apolice_endosso_repasse ORDER BY endosso_id, ordem, id").fetchall()
+            "SELECT r.endosso_id, r.parcela, r.valor_previsto, r.valor_recebido, r.data, "
+            "       r.recibo_id, rec.numero AS recibo_numero "
+            "  FROM apolice_endosso_repasse r LEFT JOIN recibo rec ON rec.id = r.recibo_id "
+            " ORDER BY r.endosso_id, r.ordem, r.id").fetchall()
         endossos = con.execute(
             "SELECT e.id AS endosso_id, e.numero AS endosso_numero, e.apolice_id, "
             "       c.nome AS cliente_nome, a.tipo_seguro_id, t.nome AS tipo_seguro_nome, "
@@ -2225,12 +2566,13 @@ def comissoes_repasses_por_apolice(data_ini=None, data_fim=None):
             "       e.comissao_valor_seguralta_receber, e.comissao_valor_seguralta_recebido, "
             "       e.comissao_valor_plenus_receber, e.comissao_valor_plenus_recebido, "
             "       e.data_seguralta_recebido, e.data_plenus_recebido, "
-            "       COALESCE(e.plenus_conferido_banco, 0) AS plenus_conferido_banco "
+            "       e.recibo_id, rec.numero AS recibo_numero "
             "  FROM apolice_endosso e "
             "  JOIN apolice a          ON a.id = e.apolice_id "
             "  LEFT JOIN cliente c     ON c.id = a.cliente_id "
             "  LEFT JOIN tipo_seguro t ON t.id = a.tipo_seguro_id "
             "  LEFT JOIN seguradora sg ON sg.id = a.seguradora_id "
+            "  LEFT JOIN recibo rec    ON rec.id = e.recibo_id "
             " ORDER BY e.id"
         ).fetchall()
         cons_com = con.execute(
@@ -2308,7 +2650,7 @@ def comissoes_repasses_por_apolice(data_ini=None, data_fim=None):
                     "valor_previsto": ap["comissao_valor_plenus_receber"],
                     "valor_recebido": ap["comissao_valor_plenus_recebido"],
                     "data": ap["data_plenus_recebido"],
-                    "conferido_banco": ap["plenus_conferido_banco"]}]
+                    "recibo_id": ap["recibo_id"], "recibo_numero": ap.get("recibo_numero")}]
         if not _no_periodo(rep):
             continue
         ap["comissoes"] = com
@@ -2337,7 +2679,7 @@ def comissoes_repasses_por_apolice(data_ini=None, data_fim=None):
                     "valor_previsto": e["comissao_valor_plenus_receber"],
                     "valor_recebido": e["comissao_valor_plenus_recebido"],
                     "data": e["data_plenus_recebido"],
-                    "conferido_banco": e["plenus_conferido_banco"]}]
+                    "recibo_id": e["recibo_id"], "recibo_numero": e.get("recibo_numero")}]
         if not _no_periodo(rep):
             continue
         e["is_endosso"] = True

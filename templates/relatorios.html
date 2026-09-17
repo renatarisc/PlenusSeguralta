@@ -59,7 +59,7 @@
   <td class="rel-col-c">{{ p.data|data_br if p.data else '—' }}</td>
   <td class="col-valor">{{ p.valor_previsto|moeda }}</td>
   <td class="col-valor">{{ p.valor_recebido|moeda if p.valor_recebido is not none else '—' }}</td>
-  <td class="rel-col-c">{{ 'Sim' if p.conferido_banco else 'Não' }}</td>
+  <td class="rel-col-c">{% if p.origem == 'consorcio' %}{{ 'Sim' if p.conferido_banco else 'Não' }}{% else %}{{ p.recibo_numero or '—' }}{% endif %}</td>
   <td class="rel-col-c">
     {%- if p.paga %}<span class="selo-pago">Paga</span>
     {%- else %}<span class="selo-apagar">A receber</span>{% endif -%}
@@ -339,7 +339,7 @@
         <tr>
           <th>Parcela</th><th class="rel-col-c">Data</th>
           <th class="col-valor">Pendente Plenus</th><th class="col-valor">Pago Plenus</th>
-          <th class="rel-col-c">Conf. banco</th><th class="rel-col-c">Situação</th>
+          <th class="rel-col-c">Recibo</th><th class="rel-col-c">Situação</th>
         </tr>
       </thead>
       <tbody>{{ bloco_ent(arvore, 1, modo) }}</tbody>

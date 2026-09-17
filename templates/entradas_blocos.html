@@ -3,7 +3,7 @@
    quando `editavel and modo == 'completo'`. Contexto: `arvore_blocos`. #}
 {% from "base.html" import icone with context %}
 
-{% macro linha_ed(ln) %}
+{% macro linha_ed(ln, is_consorcio) %}
 <tr class="fluxo-linha{{ ' linha-travada' if ln.paga }}"{% if ln.bate_filtro is defined and not ln.bate_filtro %} style="display:none" data-fora-do-filtro{% endif %}>
   <td class="ent-col-parc">
     <input class="ent-parcela" data-parcela value="{{ ln.parcela }}" aria-label="Parcela" autocomplete="off">
@@ -17,10 +17,15 @@
   <td class="col-valor"><input name="repasse_recebido" inputmode="decimal" data-num data-ple-receb value="{{ ln.ple_recebido|numero }}" aria-label="Pago Plenus"></td>
   <td><input name="repasse_data" type="date" value="{{ ln.ple_data or '' }}" aria-label="Data Plenus"></td>
   <td class="col-conf">
+    {% if is_consorcio %}
     <select name="repasse_conferido" data-conf title="Depósito conferido no extrato bancário da Plenus">
       <option value="0">Não</option>
       <option value="1" {{ 'selected' if ln.conferido_banco }}>Sim</option>
     </select>
+    {% else %}
+    <input type="hidden" name="repasse_recibo_id" value="{{ ln.recibo_id or '' }}">
+    <span class="meta" title="O vínculo com o recibo é feito na tela do recibo, pelo campo Data">{{ ln.recibo_numero or '—' }}</span>
+    {% endif %}
   </td>
   <td class="ent-situacao" data-situacao>
     {% if ln.paga %}<span class="selo-pago">Paga</span>{% else %}<span class="selo-apagar">A receber</span>{% endif %}
@@ -32,7 +37,7 @@
 </tr>
 {% endmacro %}
 
-{% macro linha_unica(ln) %}
+{% macro linha_unica(ln, is_consorcio) %}
 <tr class="fluxo-linha{{ ' linha-travada' if ln.paga }}">
   <td class="ent-col-parc"><span class="ent-parc-fixa">única</span></td>
   <td class="col-valor"><input name="comissao_valor_seguralta_receber" inputmode="decimal" data-num value="{{ ln.seg_previsto|numero }}" aria-label="Previsto Seguralta"></td>
@@ -42,10 +47,15 @@
   <td class="col-valor"><input name="comissao_valor_plenus_recebido" inputmode="decimal" data-num data-ple-receb value="{{ ln.ple_recebido|numero }}" aria-label="Pago Plenus"></td>
   <td><input name="data_plenus_recebido" type="date" value="{{ ln.ple_data or '' }}" aria-label="Data Plenus"></td>
   <td class="col-conf">
+    {% if is_consorcio %}
     <select name="plenus_conferido_banco" data-conf title="Depósito conferido no extrato bancário da Plenus">
       <option value="0">Não</option>
       <option value="1" {{ 'selected' if ln.conferido_banco }}>Sim</option>
     </select>
+    {% else %}
+    <input type="hidden" name="recibo_id" value="{{ ln.recibo_id or '' }}">
+    <span class="meta" title="O vínculo com o recibo é feito na tela do recibo, pelo campo Data">{{ ln.recibo_numero or '—' }}</span>
+    {% endif %}
   </td>
   <td class="ent-situacao" data-situacao>
     {% if ln.paga %}<span class="selo-pago">Paga</span>{% else %}<span class="selo-apagar">A receber</span>{% endif %}
@@ -57,7 +67,7 @@
 {% endmacro %}
 
 {% macro bloco(b) %}
-<section class="ent-bloco{{ ' ent-bloco--endosso' if b.is_endosso or b.is_consorcio }}" data-bloco>
+<section class="ent-bloco{{ ' ent-bloco--endosso' if b.is_endosso or b.is_consorcio }}" data-bloco{% if b.is_consorcio %} data-consorcio="1"{% endif %}>
   <header class="ent-bloco__cab">
     <strong>{{ b.cliente_nome }}</strong>
     <small>{% if b.is_consorcio %}· <a href="{{ url_for('consorcio_form', consorcio_id=b.consorcio_id) }}" class="ent-ap-link" target="_blank" rel="noopener">consórcio grupo {{ b.consorcio_grupo or '' }}</a>
@@ -92,16 +102,16 @@
             <th class="col-valor ent-sep">Pendente<br><small>Plenus</small></th>
             <th class="col-valor">Pago<br><small>Plenus</small></th>
             <th class="rel-col-c">Data</th>
-            <th class="rel-col-c">Conf.<br><small>no banco</small></th>
+            <th class="rel-col-c">{{ 'Conf.' if b.is_consorcio else 'Recibo' }}{% if b.is_consorcio %}<br><small>no banco</small>{% endif %}</th>
             <th class="rel-col-c">Situação</th>
             <th></th>
           </tr>
         </thead>
         <tbody data-corpo>
           {% if b.comissao_parcelada %}
-            {% for ln in b.linhas %}{{ linha_ed(ln) }}{% endfor %}
+            {% for ln in b.linhas %}{{ linha_ed(ln, b.is_consorcio) }}{% endfor %}
           {% else %}
-            {{ linha_unica(b.linhas[0]) }}
+            {{ linha_unica(b.linhas[0], b.is_consorcio) }}
           {% endif %}
         </tbody>
       </table>
@@ -141,6 +151,31 @@
 {% endif %}
 
 <template id="tpl-ent-linha">
+  <tr class="fluxo-linha">
+    <td class="ent-col-parc">
+      <input class="ent-parcela" data-parcela aria-label="Parcela" autocomplete="off">
+      <input type="hidden" name="comissao_parcela" data-com-parcela>
+      <input type="hidden" name="repasse_parcela" data-rep-parcela>
+    </td>
+    <td class="col-valor"><input name="comissao_previsto" inputmode="decimal" data-num aria-label="Previsto Seguralta"></td>
+    <td class="col-valor"><input name="comissao_recebido" inputmode="decimal" data-num aria-label="Recebido Seguralta"></td>
+    <td><input name="comissao_data" type="date" aria-label="Data Seguralta"></td>
+    <td class="ent-sep col-valor"><input name="repasse_previsto" inputmode="decimal" data-num aria-label="Pendente Plenus"></td>
+    <td class="col-valor"><input name="repasse_recebido" inputmode="decimal" data-num data-ple-receb aria-label="Pago Plenus"></td>
+    <td><input name="repasse_data" type="date" aria-label="Data Plenus"></td>
+    <td class="col-conf">
+      <input type="hidden" name="repasse_recibo_id" value="">
+      <span class="meta">—</span>
+    </td>
+    <td class="ent-situacao" data-situacao><span class="selo-apagar">A receber</span></td>
+    <td class="acoes">
+      <button type="button" class="btn btn--linha btn--mini" data-editar title="Liberar edição">{{ icone('lapis') }}</button>
+      <button type="button" class="btn btn--perigo btn--mini" data-remover title="Remover">{{ icone('x') }}</button>
+    </td>
+  </tr>
+</template>
+
+<template id="tpl-ent-linha-cons">
   <tr class="fluxo-linha">
     <td class="ent-col-parc">
       <input class="ent-parcela" data-parcela aria-label="Parcela" autocomplete="off">

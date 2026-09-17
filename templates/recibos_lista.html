@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block titulo %}Fluxo de caixa — Recibos{% endblock %}
+{% block cabecalho %}Fluxo de caixa — Recibos{% endblock %}
+
+{% block acoes %}
+<a class="btn btn--primario" href="{{ url_for('recibo_form') }}">{{ icone('mais') }} Novo recibo</a>
+{% endblock %}
+
+{% block conteudo %}
+<form class="cartao filtros" method="get">
+  <div class="grade">
+    <div class="campo c-4">
+      <label for="f-busca">Buscar</label>
+      <div class="campo-busca">
+        {{ icone('busca') }}
+        <input id="f-busca" type="search" name="busca" value="{{ busca }}"
+               placeholder="Número do recibo" onfocus="this.select()">
+      </div>
+    </div>
+    <div class="campo c-2">
+      <label for="f-mes">Mês</label>
+      <select id="f-mes" name="mes">
+        <option value="">Qualquer mês</option>
+        {% for n in range(1, 13) %}
+        <option value="{{ n }}" {{ 'selected' if mes == n }}>{{ MESES[n] }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="campo c-3">
+      <label for="f-status">Envio</label>
+      <select id="f-status" name="status">
+        <option value="">Todos</option>
+        <option value="pendente" {{ 'selected' if status == 'pendente' }}>Pendente de envio</option>
+        <option value="enviado" {{ 'selected' if status == 'enviado' }}>Enviado</option>
+      </select>
+    </div>
+    <div class="campo c-3">
+      <label for="f-vinculado">Nota fiscal</label>
+      <select id="f-vinculado" name="vinculado">
+        <option value="">Todos</option>
+        <option value="nao" {{ 'selected' if vinculado == 'nao' }}>Sem nota fiscal vinculada</option>
+        <option value="sim" {{ 'selected' if vinculado == 'sim' }}>Com nota fiscal vinculada</option>
+      </select>
+    </div>
+  </div>
+  <div class="filtros__acoes">
+    <button class="btn btn--primario" type="submit">{{ icone('busca') }} Buscar</button>
+    {% if tem_filtro %}
+    <a class="btn btn--linha" href="{{ url_for('recibos_lista') }}">Limpar</a>
+    {% endif %}
+  </div>
+</form>
+
+{% set url_lista = url_for('recibos_lista', **request.args) %}
+<div class="cartao" style="padding:0">
+  {% if recibos %}
+  <div class="tabela-wrap">
+    <table class="lista">
+      <thead>
+        <tr>
+          <th>Número</th>
+          <th style="width:120px">Data</th>
+          <th style="width:130px;text-align:right">Valor bruto</th>
+          <th style="width:100px;text-align:right">Alíquota</th>
+          <th style="width:130px;text-align:right">Valor líquido</th>
+          <th style="width:130px">Envio</th>
+          <th style="width:160px">Nota fiscal</th>
+          <th style="width:110px"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in recibos %}
+        <tr>
+          <td><a class="cel-titulo" href="{{ url_for('recibo_form', recibo_id=r.id) }}">{{ r.numero or '—' }}</a></td>
+          <td>{{ r.data|data_br }}</td>
+          <td style="text-align:right">{{ r.valor_bruto|moeda }}</td>
+          <td style="text-align:right">{{ (r.aliquota|numero ~ '%') if r.aliquota is not none else '—' }}</td>
+          <td style="text-align:right">{{ r.valor_liquido|moeda }}</td>
+          <td>
+            {% if r.data_envio %}{{ r.data_envio|data_br }}
+            {% else %}<span class="selo-apagar">a enviar</span>{% endif %}
+          </td>
+          <td>
+            {% if r.nota_fiscal_id %}
+            <a href="{{ url_for('nota_fiscal_form', nota_fiscal_id=r.nota_fiscal_id) }}">{{ r.nota_fiscal_numero or ('#' ~ r.nota_fiscal_id) }}</a>
+            {% else %}<span class="meta">sem nota fiscal</span>{% endif %}
+          </td>
+          <td class="acoes">
+            <a class="btn btn--linha btn--mini" href="{{ url_for('recibo_form', recibo_id=r.id, voltar=url_lista) }}" title="Editar">{{ icone('lapis') }}</a>
+            <form method="post" action="{{ url_for('recibo_excluir', recibo_id=r.id) }}"
+                  onsubmit="return confirm('Excluir o recibo &quot;{{ r.numero or r.id }}&quot;?')">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="voltar" value="{{ url_lista }}">
+              <button class="btn btn--perigo btn--mini" type="submit" title="Excluir">{{ icone('lixo') }}</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="vazio">
+    {% if tem_filtro %}Nenhum recibo encontrado para o filtro.
+    {% else %}Nenhum recibo cadastrado ainda.{% endif %}
+  </p>
+  {% endif %}
+</div>
+{% endblock %}

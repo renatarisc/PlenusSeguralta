@@ -94,7 +94,7 @@
   function initBloco(sec) {
     const corpo = sec.querySelector("[data-corpo]");
     const form = sec.querySelector("form");
-    const tpl = document.getElementById("tpl-ent-linha");
+    const tpl = document.getElementById(sec.hasAttribute("data-consorcio") ? "tpl-ent-linha-cons" : "tpl-ent-linha");
     if (!corpo || !form) return;
 
     const sincTodas = () => corpo.querySelectorAll("tr").forEach(sincronizarParcela);
