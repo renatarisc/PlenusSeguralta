@@ -519,6 +519,7 @@ CREATE TABLE IF NOT EXISTS recibo (
     aliquota REAL,                 -- percentual
     valor_liquido REAL,
     data_envio TEXT,               -- NULL = ainda nao enviado
+    observacao TEXT,
     criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     atualizado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     KEY ix_recibo_notafiscal (nota_fiscal_id),
@@ -713,7 +714,7 @@ _COLUNAS_ESPERADAS = {
     "recibo": {
         "nota_fiscal_id": "INT", "numero": "TEXT", "data": "TEXT",
         "valor_bruto": "REAL", "aliquota": "REAL", "valor_liquido": "REAL",
-        "data_envio": "TEXT",
+        "data_envio": "TEXT", "observacao": "TEXT",
         "criado_em": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
         "atualizado_em": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
     },

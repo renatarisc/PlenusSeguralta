@@ -1985,7 +1985,7 @@ def listar_notas_fiscais(busca=None, status=None, mes_emissao=None):
 #             o vinculo com ela e opcional e' feito depois, editando o recibo) ----------
 
 _COLS_RECIBO = ("nota_fiscal_id", "numero", "data", "valor_bruto", "aliquota",
-               "valor_liquido", "data_envio")
+               "valor_liquido", "data_envio", "observacao")
 
 
 def _valores_recibo(dados):
@@ -1997,6 +1997,7 @@ def _valores_recibo(dados):
         para_decimal(dados.get("aliquota")),
         para_decimal(dados.get("valor_liquido")),
         (dados.get("data_envio") or "").strip() or None,
+        (dados.get("observacao") or "").strip() or None,
     ]
 
 

@@ -1513,7 +1513,7 @@ def nota_fiscal_excluir(nota_fiscal_id):
 #             ser feito depois, quando ela existir) ----------
 
 _CAMPOS_RECIBO = ("nota_fiscal_id", "numero", "data", "valor_bruto", "aliquota",
-                  "valor_liquido", "data_envio")
+                  "valor_liquido", "data_envio", "observacao")
 
 
 def _recibo_para_form(r):

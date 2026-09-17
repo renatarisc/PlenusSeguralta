@@ -61,9 +61,9 @@
           <th>Número</th>
           <th style="width:120px">Data</th>
           <th style="width:130px;text-align:right">Valor bruto</th>
-          <th style="width:100px;text-align:right">Alíquota</th>
           <th style="width:130px;text-align:right">Valor líquido</th>
           <th style="width:130px">Envio</th>
+          <th>Observação</th>
           <th style="width:160px">Nota fiscal</th>
           <th style="width:110px"></th>
         </tr>
@@ -74,12 +74,12 @@
           <td><a class="cel-titulo" href="{{ url_for('recibo_form', recibo_id=r.id) }}">{{ r.numero or '—' }}</a></td>
           <td>{{ r.data|data_br }}</td>
           <td style="text-align:right">{{ r.valor_bruto|moeda }}</td>
-          <td style="text-align:right">{{ (r.aliquota|numero ~ '%') if r.aliquota is not none else '—' }}</td>
           <td style="text-align:right">{{ r.valor_liquido|moeda }}</td>
           <td>
             {% if r.data_envio %}{{ r.data_envio|data_br }}
             {% else %}<span class="selo-apagar">a enviar</span>{% endif %}
           </td>
+          <td>{{ r.observacao or '—' }}</td>
           <td>
             {% if r.nota_fiscal_id %}
             <a href="{{ url_for('nota_fiscal_form', nota_fiscal_id=r.nota_fiscal_id) }}">{{ r.nota_fiscal_numero or ('#' ~ r.nota_fiscal_id) }}</a>
