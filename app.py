@@ -1655,6 +1655,9 @@ def entradas_lista():
     if situacao not in ("paga", "nao_paga"):
         situacao = ""
     tipo_id = request.args.get("tipo_id", type=int)
+    cocorretagem = request.args.get("cocorretagem", "")
+    if cocorretagem not in ("sim", "nao"):
+        cocorretagem = ""
     data_base = request.args.get("data_base", "plenus")
     if data_base not in ("plenus", "seguralta"):
         data_base = "plenus"
@@ -1671,6 +1674,9 @@ def entradas_lista():
         data_ini_busca or None, data_fim_busca or None, lado=data_base)
     if tipo_id:
         apolices = [a for a in apolices if a.get("tipo_seguro_id") == tipo_id]
+    if cocorretagem:
+        quer_coco = cocorretagem == "sim"
+        apolices = [a for a in apolices if bool(a.get("comissao_cocorretagem")) == quer_coco]
     if busca:
         alvo = repo._sem_acento_minusculo(busca)
         apolices = [a for a in apolices
@@ -1686,7 +1692,9 @@ def entradas_lista():
         a_receber_mes=a_receber_mes, a_receber_total=a_receber_total,
         busca=busca, data_ini=data_ini, data_fim=data_fim, situacao=situacao,
         tipo_id=tipo_id, tipos=repo.listar_simples("tipo_seguro"), data_base=data_base,
-        tem_filtro=bool(busca or data_ini or data_fim or situacao or tipo_id or data_base != "plenus"),
+        cocorretagem=cocorretagem,
+        tem_filtro=bool(busca or data_ini or data_fim or situacao or tipo_id
+                        or cocorretagem or data_base != "plenus"),
         mes_atual=date.today().month, MESES=_MESES, presets=_presets_periodo())
 
 

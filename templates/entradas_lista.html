@@ -56,13 +56,13 @@
       </div>
     </div>
 
-    <div class="campo c-4">
+    <div class="campo c-3">
       <label for="r-busca">Buscar</label>
       <input id="r-busca" type="search" name="busca" value="{{ busca }}"
              placeholder="Cliente ou nº da apólice" onfocus="this.select()">
     </div>
 
-    <div class="campo c-4">
+    <div class="campo c-3">
       <label for="r-sit">Situação da parcela</label>
       <select id="r-sit" name="situacao">
         <option value="">Todas</option>
@@ -71,13 +71,22 @@
       </select>
     </div>
 
-    <div class="campo c-4">
+    <div class="campo c-3">
       <label for="r-tipo">Tipo de seguro</label>
       <select id="r-tipo" name="tipo_id">
         <option value="">Todos</option>
         {% for t in tipos %}
         <option value="{{ t.id }}" {{ 'selected' if tipo_id == t.id }}>{{ t.nome }}</option>
         {% endfor %}
+      </select>
+    </div>
+
+    <div class="campo c-3">
+      <label for="r-coco">Cocorretagem</label>
+      <select id="r-coco" name="cocorretagem">
+        <option value="">Todas</option>
+        <option value="sim" {{ 'selected' if cocorretagem == 'sim' }}>Só cocorretagem</option>
+        <option value="nao" {{ 'selected' if cocorretagem == 'nao' }}>Sem cocorretagem</option>
       </select>
     </div>
   </div>
