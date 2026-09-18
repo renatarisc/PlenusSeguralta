@@ -1655,7 +1655,7 @@ def recibo_form(recibo_id=None):
 
     if request.method == "POST":
         dados = {k: request.form.get(k, "") for k in _CAMPOS_RECIBO}
-        parcela_refs = request.form.getlist("parcela_refs")
+        refs = request.form.getlist("parcela_refs") + request.form.getlist("desconto_refs")
 
         if request.form.get("acao") == "buscar":
             candidatos = repo.parcelas_repasse_por_data(dados.get("data"), recibo_id)
@@ -1666,7 +1666,7 @@ def recibo_form(recibo_id=None):
             return render_template("recibos_form.html", ativo="recibos_lista",
                                    recibo=recibo, notas_fiscais=repo.notas_fiscais_para_select(),
                                    parcelas_candidatas=candidatos, descontos_candidatos=descontos,
-                                   parcela_refs_marcados=set(parcela_refs) | ja_vinculadas,
+                                   parcela_refs_marcados=set(refs) | ja_vinculadas,
                                    voltar=voltar)
 
         erros = validar_recibo(dados)
@@ -1679,14 +1679,14 @@ def recibo_form(recibo_id=None):
             return render_template("recibos_form.html", ativo="recibos_lista",
                                    recibo=recibo, notas_fiscais=repo.notas_fiscais_para_select(),
                                    parcelas_candidatas=candidatos, descontos_candidatos=descontos,
-                                   parcela_refs_marcados=set(parcela_refs), voltar=voltar)
+                                   parcela_refs_marcados=set(refs), voltar=voltar)
         if recibo_id:
             repo.atualizar_recibo(recibo_id, dados)
             flash("Recibo atualizado.", "ok")
         else:
             recibo_id = repo.criar_recibo(dados)
             flash("Recibo cadastrado.", "ok")
-        repo.aplicar_parcelas_do_recibo(recibo_id, parcela_refs)
+        repo.aplicar_parcelas_do_recibo(recibo_id, refs)
         return redirect(voltar or url_for("recibos_lista"))
 
     recibo = repo.obter_recibo(recibo_id) if recibo_id else None

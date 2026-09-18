@@ -125,11 +125,11 @@
         <thead>
           <tr><th style="width:36px"></th><th>Descrição</th><th style="text-align:right">Valor</th></tr>
         </thead>
-        <tbody>
+        <tbody id="corpo-descontos-recibo">
           {% for c in descontos_candidatos %}
           {% set ref = c.origem ~ ':' ~ c.id %}
           <tr>
-            <td><input type="checkbox" name="parcela_refs" value="{{ ref }}" data-valor="{{ -(c.valor or 0) }}"
+            <td><input type="checkbox" name="desconto_refs" value="{{ ref }}" data-valor="{{ c.valor or 0 }}"
                        {{ 'checked' if ref in parcela_refs_marcados }}></td>
             <td>{{ c.descricao or '—' }}</td>
             <td style="text-align:right">- {{ c.valor|moeda }}</td>

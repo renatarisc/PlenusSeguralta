@@ -42,24 +42,30 @@
     });
   }
 
-  // ---- resumo ao vivo + valor bruto sugerido pelas parcelas marcadas
-  //      (soma o valor recebido delas; o usuário pode trocar à mão) ----
+  // ---- resumo ao vivo + valor bruto sugerido pelas parcelas marcadas menos os
+  //      descontos marcados. O resumo abaixo da tabela de parcelas mostra só a soma
+  //      das PARCELAS (o desconto não é parcela); o desconto entra apenas no valor
+  //      bruto lá em cima. ----
   const caixasParc = document.querySelectorAll('input[name="parcela_refs"]');
+  const caixasDesconto = document.querySelectorAll('input[name="desconto_refs"]');
   const resumoParc = document.getElementById("resumo-parcelas-recibo");
-  if (caixasParc.length) {
+  if (caixasParc.length || caixasDesconto.length) {
     let brutoManual = false;
     if (bruto) bruto.addEventListener("input", () => { brutoManual = true; });
 
     const atualizarResumo = () => {
-      let n = 0, soma = 0;
-      caixasParc.forEach((c) => { if (c.checked) { n++; soma += num(c.dataset.valor); } });
-      if (resumoParc) resumoParc.textContent = n ? n + " parcela(s) marcada(s) · soma R$ " + fmt(soma) : "";
-      if (bruto && !brutoManual && n) {
-        bruto.value = fmt(soma);
+      let n = 0, somaParcelas = 0;
+      caixasParc.forEach((c) => { if (c.checked) { n++; somaParcelas += num(c.dataset.valor); } });
+      let somaDescontos = 0;
+      caixasDesconto.forEach((c) => { if (c.checked) { somaDescontos += num(c.dataset.valor); } });
+      if (resumoParc) resumoParc.textContent = n ? n + " parcela(s) marcada(s) · soma R$ " + fmt(somaParcelas) : "";
+      if (bruto && !brutoManual && (n || somaDescontos)) {
+        bruto.value = fmt(somaParcelas - somaDescontos);
         recalcLiquido();
       }
     };
     caixasParc.forEach((c) => c.addEventListener("change", atualizarResumo));
+    caixasDesconto.forEach((c) => c.addEventListener("change", atualizarResumo));
     atualizarResumo();
   }
 })();
