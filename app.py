@@ -118,6 +118,7 @@ app.jinja_env.globals["MENU"] = [
     {"grupo": "Fluxo de caixa", "icone": "fluxo", "divisoria_antes": True, "filhos": [
         {"rota": "saidas_lista", "texto": "Saídas", "icone": "saida"},
         {"rota": "entradas_lista", "texto": "Entradas (Comissões)", "icone": "entrada"},
+        {"rota": "conta_corrente_lista", "texto": "Conta corrente", "icone": "pagamento"},
         {"rota": "fluxo_relatorios", "slug": "saidas", "texto": "Relatório de saídas", "icone": "relatorio"},
         {"rota": "fluxo_relatorios", "slug": "entradas", "texto": "Relatório de entradas", "icone": "relatorio"},
         {"rota": "entradas_panorama", "texto": "Comissões recebidas", "icone": "relatorio"},
@@ -1700,6 +1701,51 @@ def entradas_lista():
         cocorretagem=cocorretagem, agrupar=agrupar, grupo_opcoes_entrada=_GRUPO_OPCOES_ENTRADA,
         tem_filtro=bool(busca or data_ini or data_fim or situacao or tipo_id
                         or cocorretagem or agrupar or data_base != "plenus"),
+        mes_atual=date.today().month, MESES=_MESES, presets=_presets_periodo())
+
+
+@app.route("/financeiro/conta-corrente")
+def conta_corrente_lista():
+    """Extrato da conta corrente PJ da Plenus — só leitura, sem lançamento próprio
+    (ver repo.extrato_conta_corrente). Saldo corrido é calculado sobre a história
+    TODA, em ordem cronológica; o filtro de período/tipo só recorta o que aparece
+    na tela, sem afetar o saldo de cada linha."""
+    data_ini = request.args.get("data_ini", "").strip()
+    data_fim = request.args.get("data_fim", "").strip()
+    tipo = request.args.get("tipo", "")
+    if tipo not in ("entrada", "saida"):
+        tipo = ""
+
+    data_ini_busca, data_fim_busca = data_ini, data_fim
+    if data_ini and not data_fim:
+        data_fim_busca = data_ini
+    elif data_fim and not data_ini:
+        data_ini_busca = data_fim
+
+    movimentos = repo.extrato_conta_corrente()
+    saldo = 0.0
+    for m in movimentos:
+        saldo += m["valor"] if m["tipo"] == "entrada" else -m["valor"]
+        m["saldo"] = round(saldo, 2)
+    saldo_final = round(saldo, 2)
+
+    exibidos = movimentos
+    if data_ini_busca:
+        exibidos = [m for m in exibidos if (m["data"] or "") >= data_ini_busca]
+    if data_fim_busca:
+        exibidos = [m for m in exibidos if (m["data"] or "") <= data_fim_busca]
+    if tipo:
+        exibidos = [m for m in exibidos if m["tipo"] == tipo]
+
+    total_entradas = round(sum(m["valor"] for m in exibidos if m["tipo"] == "entrada"), 2)
+    total_saidas = round(sum(m["valor"] for m in exibidos if m["tipo"] == "saida"), 2)
+
+    return render_template(
+        "conta_corrente.html", ativo="conta_corrente_lista",
+        movimentos=list(reversed(exibidos)), saldo_final=saldo_final,
+        total_entradas=total_entradas, total_saidas=total_saidas,
+        data_ini=data_ini, data_fim=data_fim, tipo=tipo,
+        tem_filtro=bool(data_ini or data_fim or tipo),
         mes_atual=date.today().month, MESES=_MESES, presets=_presets_periodo())
 
 

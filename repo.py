@@ -2194,6 +2194,131 @@ def aplicar_parcelas_do_recibo(recibo_id, refs):
 
 # ---------- entradas (contas a receber = repasses de comissão) ----------
 
+# ---------- conta corrente (extrato só-leitura, montado do que já está lançado) ----------
+
+def extrato_conta_corrente():
+    """Extrato da conta corrente PJ da Plenus — não tem lançamento próprio, é
+    inteiramente derivado do que já está lançado no sistema:
+
+    * saídas: `saida` com conta de origem "PESSOA JURÍDICA", já PAGAS
+      (data_pagamento preenchida) — data do movimento = data_pagamento;
+    * entradas — dois fluxos que resultam em dinheiro na conta da Plenus:
+        - cocorretagem: a Plenus recebe direto da seguradora, sem passar por
+          recibo/NF (ver data_deposito_cc) — parcelas E repasse único de
+          apólice/endosso/consórcio, só quando cocorretagem = 1;
+        - fluxo normal (recibo → nota fiscal): quando a NOTA FISCAL é paga,
+          isso é o repasse da Seguralta caindo na conta da Plenus.
+
+    Devolve TODA a história (sem filtro de período), ordenada por data — quem
+    chama decide o recorte de exibição e calcula o saldo corrido em cima da
+    lista inteira. Cada linha: {data, tipo('entrada'|'saida'), origem,
+    descricao, valor(sempre positivo)}."""
+    linhas = []
+    with conexao() as con:
+        for r in con.execute(
+            "SELECT s.data_pagamento AS data, s.valor, s.descricao, "
+            "       cat.nome AS categoria_nome "
+            "  FROM saida s "
+            "  JOIN conta_origem co ON co.id = s.conta_origem_id "
+            "  LEFT JOIN categoria_saida cat ON cat.id = s.categoria_id "
+            " WHERE co.nome = 'PESSOA JURÍDICA' AND s.data_pagamento IS NOT NULL"
+        ).fetchall():
+            desc = r["descricao"] or r["categoria_nome"] or "Saída"
+            linhas.append({"data": r["data"], "tipo": "saida", "origem": "saida",
+                           "descricao": desc, "valor": float(r["valor"] or 0)})
+
+        for r in con.execute(
+            "SELECT r.data_deposito_cc AS data, r.valor_recebido AS valor, r.parcela, "
+            "       a.numero_apolice, c.nome AS cliente_nome "
+            "  FROM apolice_repasse r "
+            "  JOIN apolice a ON a.id = r.apolice_id "
+            "  LEFT JOIN cliente c ON c.id = a.cliente_id "
+            " WHERE a.comissao_cocorretagem = 1 "
+            "   AND r.valor_recebido IS NOT NULL AND r.data_deposito_cc IS NOT NULL"
+        ).fetchall():
+            desc = (f"Cocorretagem — {r['cliente_nome'] or 'sem cliente'} — "
+                    f"apólice {r['numero_apolice'] or '—'} (parcela {r['parcela'] or '?'})")
+            linhas.append({"data": r["data"], "tipo": "entrada", "origem": "cocorretagem",
+                           "descricao": desc, "valor": float(r["valor"] or 0)})
+
+        for r in con.execute(
+            "SELECT a.data_deposito_cc AS data, a.comissao_valor_plenus_recebido AS valor, "
+            "       a.numero_apolice, c.nome AS cliente_nome "
+            "  FROM apolice a LEFT JOIN cliente c ON c.id = a.cliente_id "
+            " WHERE a.comissao_cocorretagem = 1 AND COALESCE(a.comissao_parcelada, 0) = 0 "
+            "   AND a.comissao_valor_plenus_recebido IS NOT NULL AND a.data_deposito_cc IS NOT NULL"
+        ).fetchall():
+            desc = f"Cocorretagem — {r['cliente_nome'] or 'sem cliente'} — apólice {r['numero_apolice'] or '—'}"
+            linhas.append({"data": r["data"], "tipo": "entrada", "origem": "cocorretagem",
+                           "descricao": desc, "valor": float(r["valor"] or 0)})
+
+        for r in con.execute(
+            "SELECT r.data_deposito_cc AS data, r.valor_recebido AS valor, r.parcela, "
+            "       e.numero AS endosso_numero, a.numero_apolice, c.nome AS cliente_nome "
+            "  FROM apolice_endosso_repasse r "
+            "  JOIN apolice_endosso e ON e.id = r.endosso_id "
+            "  JOIN apolice a ON a.id = e.apolice_id "
+            "  LEFT JOIN cliente c ON c.id = a.cliente_id "
+            " WHERE e.comissao_cocorretagem = 1 "
+            "   AND r.valor_recebido IS NOT NULL AND r.data_deposito_cc IS NOT NULL"
+        ).fetchall():
+            desc = (f"Cocorretagem — {r['cliente_nome'] or 'sem cliente'} — "
+                    f"apólice {r['numero_apolice'] or '—'} endosso {r['endosso_numero'] or '—'} "
+                    f"(parcela {r['parcela'] or '?'})")
+            linhas.append({"data": r["data"], "tipo": "entrada", "origem": "cocorretagem",
+                           "descricao": desc, "valor": float(r["valor"] or 0)})
+
+        for r in con.execute(
+            "SELECT e.data_deposito_cc AS data, e.comissao_valor_plenus_recebido AS valor, "
+            "       e.numero AS endosso_numero, a.numero_apolice, c.nome AS cliente_nome "
+            "  FROM apolice_endosso e "
+            "  JOIN apolice a ON a.id = e.apolice_id "
+            "  LEFT JOIN cliente c ON c.id = a.cliente_id "
+            " WHERE e.comissao_cocorretagem = 1 AND COALESCE(e.comissao_parcelada, 0) = 0 "
+            "   AND e.comissao_valor_plenus_recebido IS NOT NULL AND e.data_deposito_cc IS NOT NULL"
+        ).fetchall():
+            desc = (f"Cocorretagem — {r['cliente_nome'] or 'sem cliente'} — "
+                    f"apólice {r['numero_apolice'] or '—'} endosso {r['endosso_numero'] or '—'}")
+            linhas.append({"data": r["data"], "tipo": "entrada", "origem": "cocorretagem",
+                           "descricao": desc, "valor": float(r["valor"] or 0)})
+
+        for r in con.execute(
+            "SELECT r.data_deposito_cc AS data, r.valor_recebido AS valor, r.parcela, "
+            "       co.numero_grupo, co.numero_cota, c.nome AS cliente_nome "
+            "  FROM consorcio_repasse r "
+            "  JOIN consorcio co ON co.id = r.consorcio_id "
+            "  LEFT JOIN cliente c ON c.id = co.cliente_id "
+            " WHERE co.comissao_cocorretagem = 1 "
+            "   AND r.valor_recebido IS NOT NULL AND r.data_deposito_cc IS NOT NULL"
+        ).fetchall():
+            desc = (f"Cocorretagem — {r['cliente_nome'] or 'sem cliente'} — "
+                    f"consórcio grupo {r['numero_grupo'] or '—'} (parcela {r['parcela'] or '?'})")
+            linhas.append({"data": r["data"], "tipo": "entrada", "origem": "cocorretagem",
+                           "descricao": desc, "valor": float(r["valor"] or 0)})
+
+        for r in con.execute(
+            "SELECT co.data_deposito_cc AS data, co.comissao_valor_plenus_recebido AS valor, "
+            "       co.numero_grupo, co.numero_cota, c.nome AS cliente_nome "
+            "  FROM consorcio co LEFT JOIN cliente c ON c.id = co.cliente_id "
+            " WHERE co.comissao_cocorretagem = 1 AND COALESCE(co.comissao_parcelada, 0) = 0 "
+            "   AND co.comissao_valor_plenus_recebido IS NOT NULL AND co.data_deposito_cc IS NOT NULL"
+        ).fetchall():
+            desc = f"Cocorretagem — {r['cliente_nome'] or 'sem cliente'} — consórcio grupo {r['numero_grupo'] or '—'}"
+            linhas.append({"data": r["data"], "tipo": "entrada", "origem": "cocorretagem",
+                           "descricao": desc, "valor": float(r["valor"] or 0)})
+
+        for r in con.execute(
+            "SELECT nf.data_pagamento AS data, nf.valor, nf.numero "
+            "  FROM nota_fiscal nf WHERE nf.data_pagamento IS NOT NULL"
+        ).fetchall():
+            desc = f"Pagamento Seguralta — NF {r['numero'] or '—'}"
+            linhas.append({"data": r["data"], "tipo": "entrada", "origem": "nota_fiscal",
+                           "descricao": desc, "valor": float(r["valor"] or 0)})
+
+    linhas.sort(key=lambda l: (l["data"] or "", l["tipo"]))
+    return linhas
+
+
 def listar_entradas_repasse(data_ini=None, data_fim=None):
     """Uma linha por PARCELA de repasse — o dinheiro que a Plenus recebe da
     corretora, vinculado à comissão de cada apólice. Junta dois casos:

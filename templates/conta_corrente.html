@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block titulo %}Fluxo de caixa — Conta corrente{% endblock %}
+{% block cabecalho %}Fluxo de caixa — Conta corrente{% endblock %}
+
+{% block conteudo %}
+<div class="stats">
+  <div class="stat">
+    <div class="stat__valor" style="color:{{ 'var(--erro)' if saldo_final < 0 else 'var(--ok)' }}">{{ saldo_final|moeda }}</div>
+    <div class="stat__rotulo">Saldo atual</div>
+  </div>
+  <div class="stat">
+    <div class="stat__valor" style="color:var(--ok)">{{ total_entradas|moeda }}</div>
+    <div class="stat__rotulo">Entradas — filtro</div>
+  </div>
+  <div class="stat">
+    <div class="stat__valor" style="color:var(--erro)">{{ total_saidas|moeda }}</div>
+    <div class="stat__rotulo">Saídas — filtro</div>
+  </div>
+</div>
+
+<p class="dica" style="margin:-6px 0 14px">
+  Extrato só de leitura — não tem lançamento próprio. Saídas: as que têm conta de
+  origem "Pessoa jurídica" e já foram pagas. Entradas: cocorretagem (depósito direto
+  na conta) e notas fiscais pagas (repasse da Seguralta). O saldo é calculado sobre
+  toda a história lançada no sistema; o filtro abaixo só recorta o que aparece na tela.
+</p>
+
+<form class="cartao filtros rel-filtros ent-filtros" method="get">
+  <div class="grade">
+    <div class="rel-linha1 c-12">
+      <div class="rel-periodo">
+        <div class="rel-periodo__campos">
+          <div class="campo">
+            <label for="r-ini">De</label>
+            <input id="r-ini" type="date" name="data_ini" value="{{ data_ini }}">
+          </div>
+          <div class="campo">
+            <label for="r-fim">Até</label>
+            <input id="r-fim" type="date" name="data_fim" value="{{ data_fim }}">
+          </div>
+          <div class="campo rel-periodo__atalhos">
+            <label aria-hidden="true">&nbsp;</label>
+            <div class="rel-presets">
+              <button type="button" class="btn btn--linha" data-ini="{{ presets.mes[0] }}" data-fim="{{ presets.mes[1] }}">Este mês</button>
+              <button type="button" class="btn btn--linha" data-ini="{{ presets.mes_passado[0] }}" data-fim="{{ presets.mes_passado[1] }}">Mês passado</button>
+              <button type="button" class="btn btn--linha" data-ini="{{ presets.ano[0] }}" data-fim="{{ presets.ano[1] }}">Este ano</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="campo c-4">
+      <label for="r-tipo">Movimentação</label>
+      <select id="r-tipo" name="tipo">
+        <option value="">Todas</option>
+        <option value="entrada" {{ 'selected' if tipo == 'entrada' }}>Só entradas</option>
+        <option value="saida" {{ 'selected' if tipo == 'saida' }}>Só saídas</option>
+      </select>
+    </div>
+  </div>
+  <div class="filtros__acoes">
+    <button class="btn btn--primario" type="submit">{{ icone('busca') }} Buscar</button>
+    {% if tem_filtro %}<a class="btn btn--linha" href="{{ url_for('conta_corrente_lista') }}">Limpar</a>{% endif %}
+  </div>
+</form>
+
+<div class="cartao" style="padding:0">
+  {% if movimentos %}
+  <div class="tabela-wrap">
+    <table class="lista">
+      <thead>
+        <tr>
+          <th style="width:120px">Data</th>
+          <th>Descrição</th>
+          <th style="width:150px;text-align:right">Valor</th>
+          <th style="width:150px;text-align:right">Saldo</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in movimentos %}
+        <tr>
+          <td>{{ m.data|data_br }}</td>
+          <td>{{ m.descricao }}</td>
+          <td style="text-align:right;color:{{ 'var(--ok)' if m.tipo == 'entrada' else 'var(--erro)' }}">
+            {{ '+ ' if m.tipo == 'entrada' else '− ' }}{{ m.valor|moeda }}
+          </td>
+          <td style="text-align:right;color:{{ 'var(--erro)' if m.saldo < 0 else 'inherit' }}">{{ m.saldo|moeda }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="vazio">Nenhuma movimentação encontrada para o filtro.</p>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.querySelectorAll(".rel-presets [data-ini]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      document.getElementById("r-ini").value = b.dataset.ini;
+      document.getElementById("r-fim").value = b.dataset.fim;
+    });
+  });
+</script>
+{% endblock %}
