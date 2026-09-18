@@ -2275,7 +2275,9 @@ def extrato_conta_corrente():
 
     * saídas: `saida` com conta de origem "PESSOA JURÍDICA", já PAGAS
       (data_pagamento preenchida) — data do movimento = data_pagamento;
-    * entradas — dois fluxos que resultam em dinheiro na conta da Plenus:
+    * entradas — três fluxos que resultam em dinheiro na conta da Plenus:
+        - entrada simples: `entrada_simples` com conta de origem "PESSOA
+          JURÍDICA" e `data` preenchida — lançamento avulso (fora de comissão);
         - cocorretagem: a Plenus recebe direto da seguradora, sem passar por
           recibo/NF (ver data_deposito_cc) — parcelas E repasse único de
           apólice/endosso/consórcio, só quando cocorretagem = 1. Na vida real
@@ -2310,6 +2312,15 @@ def extrato_conta_corrente():
             desc = r["descricao"] or r["categoria_nome"] or "Saída"
             linhas.append({"data": r["data"], "tipo": "saida", "origem": "saida",
                            "descricao": desc, "valor": float(r["valor"] or 0)})
+
+        for r in con.execute(
+            "SELECT e.data, e.valor, e.descricao "
+            "  FROM entrada_simples e "
+            "  JOIN conta_origem co ON co.id = e.conta_origem_id "
+            " WHERE co.nome = 'PESSOA JURÍDICA' AND e.data IS NOT NULL"
+        ).fetchall():
+            linhas.append({"data": r["data"], "tipo": "entrada", "origem": "entrada_simples",
+                           "descricao": r["descricao"] or "Entrada", "valor": float(r["valor"] or 0)})
 
         for r in con.execute(
             "SELECT r.data_deposito_cc AS data, r.valor_recebido AS valor, r.parcela, "
