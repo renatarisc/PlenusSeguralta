@@ -11,17 +11,17 @@
   <div class="stat">
     <div class="stat__valor">{{ soma_filtrada|moeda }}</div>
     <div class="stat__rotulo">
-      Soma das parcelas filtradas —
+      Parcelas filtradas —
       {{ 'recebido Seguralta' if data_base == 'seguralta' else 'pago Plenus' }}
     </div>
   </div>
   <div class="stat">
     <div class="stat__valor">{{ soma_plenus_coco|moeda }}</div>
-    <div class="stat__rotulo">Soma das parcelas filtradas — Plenus cocorretagem</div>
+    <div class="stat__rotulo">Parcelas filtradas — Plenus cocorretagem</div>
   </div>
   <div class="stat">
     <div class="stat__valor">{{ soma_comissao_total|moeda }}</div>
-    <div class="stat__rotulo">Comissão total das parcelas filtradas — Seguralta + Plenus cocorretagem</div>
+    <div class="stat__rotulo">Parcelas filtradas — Comissão (Seguralta + Plenus cocorretagem)</div>
   </div>
   <div class="stat">
     <div class="stat__valor">{{ a_receber_mes|moeda }}</div>
