@@ -2313,8 +2313,10 @@ def extrato_conta_corrente():
           a seguradora deposita tudo que venceu naquele dia numa TACADA SÓ,
           então as linhas de cocorretagem são agrupadas por (data, seguradora)
           e somadas — uma linha por depósito real, não uma por apólice;
-        - fluxo normal (recibo → nota fiscal): quando a NOTA FISCAL é paga,
-          isso é o repasse da Seguralta caindo na conta da Plenus.
+        - fluxo normal (recibo → nota fiscal): quando a NOTA FISCAL é paga, isso
+          é o repasse da Seguralta caindo na conta da Plenus — data do movimento
+          = data_depositado (quando o dinheiro realmente entra na conta), caindo
+          pra data_pagamento se ainda não tiver o depósito registrado.
 
     Devolve TODA a história (sem filtro de período), ordenada por data — quem
     chama decide o recorte de exibição e calcula o saldo corrido em cima da
@@ -2442,7 +2444,7 @@ def extrato_conta_corrente():
                            "descricao": desc, "valor": round(g["valor"], 2)})
 
         for r in con.execute(
-            "SELECT nf.data_pagamento AS data, nf.valor, nf.numero "
+            "SELECT COALESCE(nf.data_depositado, nf.data_pagamento) AS data, nf.valor, nf.numero "
             "  FROM nota_fiscal nf WHERE nf.data_pagamento IS NOT NULL"
         ).fetchall():
             desc = f"Seguralta (SGA) — NF {r['numero'] or '—'}"
