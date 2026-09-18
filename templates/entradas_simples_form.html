@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% set e = entrada or {} %}
+{% block titulo %}{{ 'Editar entrada' if e.id else 'Nova entrada' }}{% endblock %}
+{% block cabecalho %}{{ 'Editar entrada' if e.id else 'Nova entrada' }}{% endblock %}
+
+{% block acoes %}
+<a class="btn btn--linha" href="{{ voltar or url_for('entradas_simples_lista') }}">{{ icone('voltar') }} Voltar</a>
+{% if e.id %}
+<form method="post" action="{{ url_for('entrada_simples_excluir', entrada_id=e.id) }}" style="display:inline"
+      onsubmit="return confirm('Excluir a entrada {{ e.descricao }}?')">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="voltar" value="{{ voltar }}">
+  <button type="submit" class="btn btn--perigo">{{ icone('lixo') }} Excluir</button>
+</form>
+{% endif %}
+{% endblock %}
+
+{% block conteudo %}
+<form class="form" method="post" novalidate
+      action="{{ url_for('entrada_simples_form', entrada_id=e.id) if e.id else url_for('entrada_simples_form') }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="voltar" value="{{ voltar }}">
+
+  <div class="cartao">
+    <h2>Dados da entrada</h2>
+    <div class="grade">
+      <div class="campo c-6">
+        <label for="descricao">Descrição *</label>
+        <input id="descricao" name="descricao" required autofocus value="{{ e.descricao or '' }}">
+      </div>
+      <div class="campo c-3">
+        <label for="data">Data</label>
+        <input id="data" name="data" type="date" value="{{ e.data or '' }}">
+      </div>
+      <div class="campo c-3">
+        <label for="valor">Valor (R$)</label>
+        <input id="valor" name="valor" inputmode="decimal" data-num value="{{ e.valor or '' }}">
+      </div>
+      <div class="campo c-6">
+        <label for="forma_pagamento_id">Forma de pagamento</label>
+        <select id="forma_pagamento_id" name="forma_pagamento_id">
+          <option value="">—</option>
+          {% for f in formas %}
+          <option value="{{ f.id }}" {{ 'selected' if e.forma_pagamento_id|string == f.id|string }}>{{ f.nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="campo c-6">
+        <label for="conta_origem_id">Conta de origem</label>
+        <select id="conta_origem_id" name="conta_origem_id">
+          <option value="">—</option>
+          {% for co in contas_origem %}
+          <option value="{{ co.id }}" {{ 'selected' if e.conta_origem_id|string == co.id|string }}>{{ co.nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="campo c-12">
+        <label for="observacao">Observação</label>
+        <textarea id="observacao" name="observacao" rows="3">{{ e.observacao or '' }}</textarea>
+      </div>
+    </div>
+  </div>
+
+  <div class="rodape-form">
+    <a class="btn btn--linha" href="{{ voltar or url_for('entradas_simples_lista') }}">Cancelar</a>
+    <button class="btn btn--primario" type="submit">Salvar</button>
+  </div>
+</form>
+{% endblock %}

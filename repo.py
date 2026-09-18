@@ -1859,6 +1859,79 @@ def resumo_saidas():
     return {"a_pagar_mes": a_pagar_mes, "vencido": vencido}
 
 
+# ---------- entradas simples (lançamento avulso, fora das comissões) ----------
+
+_COLS_ENTRADA_SIMPLES = ("descricao", "forma_pagamento_id", "conta_origem_id",
+                         "data", "valor", "observacao")
+
+
+def _valores_entrada_simples(dados):
+    return [
+        (dados.get("descricao") or "").strip() or None,
+        _int_ou_none(dados.get("forma_pagamento_id")),
+        _int_ou_none(dados.get("conta_origem_id")),
+        (dados.get("data") or "").strip() or None,
+        para_decimal(dados.get("valor")),
+        (dados.get("observacao") or "").strip() or None,
+    ]
+
+
+def obter_entrada_simples(entrada_id):
+    with conexao() as con:
+        l = con.execute("SELECT * FROM entrada_simples WHERE id = %s", (entrada_id,)).fetchone()
+        return dict(l) if l else None
+
+
+def criar_entrada_simples(dados):
+    with conexao() as con:
+        marcadores = ", ".join("%s" for _ in _COLS_ENTRADA_SIMPLES)
+        cur = con.execute(
+            f"INSERT INTO entrada_simples ({', '.join(_COLS_ENTRADA_SIMPLES)}) VALUES ({marcadores})",
+            _valores_entrada_simples(dados),
+        )
+        novo_id = cur.lastrowid
+    fazer_backup()
+    return novo_id
+
+
+def atualizar_entrada_simples(entrada_id, dados):
+    with conexao() as con:
+        atrib = ", ".join(f"{c} = %s" for c in _COLS_ENTRADA_SIMPLES)
+        con.execute(
+            f"UPDATE entrada_simples SET {atrib}, atualizado_em = NOW() WHERE id = %s",
+            _valores_entrada_simples(dados) + [entrada_id],
+        )
+    fazer_backup()
+
+
+def excluir_entrada_simples(entrada_id):
+    with conexao() as con:
+        con.execute("DELETE FROM entrada_simples WHERE id = %s", (entrada_id,))
+    fazer_backup()
+
+
+def listar_entradas_simples(mes=None, busca=None, forma_pagamento_id=None, conta_origem_id=None):
+    with conexao() as con:
+        linhas = [dict(l) for l in con.execute(
+            "SELECT e.*, fp.nome AS forma_pagamento, co.nome AS conta_origem "
+            "  FROM entrada_simples e "
+            "  LEFT JOIN forma_pagamento fp ON fp.id = e.forma_pagamento_id "
+            "  LEFT JOIN conta_origem co   ON co.id = e.conta_origem_id "
+            " ORDER BY COALESCE(e.data, ''), e.id"
+        ).fetchall()]
+    if mes:
+        linhas = [l for l in linhas if (l.get("data") or "")[5:7] == f"{int(mes):02d}"]
+    if forma_pagamento_id:
+        linhas = [l for l in linhas if l.get("forma_pagamento_id") == forma_pagamento_id]
+    if conta_origem_id:
+        linhas = [l for l in linhas if l.get("conta_origem_id") == conta_origem_id]
+    termo = (busca or "").strip()
+    if termo:
+        alvo = _sem_acento_minusculo(termo)
+        linhas = [l for l in linhas if alvo in _sem_acento_minusculo(l.get("descricao") or "")]
+    return linhas
+
+
 # ---------- notas fiscais (+ recibos) ----------
 
 _COLS_NOTA_FISCAL = ("numero", "valor", "data_emissao", "data_pagamento", "data_depositado",

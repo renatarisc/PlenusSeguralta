@@ -503,6 +503,23 @@ CREATE TABLE IF NOT EXISTS saida (
     CONSTRAINT fk_saida_contaorigem FOREIGN KEY (conta_origem_id)  REFERENCES conta_origem(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- fluxo de caixa: entradas simples (lancamento avulso, fora das comissoes -
+-- ex.: repasse de outra fonte, estorno, etc.) - so um registro por entrada,
+-- sem parcelamento/fixo-mensal/status (ja e' o dinheiro recebido)
+CREATE TABLE IF NOT EXISTS entrada_simples (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    descricao TEXT NOT NULL,
+    forma_pagamento_id INT,
+    conta_origem_id INT,
+    data TEXT,                     -- ISO AAAA-MM-DD
+    valor REAL,
+    observacao TEXT,
+    criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    atualizado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_entrada_simples_formapgto FOREIGN KEY (forma_pagamento_id) REFERENCES forma_pagamento(id),
+    CONSTRAINT fk_entrada_simples_contaorigem FOREIGN KEY (conta_origem_id)  REFERENCES conta_origem(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- nota fiscal emitida pela Plenus; pode ter varios recibos associados
 CREATE TABLE IF NOT EXISTS nota_fiscal (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -714,6 +731,12 @@ _COLUNAS_ESPERADAS = {
         "valor": "REAL",
         "data_vencimento": "TEXT", "data_pagamento": "TEXT", "numero_parcela": "TEXT",
         "fixo_mensal": "INT NOT NULL DEFAULT 0", "serie_id": "TEXT",
+        "criado_em": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+        "atualizado_em": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+    },
+    "entrada_simples": {
+        "descricao": "TEXT", "forma_pagamento_id": "INT", "conta_origem_id": "INT",
+        "data": "TEXT", "valor": "REAL", "observacao": "TEXT",
         "criado_em": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
         "atualizado_em": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
     },

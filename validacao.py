@@ -485,6 +485,15 @@ def validar_saida(dados):
     return erros
 
 
+def validar_entrada_simples(dados):
+    erros = []
+    if not (dados.get("descricao") or "").strip():
+        erros.append("Informe a descrição.")
+    if _numero_preenchido_invalido(dados.get("valor")):
+        erros.append("Valor: número inválido.")
+    return erros
+
+
 def preparar_lancamentos_saida(ids, datas, valores, parcelas, pagamentos):
     """Listas paralelas (request.form.getlist) da tabela de lançamentos da saída.
     Ignora linhas totalmente vazias. Devolve (linhas, erros) — cada linha é um dict

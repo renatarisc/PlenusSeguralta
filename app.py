@@ -28,7 +28,7 @@ from validacao import (
     gerar_repasses_cocorretagem, para_decimal,
     validar_saida, preparar_lancamentos_saida, validar_endosso,
     validar_consorcio, preparar_parcela_valores, preparar_boletos,
-    validar_nota_fiscal, validar_recibo,
+    validar_nota_fiscal, validar_recibo, validar_entrada_simples,
 )
 
 _HTTPS = os.environ.get("PLENUS_HTTPS") == "1"
@@ -118,6 +118,7 @@ app.jinja_env.globals["MENU"] = [
     {"grupo": "Fluxo de caixa", "icone": "fluxo", "divisoria_antes": True, "filhos": [
         {"rota": "saidas_lista", "texto": "Saídas", "icone": "saida"},
         {"rota": "entradas_lista", "texto": "Entradas (Comissões)", "icone": "entrada"},
+        {"rota": "entradas_simples_lista", "texto": "Entradas simples", "icone": "entrada"},
         {"rota": "conta_corrente_lista", "texto": "Conta corrente", "icone": "pagamento"},
         {"rota": "fluxo_relatorios", "slug": "saidas", "texto": "Relatório de saídas", "icone": "relatorio"},
         {"rota": "fluxo_relatorios", "slug": "entradas", "texto": "Relatório de entradas", "icone": "relatorio"},
@@ -1438,6 +1439,87 @@ def saida_pagamento(saida_id):
                            request.form.get("data_pagamento"))
     flash("Saída atualizada.", "ok")
     return _voltar_seguro()
+
+
+# ---------- Entradas simples (fluxo de caixa) ----------
+
+_CAMPOS_ENTRADA_SIMPLES = ("descricao", "forma_pagamento_id", "conta_origem_id",
+                          "data", "valor", "observacao")
+
+
+def _entrada_simples_para_form(e):
+    if e is None:
+        return None
+    e = dict(e)
+    e["valor"] = formatar_numero(e.get("valor"))
+    return e
+
+
+@app.route("/financeiro/entradas-simples")
+def entradas_simples_lista():
+    mes_arg = request.args.get("mes")
+    if mes_arg is None:
+        mes = date.today().month
+    elif mes_arg.isdigit() and int(mes_arg) in range(1, 13):
+        mes = int(mes_arg)
+    else:
+        mes = None
+    busca = request.args.get("busca", "").strip()
+    forma_id = request.args.get("forma_pagamento_id", type=int)
+    conta_origem_id = request.args.get("conta_origem_id", type=int)
+    entradas = repo.listar_entradas_simples(mes=mes, busca=busca or None,
+                                            forma_pagamento_id=forma_id or None,
+                                            conta_origem_id=conta_origem_id or None)
+    total = sum(e["valor"] or 0 for e in entradas)
+    tem_filtro = bool(busca or forma_id or conta_origem_id) or mes != date.today().month
+    return render_template("entradas_simples_lista.html", ativo="entradas_simples_lista",
+                           entradas=entradas, total=total, mes=mes, busca=busca,
+                           forma_id=forma_id, conta_origem_id=conta_origem_id,
+                           tem_filtro=tem_filtro, mes_atual=date.today().month,
+                           formas=repo.listar_simples("forma_pagamento"),
+                           contas_origem=repo.contas_origem(), MESES=_MESES)
+
+
+@app.route("/financeiro/entradas-simples/nova", methods=["GET", "POST"])
+@app.route("/financeiro/entradas-simples/<int:entrada_id>", methods=["GET", "POST"])
+def entrada_simples_form(entrada_id=None):
+    voltar = request.form.get("voltar") or request.args.get("voltar") or ""
+    if not (voltar.startswith("/") and not voltar.startswith("//")):
+        voltar = ""
+    entrada = repo.obter_entrada_simples(entrada_id) if entrada_id else None
+    if entrada_id and not entrada:
+        flash("Entrada não encontrada.", "erro")
+        return redirect(url_for("entradas_simples_lista"))
+
+    if request.method == "POST":
+        dados = {k: request.form.get(k, "") for k in _CAMPOS_ENTRADA_SIMPLES}
+        erros = validar_entrada_simples(dados)
+        if erros:
+            for e in erros:
+                flash(e, "erro")
+            return render_template("entradas_simples_form.html", ativo="entradas_simples_lista",
+                                   entrada=_entrada_simples_para_form({**dados, "id": entrada_id}),
+                                   voltar=voltar, formas=repo.listar_simples("forma_pagamento"),
+                                   contas_origem=repo.contas_origem())
+        if entrada_id:
+            repo.atualizar_entrada_simples(entrada_id, dados)
+            flash("Entrada atualizada.", "ok")
+        else:
+            entrada_id = repo.criar_entrada_simples(dados)
+            flash("Entrada cadastrada.", "ok")
+        return redirect(voltar or url_for("entradas_simples_lista"))
+
+    return render_template("entradas_simples_form.html", ativo="entradas_simples_lista",
+                           entrada=_entrada_simples_para_form(entrada), voltar=voltar,
+                           formas=repo.listar_simples("forma_pagamento"),
+                           contas_origem=repo.contas_origem())
+
+
+@app.route("/financeiro/entradas-simples/<int:entrada_id>/excluir", methods=["POST"])
+def entrada_simples_excluir(entrada_id):
+    repo.excluir_entrada_simples(entrada_id)
+    flash("Entrada excluída.", "ok")
+    return _voltar_seguro() if request.form.get("voltar") else redirect(url_for("entradas_simples_lista"))
 
 
 # ---------- Notas fiscais (+ recibos) ----------
