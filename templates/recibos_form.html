@@ -108,6 +108,39 @@
     {% endif %}
   </div>
 
+  <div class="cartao">
+    <h2>Descontos do recibo</h2>
+    <p class="dica" style="margin:-4px 0 12px">
+      Saídas com conta de origem "Recibo" (ex.: cadastro de proposta) vencendo na data
+      acima — descontadas direto do recibo, em vez de saírem de uma conta nossa. Marque
+      as que pertencem a este recibo para abatê-las do valor bruto.
+    </p>
+    {% if not (r.data or '') %}
+    <p class="vazio">Informe a data do recibo e clique em "Buscar parcelas dessa data".</p>
+    {% elif not descontos_candidatos %}
+    <p class="vazio">Nenhum desconto vencendo nessa data (ou já vinculado a outro recibo).</p>
+    {% else %}
+    <div class="tabela-wrap">
+      <table class="lista">
+        <thead>
+          <tr><th style="width:36px"></th><th>Descrição</th><th style="text-align:right">Valor</th></tr>
+        </thead>
+        <tbody>
+          {% for c in descontos_candidatos %}
+          {% set ref = c.origem ~ ':' ~ c.id %}
+          <tr>
+            <td><input type="checkbox" name="parcela_refs" value="{{ ref }}" data-valor="{{ -(c.valor or 0) }}"
+                       {{ 'checked' if ref in parcela_refs_marcados }}></td>
+            <td>{{ c.descricao or '—' }}</td>
+            <td style="text-align:right">- {{ c.valor|moeda }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </div>
+
   <div class="rodape-form">
     <a class="btn btn--linha" href="{{ voltar or url_for('recibos_lista') }}">Cancelar</a>
     <button class="btn btn--primario" type="submit">Salvar</button>

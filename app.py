@@ -1340,12 +1340,10 @@ def _sem_acento_para_arquivo(txt):
 
 @app.route("/financeiro/saidas")
 def saidas_lista():
-    # sem o parâmetro "mes" na URL (navegação normal) → mostra só o mês corrente;
-    # "mes" vazio ("Qualquer mês" escolhido no filtro) → todos os meses.
+    # sem "mes" na URL (navegação normal) ou "mes" vazio ("Qualquer mês" no filtro)
+    # → todos os meses; só filtra quando a usuária escolhe um mês específico.
     mes_arg = request.args.get("mes")
-    if mes_arg is None:
-        mes = date.today().month
-    elif mes_arg.isdigit() and int(mes_arg) in range(1, 13):
+    if mes_arg and mes_arg.isdigit() and int(mes_arg) in range(1, 13):
         mes = int(mes_arg)
     else:
         mes = None
@@ -1362,8 +1360,8 @@ def saidas_lista():
                                 forma_pagamento_id=forma_id or None,
                                 conta_origem_id=conta_origem_id or None, fixo=fixo or None)
     total = sum(s["valor"] or 0 for s in saidas)
-    tem_filtro = (bool(busca or status or categoria_id or forma_id or conta_origem_id or fixo)
-                  or mes != date.today().month)
+    tem_filtro = bool(busca or status or categoria_id or forma_id or conta_origem_id or fixo
+                      or mes is not None)
     return render_template("saidas_lista.html", ativo="saidas_lista",
                            saidas=saidas, total=total, resumo=repo.resumo_saidas(),
                            mes=mes, status=status, categoria_id=categoria_id, busca=busca,
@@ -1661,11 +1659,13 @@ def recibo_form(recibo_id=None):
 
         if request.form.get("acao") == "buscar":
             candidatos = repo.parcelas_repasse_por_data(dados.get("data"), recibo_id)
-            ja_vinculadas = {f"{c['origem']}:{c['id']}" for c in candidatos if c.get("recibo_id")}
+            descontos = repo.saidas_desconto_por_data(dados.get("data"), recibo_id)
+            ja_vinculadas = {f"{c['origem']}:{c['id']}" for c in candidatos + descontos
+                             if c.get("recibo_id")}
             recibo = _recibo_para_form({**dados, "id": recibo_id})
             return render_template("recibos_form.html", ativo="recibos_lista",
                                    recibo=recibo, notas_fiscais=repo.notas_fiscais_para_select(),
-                                   parcelas_candidatas=candidatos,
+                                   parcelas_candidatas=candidatos, descontos_candidatos=descontos,
                                    parcela_refs_marcados=set(parcela_refs) | ja_vinculadas,
                                    voltar=voltar)
 
@@ -1675,9 +1675,10 @@ def recibo_form(recibo_id=None):
                 flash(e, "erro")
             recibo = _recibo_para_form({**dados, "id": recibo_id})
             candidatos = repo.parcelas_repasse_por_data(dados.get("data"), recibo_id)
+            descontos = repo.saidas_desconto_por_data(dados.get("data"), recibo_id)
             return render_template("recibos_form.html", ativo="recibos_lista",
                                    recibo=recibo, notas_fiscais=repo.notas_fiscais_para_select(),
-                                   parcelas_candidatas=candidatos,
+                                   parcelas_candidatas=candidatos, descontos_candidatos=descontos,
                                    parcela_refs_marcados=set(parcela_refs), voltar=voltar)
         if recibo_id:
             repo.atualizar_recibo(recibo_id, dados)
@@ -1698,11 +1699,13 @@ def recibo_form(recibo_id=None):
         if nf_id and repo.obter_nota_fiscal(nf_id):
             recibo["nota_fiscal_id"] = nf_id
     candidatos = repo.parcelas_repasse_por_data((recibo or {}).get("data"), recibo_id)
-    marcados = {f"{c['origem']}:{c['id']}" for c in candidatos if c.get("recibo_id")}
+    descontos = repo.saidas_desconto_por_data((recibo or {}).get("data"), recibo_id)
+    marcados = {f"{c['origem']}:{c['id']}" for c in candidatos + descontos if c.get("recibo_id")}
     return render_template("recibos_form.html", ativo="recibos_lista",
                            recibo=_recibo_para_form(recibo),
                            notas_fiscais=repo.notas_fiscais_para_select(),
-                           parcelas_candidatas=candidatos, parcela_refs_marcados=marcados,
+                           parcelas_candidatas=candidatos, descontos_candidatos=descontos,
+                           parcela_refs_marcados=marcados,
                            voltar=voltar)
 
 

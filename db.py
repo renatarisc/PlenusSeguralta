@@ -496,11 +496,14 @@ CREATE TABLE IF NOT EXISTS saida (
     numero_parcela TEXT,           -- livre ("3/6"), ou vazio
     fixo_mensal INT NOT NULL DEFAULT 0,
     serie_id TEXT,                 -- mesmo token nas linhas geradas juntas
+    recibo_id INT,                 -- desconto abatido direto de um recibo (ex.: cadastro de
+                                    -- proposta) - recibo ao qual esta saida esta associada
     criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     atualizado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_saida_categoria FOREIGN KEY (categoria_id)      REFERENCES categoria_saida(id),
     CONSTRAINT fk_saida_formapgto FOREIGN KEY (forma_pagamento_id) REFERENCES forma_pagamento(id),
-    CONSTRAINT fk_saida_contaorigem FOREIGN KEY (conta_origem_id)  REFERENCES conta_origem(id)
+    CONSTRAINT fk_saida_contaorigem FOREIGN KEY (conta_origem_id)  REFERENCES conta_origem(id),
+    CONSTRAINT fk_saida_recibo FOREIGN KEY (recibo_id)  REFERENCES recibo(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- fluxo de caixa: entradas simples (lancamento avulso, fora das comissoes -
@@ -736,6 +739,7 @@ _COLUNAS_ESPERADAS = {
         "valor": "REAL",
         "data_vencimento": "TEXT", "data_pagamento": "TEXT", "numero_parcela": "TEXT",
         "fixo_mensal": "INT NOT NULL DEFAULT 0", "serie_id": "TEXT",
+        "recibo_id": "INT",
         "criado_em": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
         "atualizado_em": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
     },
@@ -868,6 +872,7 @@ def inicializar_db():
         con.execute("SET FOREIGN_KEY_CHECKS = 1")
         _migrar_esquema(con)
         _migrar_fks(con)
+        _migrar_saida_recibo_fk(con)
         _migrar_recibo_opcional(con)
         _migrar_conf_banco_para_recibo(con)
         _backfill_dados(con)
@@ -927,6 +932,19 @@ def _migrar_conf_banco_para_recibo(con):
                     f"ALTER TABLE {tabela} ADD CONSTRAINT {fk_nome} "
                     f"FOREIGN KEY ({novo}) REFERENCES recibo(id) ON DELETE SET NULL"
                 )
+
+
+def _migrar_saida_recibo_fk(con):
+    """FK saida.recibo_id -> recibo(id) ON DELETE SET NULL (a coluna em si entra por
+    _COLUNAS_ESPERADAS; aqui so a constraint, que precisa do ON DELETE SET NULL que o
+    mecanismo generico de _FKS_ESPERADAS nao suporta). Idempotente."""
+    if "recibo_id" not in _colunas_da_tabela(con, "saida"):
+        return
+    if "fk_saida_recibo" not in _constraints_fk_da_tabela(con, "saida"):
+        con.execute(
+            "ALTER TABLE saida ADD CONSTRAINT fk_saida_recibo "
+            "FOREIGN KEY (recibo_id) REFERENCES recibo(id) ON DELETE SET NULL"
+        )
 
 
 def _migrar_esquema(con):

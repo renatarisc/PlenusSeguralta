@@ -2173,6 +2173,7 @@ _ORIGENS_REPASSE = {
     "endosso_repasse": ("apolice_endosso_repasse", "recibo_id", False),
     "apolice_unica": ("apolice", "recibo_id", True),
     "endosso_unica": ("apolice_endosso", "recibo_id", True),
+    "saida_desconto": ("saida", "recibo_id", True),
 }
 
 
@@ -2246,6 +2247,25 @@ def parcelas_repasse_por_data(data, recibo_id=None):
                            "numero_apolice": f"{r['numero_apolice']} (endosso {r['endosso_numero']})",
                            "cliente_nome": r["cliente_nome"], "parcela_rotulo": "única"})
     return linhas
+
+
+def saidas_desconto_por_data(data, recibo_id=None):
+    """Saidas com conta de origem 'Recibo' (descontadas direto do recibo, ex.: cadastro
+    de proposta - em vez de sair de uma conta nossa) vencendo na `data` informada -
+    candidatas a serem abatidas de um recibo. Mesma logica de
+    parcelas_repasse_por_data: so mostra as sem recibo OU ja vinculadas a `recibo_id`."""
+    if not (data or "").strip():
+        return []
+    with conexao() as con:
+        rows = con.execute(
+            "SELECT s.id, s.recibo_id, s.descricao, s.valor "
+            "  FROM saida s "
+            "  JOIN conta_origem co ON co.id = s.conta_origem_id "
+            " WHERE co.nome = 'Recibo' AND s.data_vencimento = %s "
+            "   AND (s.recibo_id IS NULL OR s.recibo_id = %s)",
+            (data, recibo_id)).fetchall()
+    return [{"origem": "saida_desconto", "id": r["id"], "recibo_id": r["recibo_id"],
+             "valor": r["valor"], "descricao": r["descricao"]} for r in rows]
 
 
 def aplicar_parcelas_do_recibo(recibo_id, refs):
