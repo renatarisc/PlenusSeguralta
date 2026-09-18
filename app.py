@@ -1682,13 +1682,14 @@ def entradas_lista():
         apolices = [a for a in apolices
                     if alvo in repo._sem_acento_minusculo(a.get("cliente_nome") or "")
                     or alvo in repo._sem_acento_minusculo(a.get("numero_apolice") or "")]
-    arvore_blocos, qtd_apolices, soma_filtrada = _blocos_entrada(
+    arvore_blocos, qtd_apolices, soma_filtrada, soma_plenus_coco, soma_comissao_total = _blocos_entrada(
         apolices, [], situacao, data_ini_busca or None, data_fim_busca or None, lado=data_base)
     a_receber_mes, a_receber_total = _cards_a_receber()
 
     return render_template(
         "entradas_lista.html", ativo="entradas_lista",
         arvore_blocos=arvore_blocos, qtd_apolices=qtd_apolices, soma_filtrada=soma_filtrada,
+        soma_plenus_coco=soma_plenus_coco, soma_comissao_total=soma_comissao_total,
         a_receber_mes=a_receber_mes, a_receber_total=a_receber_total,
         busca=busca, data_ini=data_ini, data_fim=data_fim, situacao=situacao,
         tipo_id=tipo_id, tipos=repo.listar_simples("tipo_seguro"), data_base=data_base,
@@ -2038,7 +2039,7 @@ def _blocos_entrada(apolices, chaves, situacao, data_ini=None, data_fim=None, la
     pro "Salvar" continuar regravando a tabela inteira). `lado` escolhe qual data
     o período considera: "plenus" (repasse, padrão) ou "seguralta" (comissão) —
     e também qual soma (recebido Seguralta ou pago Plenus) entra no total.
-    Devolve `(arvore, qtd_de_blocos, soma_filtrada)`."""
+    Devolve `(arvore, qtd_de_blocos, soma_filtrada, soma_plenus_coco, soma_comissao_total)`."""
     campo_data = "seg_data" if lado == "seguralta" else "ple_data"
 
     def _bate_filtro(l):
@@ -2107,7 +2108,16 @@ def _blocos_entrada(apolices, chaves, situacao, data_ini=None, data_fim=None, la
         })
     soma_filtrada = round(sum((b["soma_seguralta"] if lado == "seguralta" else b["soma_plenus"])
                               for b in blocos), 2)
-    return _agrupar_blocos(blocos, chaves), len(blocos), soma_filtrada
+    # Plenus cocorretagem: só o que a Plenus recebeu DIRETO da seguradora (sem passar
+    # pelo repasse da Seguralta) — só entra dos blocos marcados como cocorretagem.
+    soma_plenus_coco = round(sum(b["soma_plenus"] for b in blocos if b["cocorretagem"]), 2)
+    # Comissão total do filtro: Seguralta recebido (100% da comissão quando não é
+    # cocorretagem, ou os 25% dela quando é) + Plenus recebido SÓ na cocorretagem —
+    # sem cocorretagem o "Plenus pago" é só um repasse do que a Seguralta já recebeu,
+    # não soma de novo.
+    soma_comissao_total = round(sum(b["soma_seguralta"] for b in blocos) + soma_plenus_coco, 2)
+    return (_agrupar_blocos(blocos, chaves), len(blocos), soma_filtrada,
+            soma_plenus_coco, soma_comissao_total)
 
 
 @app.route("/financeiro/entradas/<int:apolice_id>/comissoes", methods=["POST"])
