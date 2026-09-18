@@ -6,7 +6,7 @@
 <div class="stats">
   <div class="stat">
     <div class="stat__valor" style="color:{{ 'var(--erro)' if saldo_final < 0 else 'var(--ok)' }}">{{ saldo_final|moeda }}</div>
-    <div class="stat__rotulo">Saldo atual</div>
+    <div class="stat__rotulo">Saldo atual — histórico completo (não segue o filtro)</div>
   </div>
   <div class="stat">
     <div class="stat__valor" style="color:var(--ok)">{{ total_entradas|moeda }}</div>
