@@ -1801,9 +1801,7 @@ def conta_corrente_lista():
     tipo = request.args.get("tipo", "")
     if tipo not in ("entrada", "saida"):
         tipo = ""
-    agrupar = request.args.get("agrupar", "")
-    if agrupar not in ("descricao",):
-        agrupar = ""
+    busca = request.args.get("busca", "").strip()
 
     data_ini_busca, data_fim_busca = data_ini, data_fim
     if data_ini and not data_fim:
@@ -1825,31 +1823,19 @@ def conta_corrente_lista():
         exibidos = [m for m in exibidos if (m["data"] or "") <= data_fim_busca]
     if tipo:
         exibidos = [m for m in exibidos if m["tipo"] == tipo]
+    if busca:
+        alvo = repo._sem_acento_minusculo(busca)
+        exibidos = [m for m in exibidos if alvo in repo._sem_acento_minusculo(m["descricao"] or "")]
 
     total_entradas = round(sum(m["valor"] for m in exibidos if m["tipo"] == "entrada"), 2)
     total_saidas = round(sum(m["valor"] for m in exibidos if m["tipo"] == "saida"), 2)
 
-    grupos = None
-    if agrupar == "descricao":
-        # sem saldo corrido nesse modo (agrupar quebra a ordem cronológica) — em vez
-        # disso soma por (tipo, descrição), maior valor primeiro.
-        por_desc = {}
-        for m in exibidos:
-            chave = (m["tipo"], m["descricao"])
-            g = por_desc.setdefault(chave, {"tipo": m["tipo"], "descricao": m["descricao"],
-                                            "qtd": 0, "valor": 0.0})
-            g["qtd"] += 1
-            g["valor"] += m["valor"]
-        grupos = sorted(por_desc.values(), key=lambda g: -g["valor"])
-        for g in grupos:
-            g["valor"] = round(g["valor"], 2)
-
     return render_template(
         "conta_corrente.html", ativo="conta_corrente_lista",
-        movimentos=list(reversed(exibidos)), grupos=grupos, saldo_final=saldo_final,
+        movimentos=list(reversed(exibidos)), saldo_final=saldo_final,
         total_entradas=total_entradas, total_saidas=total_saidas,
-        data_ini=data_ini, data_fim=data_fim, tipo=tipo, agrupar=agrupar,
-        tem_filtro=bool(data_ini or data_fim or tipo or agrupar),
+        data_ini=data_ini, data_fim=data_fim, tipo=tipo, busca=busca,
+        tem_filtro=bool(data_ini or data_fim or tipo or busca),
         mes_atual=date.today().month, MESES=_MESES, presets=_presets_periodo())
 
 
