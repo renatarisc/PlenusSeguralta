@@ -98,6 +98,15 @@
         <option value="nao" {{ 'selected' if cocorretagem == 'nao' }}>Sem cocorretagem</option>
       </select>
     </div>
+
+    <div class="campo c-3">
+      <label for="r-agrupar">Agrupar por</label>
+      <select id="r-agrupar" name="agrupar">
+        {% for valor, rotulo in grupo_opcoes_entrada %}
+        <option value="{{ valor }}" {{ 'selected' if agrupar == valor }}>{{ rotulo }}</option>
+        {% endfor %}
+      </select>
+    </div>
   </div>
   <div class="filtros__acoes">
     <button class="btn btn--primario" type="submit">{{ icone('busca') }} Buscar</button>

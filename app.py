@@ -1661,6 +1661,9 @@ def entradas_lista():
     data_base = request.args.get("data_base", "plenus")
     if data_base not in ("plenus", "seguralta"):
         data_base = "plenus"
+    agrupar = request.args.get("agrupar", "")
+    if agrupar not in _GRUPOS_ENTRADA:
+        agrupar = ""
 
     # só uma das duas datas preenchida = filtra por ESSE dia exato, não por
     # período aberto (ex.: só "De" não deve trazer "daquele dia em diante").
@@ -1683,7 +1686,8 @@ def entradas_lista():
                     if alvo in repo._sem_acento_minusculo(a.get("cliente_nome") or "")
                     or alvo in repo._sem_acento_minusculo(a.get("numero_apolice") or "")]
     arvore_blocos, qtd_apolices, soma_filtrada, soma_plenus_coco, soma_comissao_total = _blocos_entrada(
-        apolices, [], situacao, data_ini_busca or None, data_fim_busca or None, lado=data_base)
+        apolices, [agrupar] if agrupar else [], situacao,
+        data_ini_busca or None, data_fim_busca or None, lado=data_base)
     a_receber_mes, a_receber_total = _cards_a_receber()
 
     return render_template(
@@ -1693,9 +1697,9 @@ def entradas_lista():
         a_receber_mes=a_receber_mes, a_receber_total=a_receber_total,
         busca=busca, data_ini=data_ini, data_fim=data_fim, situacao=situacao,
         tipo_id=tipo_id, tipos=repo.listar_simples("tipo_seguro"), data_base=data_base,
-        cocorretagem=cocorretagem,
+        cocorretagem=cocorretagem, agrupar=agrupar, grupo_opcoes_entrada=_GRUPO_OPCOES_ENTRADA,
         tem_filtro=bool(busca or data_ini or data_fim or situacao or tipo_id
-                        or cocorretagem or data_base != "plenus"),
+                        or cocorretagem or agrupar or data_base != "plenus"),
         mes_atual=date.today().month, MESES=_MESES, presets=_presets_periodo())
 
 
