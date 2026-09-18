@@ -2205,7 +2205,10 @@ def extrato_conta_corrente():
     * entradas — dois fluxos que resultam em dinheiro na conta da Plenus:
         - cocorretagem: a Plenus recebe direto da seguradora, sem passar por
           recibo/NF (ver data_deposito_cc) — parcelas E repasse único de
-          apólice/endosso/consórcio, só quando cocorretagem = 1;
+          apólice/endosso/consórcio, só quando cocorretagem = 1. Na vida real
+          a seguradora deposita tudo que venceu naquele dia numa TACADA SÓ,
+          então as linhas de cocorretagem são agrupadas por (data, seguradora)
+          e somadas — uma linha por depósito real, não uma por apólice;
         - fluxo normal (recibo → nota fiscal): quando a NOTA FISCAL é paga,
           isso é o repasse da Seguralta caindo na conta da Plenus.
 
@@ -2214,6 +2217,14 @@ def extrato_conta_corrente():
     lista inteira. Cada linha: {data, tipo('entrada'|'saida'), origem,
     descricao, valor(sempre positivo)}."""
     linhas = []
+    coco_grupos = {}   # (data, seguradora_nome) -> {"valor": soma, "itens": [descricao, ...]}
+
+    def _junta_coco(data, seguradora_nome, valor, item):
+        chave = (data, seguradora_nome or "Sem seguradora")
+        g = coco_grupos.setdefault(chave, {"valor": 0.0, "itens": []})
+        g["valor"] += float(valor or 0)
+        g["itens"].append(item)
+
     with conexao() as con:
         for r in con.execute(
             "SELECT s.data_pagamento AS data, s.valor, s.descricao, "
@@ -2229,83 +2240,93 @@ def extrato_conta_corrente():
 
         for r in con.execute(
             "SELECT r.data_deposito_cc AS data, r.valor_recebido AS valor, r.parcela, "
-            "       a.numero_apolice, c.nome AS cliente_nome "
+            "       a.numero_apolice, c.nome AS cliente_nome, sg.nome AS seguradora_nome "
             "  FROM apolice_repasse r "
             "  JOIN apolice a ON a.id = r.apolice_id "
             "  LEFT JOIN cliente c ON c.id = a.cliente_id "
+            "  LEFT JOIN seguradora sg ON sg.id = a.seguradora_id "
             " WHERE a.comissao_cocorretagem = 1 "
             "   AND r.valor_recebido IS NOT NULL AND r.data_deposito_cc IS NOT NULL"
         ).fetchall():
-            desc = (f"Cocorretagem — {r['cliente_nome'] or 'sem cliente'} — "
-                    f"apólice {r['numero_apolice'] or '—'} (parcela {r['parcela'] or '?'})")
-            linhas.append({"data": r["data"], "tipo": "entrada", "origem": "cocorretagem",
-                           "descricao": desc, "valor": float(r["valor"] or 0)})
+            item = (f"{r['cliente_nome'] or 'sem cliente'} — apólice {r['numero_apolice'] or '—'} "
+                    f"(parcela {r['parcela'] or '?'})")
+            _junta_coco(r["data"], r["seguradora_nome"], r["valor"], item)
 
         for r in con.execute(
             "SELECT a.data_deposito_cc AS data, a.comissao_valor_plenus_recebido AS valor, "
-            "       a.numero_apolice, c.nome AS cliente_nome "
+            "       a.numero_apolice, c.nome AS cliente_nome, sg.nome AS seguradora_nome "
             "  FROM apolice a LEFT JOIN cliente c ON c.id = a.cliente_id "
+            "  LEFT JOIN seguradora sg ON sg.id = a.seguradora_id "
             " WHERE a.comissao_cocorretagem = 1 AND COALESCE(a.comissao_parcelada, 0) = 0 "
             "   AND a.comissao_valor_plenus_recebido IS NOT NULL AND a.data_deposito_cc IS NOT NULL"
         ).fetchall():
-            desc = f"Cocorretagem — {r['cliente_nome'] or 'sem cliente'} — apólice {r['numero_apolice'] or '—'}"
-            linhas.append({"data": r["data"], "tipo": "entrada", "origem": "cocorretagem",
-                           "descricao": desc, "valor": float(r["valor"] or 0)})
+            item = f"{r['cliente_nome'] or 'sem cliente'} — apólice {r['numero_apolice'] or '—'}"
+            _junta_coco(r["data"], r["seguradora_nome"], r["valor"], item)
 
         for r in con.execute(
             "SELECT r.data_deposito_cc AS data, r.valor_recebido AS valor, r.parcela, "
-            "       e.numero AS endosso_numero, a.numero_apolice, c.nome AS cliente_nome "
+            "       e.numero AS endosso_numero, a.numero_apolice, c.nome AS cliente_nome, "
+            "       sg.nome AS seguradora_nome "
             "  FROM apolice_endosso_repasse r "
             "  JOIN apolice_endosso e ON e.id = r.endosso_id "
             "  JOIN apolice a ON a.id = e.apolice_id "
             "  LEFT JOIN cliente c ON c.id = a.cliente_id "
+            "  LEFT JOIN seguradora sg ON sg.id = a.seguradora_id "
             " WHERE e.comissao_cocorretagem = 1 "
             "   AND r.valor_recebido IS NOT NULL AND r.data_deposito_cc IS NOT NULL"
         ).fetchall():
-            desc = (f"Cocorretagem — {r['cliente_nome'] or 'sem cliente'} — "
-                    f"apólice {r['numero_apolice'] or '—'} endosso {r['endosso_numero'] or '—'} "
-                    f"(parcela {r['parcela'] or '?'})")
-            linhas.append({"data": r["data"], "tipo": "entrada", "origem": "cocorretagem",
-                           "descricao": desc, "valor": float(r["valor"] or 0)})
+            item = (f"{r['cliente_nome'] or 'sem cliente'} — apólice {r['numero_apolice'] or '—'} "
+                    f"endosso {r['endosso_numero'] or '—'} (parcela {r['parcela'] or '?'})")
+            _junta_coco(r["data"], r["seguradora_nome"], r["valor"], item)
 
         for r in con.execute(
             "SELECT e.data_deposito_cc AS data, e.comissao_valor_plenus_recebido AS valor, "
-            "       e.numero AS endosso_numero, a.numero_apolice, c.nome AS cliente_nome "
+            "       e.numero AS endosso_numero, a.numero_apolice, c.nome AS cliente_nome, "
+            "       sg.nome AS seguradora_nome "
             "  FROM apolice_endosso e "
             "  JOIN apolice a ON a.id = e.apolice_id "
             "  LEFT JOIN cliente c ON c.id = a.cliente_id "
+            "  LEFT JOIN seguradora sg ON sg.id = a.seguradora_id "
             " WHERE e.comissao_cocorretagem = 1 AND COALESCE(e.comissao_parcelada, 0) = 0 "
             "   AND e.comissao_valor_plenus_recebido IS NOT NULL AND e.data_deposito_cc IS NOT NULL"
         ).fetchall():
-            desc = (f"Cocorretagem — {r['cliente_nome'] or 'sem cliente'} — "
-                    f"apólice {r['numero_apolice'] or '—'} endosso {r['endosso_numero'] or '—'}")
-            linhas.append({"data": r["data"], "tipo": "entrada", "origem": "cocorretagem",
-                           "descricao": desc, "valor": float(r["valor"] or 0)})
+            item = (f"{r['cliente_nome'] or 'sem cliente'} — apólice {r['numero_apolice'] or '—'} "
+                    f"endosso {r['endosso_numero'] or '—'}")
+            _junta_coco(r["data"], r["seguradora_nome"], r["valor"], item)
 
         for r in con.execute(
             "SELECT r.data_deposito_cc AS data, r.valor_recebido AS valor, r.parcela, "
-            "       co.numero_grupo, co.numero_cota, c.nome AS cliente_nome "
+            "       co.numero_grupo, co.numero_cota, c.nome AS cliente_nome, sg.nome AS seguradora_nome "
             "  FROM consorcio_repasse r "
             "  JOIN consorcio co ON co.id = r.consorcio_id "
             "  LEFT JOIN cliente c ON c.id = co.cliente_id "
+            "  LEFT JOIN seguradora sg ON sg.id = co.seguradora_id "
             " WHERE co.comissao_cocorretagem = 1 "
             "   AND r.valor_recebido IS NOT NULL AND r.data_deposito_cc IS NOT NULL"
         ).fetchall():
-            desc = (f"Cocorretagem — {r['cliente_nome'] or 'sem cliente'} — "
-                    f"consórcio grupo {r['numero_grupo'] or '—'} (parcela {r['parcela'] or '?'})")
-            linhas.append({"data": r["data"], "tipo": "entrada", "origem": "cocorretagem",
-                           "descricao": desc, "valor": float(r["valor"] or 0)})
+            item = (f"{r['cliente_nome'] or 'sem cliente'} — consórcio grupo {r['numero_grupo'] or '—'} "
+                    f"(parcela {r['parcela'] or '?'})")
+            _junta_coco(r["data"], r["seguradora_nome"], r["valor"], item)
 
         for r in con.execute(
             "SELECT co.data_deposito_cc AS data, co.comissao_valor_plenus_recebido AS valor, "
-            "       co.numero_grupo, co.numero_cota, c.nome AS cliente_nome "
+            "       co.numero_grupo, co.numero_cota, c.nome AS cliente_nome, sg.nome AS seguradora_nome "
             "  FROM consorcio co LEFT JOIN cliente c ON c.id = co.cliente_id "
+            "  LEFT JOIN seguradora sg ON sg.id = co.seguradora_id "
             " WHERE co.comissao_cocorretagem = 1 AND COALESCE(co.comissao_parcelada, 0) = 0 "
             "   AND co.comissao_valor_plenus_recebido IS NOT NULL AND co.data_deposito_cc IS NOT NULL"
         ).fetchall():
-            desc = f"Cocorretagem — {r['cliente_nome'] or 'sem cliente'} — consórcio grupo {r['numero_grupo'] or '—'}"
-            linhas.append({"data": r["data"], "tipo": "entrada", "origem": "cocorretagem",
-                           "descricao": desc, "valor": float(r["valor"] or 0)})
+            item = f"{r['cliente_nome'] or 'sem cliente'} — consórcio grupo {r['numero_grupo'] or '—'}"
+            _junta_coco(r["data"], r["seguradora_nome"], r["valor"], item)
+
+        for (data, seguradora_nome), g in coco_grupos.items():
+            n = len(g["itens"])
+            if n == 1:
+                desc = f"Cocorretagem — {seguradora_nome} — {g['itens'][0]}"
+            else:
+                desc = f"Cocorretagem — {seguradora_nome} ({n} repasses): " + "; ".join(g["itens"])
+            linhas.append({"data": data, "tipo": "entrada", "origem": "cocorretagem",
+                           "descricao": desc, "valor": round(g["valor"], 2)})
 
         for r in con.execute(
             "SELECT nf.data_pagamento AS data, nf.valor, nf.numero "
