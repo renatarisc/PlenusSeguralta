@@ -1829,11 +1829,12 @@ def conta_corrente_lista():
 
     total_entradas = round(sum(m["valor"] for m in exibidos if m["tipo"] == "entrada"), 2)
     total_saidas = round(sum(m["valor"] for m in exibidos if m["tipo"] == "saida"), 2)
+    saldo_filtro = round(total_entradas - total_saidas, 2)
 
     return render_template(
         "conta_corrente.html", ativo="conta_corrente_lista",
         movimentos=list(reversed(exibidos)), saldo_final=saldo_final,
-        total_entradas=total_entradas, total_saidas=total_saidas,
+        total_entradas=total_entradas, total_saidas=total_saidas, saldo_filtro=saldo_filtro,
         data_ini=data_ini, data_fim=data_fim, tipo=tipo, busca=busca,
         tem_filtro=bool(data_ini or data_fim or tipo or busca),
         mes_atual=date.today().month, MESES=_MESES, presets=_presets_periodo())

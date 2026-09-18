@@ -16,6 +16,10 @@
     <div class="stat__valor" style="color:var(--erro)">{{ total_saidas|moeda }}</div>
     <div class="stat__rotulo">Saídas — filtro</div>
   </div>
+  <div class="stat">
+    <div class="stat__valor" style="color:{{ 'var(--erro)' if saldo_filtro < 0 else 'var(--ok)' }}">{{ saldo_filtro|moeda }}</div>
+    <div class="stat__rotulo">Saldo — filtro (entradas − saídas do período exibido)</div>
+  </div>
 </div>
 
 <p class="dica" style="margin:-6px 0 14px">
