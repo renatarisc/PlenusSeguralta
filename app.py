@@ -1457,10 +1457,11 @@ def _entrada_simples_para_form(e):
 
 @app.route("/financeiro/entradas-simples")
 def entradas_simples_lista():
+    # ao contrário de Saídas (contas a vencer, faz sentido olhar só o mês corrente),
+    # Entradas simples é um livro-caixa avulso — sem filtro na URL mostra TUDO, senão
+    # uma entrada lançada num mês diferente do atual "sumia" sem aviso nenhum.
     mes_arg = request.args.get("mes")
-    if mes_arg is None:
-        mes = date.today().month
-    elif mes_arg.isdigit() and int(mes_arg) in range(1, 13):
+    if mes_arg and mes_arg.isdigit() and int(mes_arg) in range(1, 13):
         mes = int(mes_arg)
     else:
         mes = None
@@ -1471,7 +1472,7 @@ def entradas_simples_lista():
                                             forma_pagamento_id=forma_id or None,
                                             conta_origem_id=conta_origem_id or None)
     total = sum(e["valor"] or 0 for e in entradas)
-    tem_filtro = bool(busca or forma_id or conta_origem_id) or mes != date.today().month
+    tem_filtro = bool(busca or forma_id or conta_origem_id or mes)
     return render_template("entradas_simples_lista.html", ativo="entradas_simples_lista",
                            entradas=entradas, total=total, mes=mes, busca=busca,
                            forma_id=forma_id, conta_origem_id=conta_origem_id,

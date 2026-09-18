@@ -55,7 +55,7 @@
   <div class="filtros__acoes">
     <button class="btn btn--primario" type="submit">{{ icone('busca') }} Buscar</button>
     {% if tem_filtro %}
-    <a class="btn btn--linha" href="{{ url_for('entradas_simples_lista') }}">Limpar (voltar ao mês atual)</a>
+    <a class="btn btn--linha" href="{{ url_for('entradas_simples_lista') }}">Limpar</a>
     {% endif %}
   </div>
 </form>
@@ -102,7 +102,7 @@
   {% else %}
   <p class="vazio">
     {% if tem_filtro %}Nenhuma entrada encontrada para o filtro.
-    {% else %}Nenhuma entrada em {{ MESES[mes_atual] }}. Use os filtros para ver outros meses.{% endif %}
+    {% else %}Nenhuma entrada cadastrada ainda.{% endif %}
   </p>
   {% endif %}
 </div>
