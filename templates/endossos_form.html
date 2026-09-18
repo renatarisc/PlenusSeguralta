@@ -179,7 +179,12 @@
         <label for="comissao_percentual">Percentual (%)</label>
         <input id="comissao_percentual" name="comissao_percentual" inputmode="decimal" value="{{ e.comissao_percentual or '' }}">
       </div>
-      <div class="campo c-9" style="justify-content:flex-end">
+      <div class="campo c-9" style="gap:8px;justify-content:flex-end">
+        <label class="check">
+          <input type="checkbox" id="comissao_cocorretagem" name="comissao_cocorretagem" value="1"
+                 {{ 'checked' if e.comissao_cocorretagem }}>
+          Cocorretagem — Seguralta 25% e Plenus 75% da comissão
+        </label>
         <label class="check">
           <input type="checkbox" id="comissao_parcelada" name="comissao_parcelada" value="1"
                  {{ 'checked' if e.comissao_parcelada }}>
@@ -234,11 +239,16 @@
           <label for="data_plenus_recebido">Recebido em</label>
           <input id="data_plenus_recebido" name="data_plenus_recebido" type="date" style="max-width:150px" value="{{ e.data_plenus_recebido or '' }}">
         </div>
-        <div class="campo c-2">
+        <div class="campo c-2 col-recibo-only">
           <label>Recibo</label>
           <input type="hidden" name="recibo_id" value="{{ e.recibo_id or '' }}">
           <input value="{{ e.recibo_numero or 'Nenhum' }}" readonly style="max-width:110px"
                  title="O vínculo com o recibo é feito na tela do recibo, pelo campo Data">
+        </div>
+        <div class="campo c-2 col-deposito-only">
+          <label for="data_deposito_cc">Depósito CC</label>
+          <input id="data_deposito_cc" name="data_deposito_cc" type="date" style="max-width:150px"
+                 value="{{ e.data_deposito_cc or '' }}">
         </div>
       </div>
     </div>
@@ -257,7 +267,7 @@
     {# ---------- a janela (dialog) com as duas tabelas ---------- #}
     <dialog id="dlg-comissao" class="dlg">
       <div class="dlg__cab">
-        <strong>Comissão parcelada</strong>
+        <strong id="dlg-com-titulo">Comissão parcelada</strong>
         <button type="button" class="btn btn--linha btn--mini" data-fechar-comissao title="Fechar">{{ icone('x') }}</button>
       </div>
       <div class="dlg__corpo">
@@ -316,9 +326,12 @@
         </div>
         <div id="conf-comissao" class="conferencia" hidden></div>
 
-        <h3 class="titulo-secao" style="margin-top:16px">Repasses <span>— a Plenus recebe da Seguralta</span></h3>
+        <h3 class="titulo-secao" style="margin-top:16px"><span id="tit-repasse-a">Repasses</span> <span id="tit-repasse-b">— a Plenus recebe da Seguralta</span></h3>
+        <div id="repasse-coco-acao" hidden style="padding:2px 0 10px">
+          <button type="button" class="btn btn--primario" id="btn-repasse-coco">Gerar do 75% da comissão</button>
+        </div>
         {% if pode_gerar_repasse %}
-        <div class="gerador">
+        <div class="gerador" id="gerador-repasse">
           <div class="grade">
             <div class="campo c-2"><label for="ger_rep_qtd">Qtd. de meses</label>
               <input id="ger_rep_qtd" type="number" min="1" max="120"></div>
@@ -334,7 +347,7 @@
           <table class="lista tab-fluxo" id="tab-repasses">
             <thead><tr><th style="width:10%">Parcela</th><th style="width:19%">Pendente (R$)</th>
                 <th style="width:19%">Pago (R$)</th><th style="width:22%">Data</th>
-                <th style="width:14%">Recibo</th><th style="width:16%"></th></tr></thead>
+                <th style="width:14%"><span class="col-recibo-only">Recibo</span><span class="col-deposito-only">Depósito CC</span></th><th style="width:16%"></th></tr></thead>
             <tbody id="corpo-repasses">
               {% for r in e.repasses or [] %}
               <tr class="fluxo-linha">
@@ -343,8 +356,11 @@
                 <td><input name="repasse_recebido" inputmode="decimal" data-num value="{{ r.valor_recebido or '' }}"></td>
                 <td><input name="repasse_data" type="date" value="{{ r.data or '' }}"></td>
                 <td class="col-conf">
-                  <input type="hidden" name="repasse_recibo_id" value="{{ r.recibo_id or '' }}">
-                  <span class="meta" title="O vínculo com o recibo é feito na tela do recibo, pelo campo Data">{{ r.recibo_numero or '—' }}</span>
+                  <span class="col-recibo-only">
+                    <input type="hidden" name="repasse_recibo_id" value="{{ r.recibo_id or '' }}">
+                    <span class="meta" title="O vínculo com o recibo é feito na tela do recibo, pelo campo Data">{{ r.recibo_numero or '—' }}</span>
+                  </span>
+                  <input class="col-deposito-only" name="repasse_deposito_cc" type="date" value="{{ r.data_deposito_cc or '' }}" aria-label="Depósito CC">
                 </td>
                 <td class="acoes">
                   <button type="button" class="btn btn--linha btn--mini" data-editar title="Liberar edição">{{ icone('lapis') }}</button>
@@ -359,7 +375,7 @@
           <button type="button" class="btn btn--linha" id="btn-add-repasse">{{ icone('mais') }} Adicionar mês</button>
           <span class="dica" id="total-repasses" style="margin-left:10px"></span>
         </div>
-        <div class="rel-box">
+        <div class="rel-box" id="relbox-plenus">
           <div class="grade" style="align-items:end">
             <div class="campo c-6">
               <label for="previsto_relatorio_plenus">Repasse previsto no relatório</label>
@@ -453,8 +469,11 @@
     <td><input name="repasse_recebido" inputmode="decimal" data-num></td>
     <td><input name="repasse_data" type="date"></td>
     <td class="col-conf">
-      <input type="hidden" name="repasse_recibo_id" value="">
-      <span class="meta">—</span>
+      <span class="col-recibo-only">
+        <input type="hidden" name="repasse_recibo_id" value="">
+        <span class="meta">—</span>
+      </span>
+      <input class="col-deposito-only" name="repasse_deposito_cc" type="date" aria-label="Depósito CC">
     </td>
     <td class="acoes">
       <button type="button" class="btn btn--linha btn--mini" data-editar title="Liberar edição">{{ icone('lapis') }}</button>

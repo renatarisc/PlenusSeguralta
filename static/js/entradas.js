@@ -67,11 +67,21 @@
     });
   }
 
+  // cocorretagem (sem recibo/NF): só conta como paga com o valor E a data de
+  // depósito na CC preenchidos — as duas, não uma ou outra.
+  function estaPaga(tr) {
+    const temPago = hasVal(tr.querySelector("[data-ple-receb]"));
+    const sec = tr.closest(".ent-bloco");
+    if (sec && sec.hasAttribute("data-coco")) {
+      return temPago && hasVal(tr.querySelector("[data-deposito]"));
+    }
+    return temPago;
+  }
+
   function atualizarSituacao(tr) {
     const cel = tr.querySelector("[data-situacao]");
     if (!cel) return;
-    const paga = hasVal(tr.querySelector("[data-ple-receb]"));
-    cel.innerHTML = paga
+    cel.innerHTML = estaPaga(tr)
       ? '<span class="selo-pago">Paga</span>'
       : '<span class="selo-apagar">A receber</span>';
   }
@@ -94,14 +104,16 @@
   function initBloco(sec) {
     const corpo = sec.querySelector("[data-corpo]");
     const form = sec.querySelector("form");
-    const tpl = document.getElementById(sec.hasAttribute("data-consorcio") ? "tpl-ent-linha-cons" : "tpl-ent-linha");
+    const tpl = document.getElementById(
+      sec.hasAttribute("data-coco") ? "tpl-ent-linha-dep"
+        : sec.hasAttribute("data-consorcio") ? "tpl-ent-linha-cons" : "tpl-ent-linha");
     if (!corpo || !form) return;
 
     const sincTodas = () => corpo.querySelectorAll("tr").forEach(sincronizarParcela);
 
     corpo.querySelectorAll("tr").forEach((tr) => {
       sincronizarParcela(tr);
-      if (hasVal(tr.querySelector("[data-ple-receb]"))) travar(tr);
+      if (estaPaga(tr)) travar(tr);
     });
     recomputarSoma(sec);
 
@@ -109,7 +121,7 @@
       const tr = e.target.closest("tr");
       if (!tr) return;
       sincronizarParcela(tr);
-      if (e.target.hasAttribute("data-ple-receb")) atualizarSituacao(tr);
+      if (e.target.hasAttribute("data-ple-receb") || e.target.hasAttribute("data-deposito")) atualizarSituacao(tr);
       recomputarSoma(sec);
     });
 

@@ -280,12 +280,17 @@
           <label for="data_plenus_recebido">Recebido em</label>
           <input id="data_plenus_recebido" name="data_plenus_recebido" type="date" style="max-width:150px" value="{{ co.data_plenus_recebido or '' }}">
         </div>
-        <div class="campo c-2">
+        <div class="campo c-2 col-recibo-only">
           <label for="plenus_conferido_banco">Conferido no banco</label>
           <select id="plenus_conferido_banco" name="plenus_conferido_banco" style="max-width:110px">
             <option value="0">Não</option>
             <option value="1" {% if co.plenus_conferido_banco %}selected{% endif %}>Sim</option>
           </select>
+        </div>
+        <div class="campo c-2 col-deposito-only">
+          <label for="data_deposito_cc">Depósito CC</label>
+          <input id="data_deposito_cc" name="data_deposito_cc" type="date" style="max-width:150px"
+                 value="{{ co.data_deposito_cc or '' }}">
         </div>
       </div>
     </div>
@@ -383,7 +388,7 @@
           <table class="lista tab-fluxo" id="tab-repasses">
             <thead><tr><th style="width:10%">Parcela</th><th style="width:19%">Pendente (R$)</th>
                 <th style="width:19%">Pago (R$)</th><th style="width:22%">Data</th>
-                <th style="width:14%">Conferido<br><small>no banco</small></th><th style="width:16%"></th></tr></thead>
+                <th style="width:14%"><span class="col-recibo-only">Conferido<br><small>no banco</small></span><span class="col-deposito-only">Depósito CC</span></th><th style="width:16%"></th></tr></thead>
             <tbody id="corpo-repasses">
               {% for r in co.repasses or [] %}
               <tr class="fluxo-linha">
@@ -391,10 +396,13 @@
                 <td><input name="repasse_previsto" inputmode="decimal" data-num value="{{ r.valor_previsto or '' }}"></td>
                 <td><input name="repasse_recebido" inputmode="decimal" data-num value="{{ r.valor_recebido or '' }}"></td>
                 <td><input name="repasse_data" type="date" value="{{ r.data or '' }}"></td>
-                <td class="col-conf"><select name="repasse_conferido" data-conf title="Depósito conferido no extrato bancário da Plenus">
-                  <option value="0">Não</option>
-                  <option value="1" {% if r.conferido_banco %}selected{% endif %}>Sim</option>
-                </select></td>
+                <td class="col-conf">
+                  <select class="col-recibo-only" name="repasse_conferido" data-conf title="Depósito conferido no extrato bancário da Plenus">
+                    <option value="0">Não</option>
+                    <option value="1" {% if r.conferido_banco %}selected{% endif %}>Sim</option>
+                  </select>
+                  <input class="col-deposito-only" name="repasse_deposito_cc" type="date" value="{{ r.data_deposito_cc or '' }}" aria-label="Depósito CC">
+                </td>
                 <td class="acoes">
                   <button type="button" class="btn btn--linha btn--mini" data-editar title="Liberar edição">{{ icone('lapis') }}</button>
                   <button type="button" class="btn btn--perigo btn--mini" data-remover title="Remover">{{ icone('x') }}</button>
@@ -489,9 +497,12 @@
     <td><input name="repasse_previsto" inputmode="decimal" data-num></td>
     <td><input name="repasse_recebido" inputmode="decimal" data-num></td>
     <td><input name="repasse_data" type="date"></td>
-    <td class="col-conf"><select name="repasse_conferido" data-conf title="Depósito conferido no extrato bancário da Plenus">
-      <option value="0">Não</option><option value="1">Sim</option>
-    </select></td>
+    <td class="col-conf">
+      <select class="col-recibo-only" name="repasse_conferido" data-conf title="Depósito conferido no extrato bancário da Plenus">
+        <option value="0">Não</option><option value="1">Sim</option>
+      </select>
+      <input class="col-deposito-only" name="repasse_deposito_cc" type="date" aria-label="Depósito CC">
+    </td>
     <td class="acoes">
       <button type="button" class="btn btn--linha btn--mini" data-editar title="Liberar edição">{{ icone('lapis') }}</button>
       <button type="button" class="btn btn--perigo btn--mini" data-remover title="Remover">{{ icone('x') }}</button>

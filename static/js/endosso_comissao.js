@@ -1,7 +1,7 @@
 /* Card "Comissão" do formulário de ENDOSSO — mesmo padrão/dinâmica da apólice
    (ver comissao.js): o checkbox alterna entre "repasse único" (valores
    achatados) e "repasse parcelado" (duas tabelas: Comissão e Repasses), que
-   moram numa janela (dialog). Sem cocorretagem e sem "relatório da corretora".
+   moram numa janela (dialog). Tem cocorretagem, igual apólice/consórcio.
    A validação que vale é a do servidor. */
 (function () {
   "use strict";
@@ -47,6 +47,24 @@
     if (chk.checked) abrirDlg(); else fecharDlg();
   });
   sync();
+
+  // ---------- cocorretagem: ajusta textos da janela ----------
+  const chkCoco = document.getElementById("comissao_cocorretagem");
+  const ehCoco = () => !!(chkCoco && chkCoco.checked);
+  function textosCoco() {
+    const co = ehCoco();
+    const set = (id, txt) => { const e = document.getElementById(id); if (e) e.textContent = txt; };
+    set("dlg-com-titulo", co ? "Comissão parcelada — cocorretagem" : "Comissão parcelada");
+    set("tit-repasse-a", co ? "Plenus" : "Repasses");
+    set("tit-repasse-b", co ? "— a Plenus recebe da seguradora" : "— a Plenus recebe da Seguralta");
+    // cocorretagem não tem recibo/NF (a Plenus recebe direto na conta corrente) —
+    // a coluna "Recibo" vira "Depósito CC" (data do depósito), tanto no repasse
+    // único quanto na tabela parcelada (linhas existentes E as criadas depois).
+    document.querySelectorAll(".col-recibo-only").forEach((el) => { el.hidden = co; });
+    document.querySelectorAll(".col-deposito-only").forEach((el) => { el.hidden = !co; });
+  }
+  if (chkCoco) chkCoco.addEventListener("change", () => { textosCoco(); conferir75(); });
+  textosCoco();
 
   // ---------- resumo no card (lançamentos × repasses) ----------
   const resumo = document.getElementById("resumo-comissao-parcelada");
@@ -171,6 +189,7 @@
           sug = { data: d ? addMeses(d, 1) : "", valor: campo(base, cfg.campoValor).value || "" };
         }
         novaLinha(sug);
+        textosCoco();
         atualizarTotal();
       });
     }
@@ -193,6 +212,7 @@
             valor: valor ? fmt(valor) : "",
           });
         }
+        textosCoco();
         atualizarTotal();
       });
     }
@@ -265,6 +285,7 @@
     const pct = num((document.getElementById("comissao_percentual") || {}).value);
     const valor = num((document.getElementById("valor") || {}).value);
     const base = Math.round((pct / 100) * valor * 100) / 100;   // comissão = pct% × valor do endosso
+    const co = ehCoco();
 
     // bloco Comissão
     if (elConfCom) {
@@ -275,6 +296,9 @@
         let l;
         if (!(pct && valor)) {
           l = '<span style="color:var(--texto-suave)">Informe Percentual (%) e Valor do endosso</span>';
+        } else if (co) {
+          const esp = Math.round(base * 25) / 100;
+          l = "Seguralta: 25% da comissão = R$ " + fmt(esp) + (cR ? selo(esp, cR) : "");
         } else {
           const pctTxt = Number.isInteger(pct) ? String(pct) : fmt(pct);
           l = "Comissão de " + pctTxt + "% do valor do endosso = R$ " + fmt(base) +
@@ -286,13 +310,18 @@
 
     // bloco Repasses / Plenus
     if (elConfRep) {
-      if (!(cR || rR)) {
+      if (!(cR || rR) && !(co && pct && valor)) {
         elConfRep.hidden = true;
       } else {
         elConfRep.hidden = false;
-        const esp = Math.round(FATOR_PLENUS * cR * 100) / 100;
-        const l = "Repasse de 75% da comissão recebida = R$ " + fmt(esp) +
-          selo(esp, Math.round(rR * 100) / 100);
+        let l;
+        if (co) {
+          const esp = Math.round(base * 75) / 100;
+          l = "Plenus: 75% da comissão = R$ " + fmt(esp) + (rR ? selo(esp, Math.round(rR * 100) / 100) : "");
+        } else {
+          const esp = Math.round(FATOR_PLENUS * cR * 100) / 100;
+          l = "Repasse de 75% da comissão recebida = R$ " + fmt(esp) + selo(esp, Math.round(rR * 100) / 100);
+        }
         elConfRep.innerHTML = "<strong>Conferência</strong><div>" + l + "</div>";
       }
     }
@@ -306,4 +335,67 @@
   });
   conferir75();
   atualizarResumo();
+
+  // ---------- cocorretagem: repasse = 75% da comissão (gerado, mas editável) ----------
+  const cent = (x) => Math.round((Number(x) || 0) * 100) / 100;
+  const btnRepCoco = document.getElementById("btn-repasse-coco");
+  const relboxPlenus = document.getElementById("relbox-plenus");
+
+  function repasseDaComissao() {
+    const corpoC = document.getElementById("corpo-comissoes");
+    const corpoR = document.getElementById("corpo-repasses");
+    const tplR = document.getElementById("tpl-repasse");
+    if (!corpoC || !corpoR || !tplR) return;
+    const valor = num((document.getElementById("valor") || {}).value);
+    const pct = num((document.getElementById("comissao_percentual") || {}).value);
+    if (!valor || !pct) { alert("Preencha o valor do endosso e o percentual da comissão."); return; }
+
+    const rows = Array.from(corpoC.querySelectorAll("tr.fluxo-linha")).map((tr) => {
+      const g = (n) => tr.querySelector('[name="' + n + '"]');
+      return {
+        parcela: (g("comissao_parcela").value || "").trim(),
+        data: g("comissao_data").value || "",
+        prev: num(g("comissao_previsto").value),
+      };
+    });
+    if (!rows.length) { alert("Lance as parcelas da comissão primeiro."); return; }
+
+    const jaTem = Array.from(corpoR.querySelectorAll("tr.fluxo-linha")).some((tr) =>
+      ["repasse_parcela", "repasse_previsto", "repasse_recebido", "repasse_data"]
+        .some((n) => (tr.querySelector('[name="' + n + '"]').value || "").trim()));
+    if (jaTem && !confirm("Substituir a tabela de repasse pelos 75% da comissão?")) return;
+
+    // preenche só parcela, data e "pendente" — a coluna "pago" fica em branco
+    const total = cent(valor * (pct / 100) * 0.75);
+    const base = rows.reduce((s, r) => s + r.prev, 0);
+    const n = rows.length;
+    const parte = (v) => (base ? cent(total * (v / base)) : cent(total / n));
+
+    let acumP = 0;
+    corpoR.innerHTML = "";
+    rows.forEach((r, i) => {
+      const vp = (i === n - 1) ? cent(total - acumP) : parte(r.prev);
+      if (i < n - 1) acumP += vp;
+      const tr = tplR.content.firstElementChild.cloneNode(true);
+      tr.querySelector('[name="repasse_parcela"]').value = r.parcela || String(i + 1);
+      tr.querySelector('[name="repasse_previsto"]').value = fmt(vp);
+      tr.querySelector('[name="repasse_recebido"]').value = "";
+      tr.querySelector('[name="repasse_data"]').value = r.data;
+      corpoR.appendChild(tr);
+    });
+    textosCoco();
+    corpoR.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+  if (btnRepCoco) btnRepCoco.addEventListener("click", repasseDaComissao);
+
+  const geradorRepasse = document.getElementById("gerador-repasse");
+  const acaoRepCoco = document.getElementById("repasse-coco-acao");
+  function syncCoco() {
+    const co = ehCoco();
+    if (acaoRepCoco) acaoRepCoco.hidden = !co;     // botão "Gerar do 75%" logo abaixo do título
+    if (relboxPlenus) relboxPlenus.hidden = co;    // sem valor de repasse no relatório da corretora
+    if (geradorRepasse) geradorRepasse.hidden = co;  // repasse vem dos 75% da comissão, não do gerador manual
+  }
+  if (chkCoco) chkCoco.addEventListener("change", syncCoco);
+  syncCoco();
 })();

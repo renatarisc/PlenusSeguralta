@@ -57,6 +57,11 @@
     set("dlg-com-titulo", co ? "Comissão parcelada — cocorretagem" : "Comissão parcelada");
     set("tit-repasse-a", co ? "Plenus" : "Repasses");
     set("tit-repasse-b", co ? "— a Plenus recebe da seguradora" : "— a Plenus recebe da Seguralta");
+    // cocorretagem não tem recibo/NF (a Plenus recebe direto na conta corrente) —
+    // a coluna "Recibo" vira "Depósito CC" (data do depósito), tanto no repasse
+    // único quanto na tabela parcelada (linhas existentes E as criadas depois).
+    document.querySelectorAll(".col-recibo-only").forEach((el) => { el.hidden = co; });
+    document.querySelectorAll(".col-deposito-only").forEach((el) => { el.hidden = !co; });
   }
   if (chkCoco) chkCoco.addEventListener("change", () => { textosCoco(); conferir75(); });
   textosCoco();
@@ -180,6 +185,7 @@
           sug = { data: d ? addMeses(d, 1) : "", valor: campo(base, cfg.campoValor).value || "" };
         }
         novaLinha(sug);
+        textosCoco();
         atualizarTotal();
       });
     }
@@ -202,6 +208,7 @@
             valor: valor ? fmt(valor) : "",
           });
         }
+        textosCoco();
         atualizarTotal();
       });
     }
@@ -376,6 +383,7 @@
       tr.querySelector('[name="repasse_data"]').value = r.data;
       corpoR.appendChild(tr);
     });
+    textosCoco();
     corpoR.dispatchEvent(new Event("input", { bubbles: true }));
   }
   if (btnRepCoco) btnRepCoco.addEventListener("click", repasseDaComissao);

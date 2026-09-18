@@ -218,21 +218,24 @@ def preparar_comissoes(parcelas, previstos, recebidos, datas):
     return linhas, erros
 
 
-def preparar_repasses(parcelas, previstos, recebidos, datas, recibo_ids=None):
+def preparar_repasses(parcelas, previstos, recebidos, datas, recibo_ids=None, depositos=None):
     """Tabela "Repasses" (Plenus recebe da corretora). Mesma estrutura da comissão:
-    {parcela, valor_previsto(float|None), valor_recebido, data, recibo_id}.
+    {parcela, valor_previsto(float|None), valor_recebido, data, recibo_id, data_deposito_cc}.
     `recibo_id` = a qual recibo esta parcela esta associada (vinculo feito na tela
-    do recibo; aqui só se preserva o valor que veio no hidden do formulário)."""
+    do recibo; aqui só se preserva o valor que veio no hidden do formulário).
+    `data_deposito_cc` = só pra cocorretagem (sem recibo/NF): data em que o valor caiu
+    direto na conta corrente da Plenus."""
     linhas, erros = [], []
     z = zip_longest(parcelas or [], previstos or [], recebidos or [], datas or [],
-                    recibo_ids or [], fillvalue="")
+                    recibo_ids or [], depositos or [], fillvalue="")
     n = 0
-    for parc, prev, receb, data, rid in z:
+    for parc, prev, receb, data, rid, dep in z:
         parc = (parc or "").strip()
         prev_txt = (prev or "").strip()
         receb_txt = (receb or "").strip()
         data = (data or "").strip()
-        if not (parc or prev_txt or receb_txt or data):
+        dep = (dep or "").strip()
+        if not (parc or prev_txt or receb_txt or data or dep):
             continue
         n += 1
         vp, vr = para_decimal(prev_txt), para_decimal(receb_txt)
@@ -243,23 +246,26 @@ def preparar_repasses(parcelas, previstos, recebidos, datas, recibo_ids=None):
         rid_txt = (rid or "").strip()
         linhas.append({"parcela": parc or None, "valor_previsto": vp,
                        "valor_recebido": vr, "data": data or None,
-                       "recibo_id": int(rid_txt) if rid_txt.isdigit() else None})
+                       "recibo_id": int(rid_txt) if rid_txt.isdigit() else None,
+                       "data_deposito_cc": dep or None})
     return linhas, erros
 
 
-def preparar_repasses_consorcio(parcelas, previstos, recebidos, datas, conferidos=None):
+def preparar_repasses_consorcio(parcelas, previstos, recebidos, datas, conferidos=None, depositos=None):
     """Igual a `preparar_repasses`, mas pro CONSÓRCIO - que continua com "conferido no
-    banco" (sim/não), sem o vínculo com recibo (fora do escopo dessa mudança)."""
+    banco" (sim/não) pra repasse comum, e `data_deposito_cc` pra cocorretagem (sem
+    recibo/NF), igual apólice/endosso."""
     linhas, erros = [], []
     z = zip_longest(parcelas or [], previstos or [], recebidos or [], datas or [],
-                    conferidos or [], fillvalue="")
+                    conferidos or [], depositos or [], fillvalue="")
     n = 0
-    for parc, prev, receb, data, conf in z:
+    for parc, prev, receb, data, conf, dep in z:
         parc = (parc or "").strip()
         prev_txt = (prev or "").strip()
         receb_txt = (receb or "").strip()
         data = (data or "").strip()
-        if not (parc or prev_txt or receb_txt or data):
+        dep = (dep or "").strip()
+        if not (parc or prev_txt or receb_txt or data or dep):
             continue
         n += 1
         vp, vr = para_decimal(prev_txt), para_decimal(receb_txt)
@@ -269,7 +275,7 @@ def preparar_repasses_consorcio(parcelas, previstos, recebidos, datas, conferido
             erros.append(f"Repasse {n}: recebido inválido.")
         linhas.append({"parcela": parc or None, "valor_previsto": vp,
                        "valor_recebido": vr, "data": data or None,
-                       "conferido_banco": _sim(conf)})
+                       "conferido_banco": _sim(conf), "data_deposito_cc": dep or None})
     return linhas, erros
 
 

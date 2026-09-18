@@ -173,6 +173,7 @@ CREATE TABLE IF NOT EXISTS apolice (
     recibo_id INT,                                  -- repasse unico: recibo ao qual esta associado
     comissao_parcelada INT NOT NULL DEFAULT 0,      -- 1 = repasse mensal (apolice_comissao/repasse)
     comissao_cocorretagem INT NOT NULL DEFAULT 0,   -- 1 = cocorretagem (SEGURALTA 25% / Plenus 75%)
+    data_deposito_cc TEXT,                   -- cocorretagem, repasse unico: data do deposito na CC da Plenus
     previsto_relatorio_seguralta REAL,
     recebido_relatorio_seguralta REAL,
     previsto_relatorio_plenus REAL,
@@ -238,6 +239,7 @@ CREATE TABLE IF NOT EXISTS apolice_repasse (
     valor_recebido REAL,
     data TEXT,
     recibo_id INT,                            -- recibo ao qual esta parcela esta associada
+    data_deposito_cc TEXT,                    -- cocorretagem: data do deposito na CC da Plenus
     ordem INT NOT NULL DEFAULT 0,
     KEY ix_apolice_repasse_apolice (apolice_id),
     CONSTRAINT fk_apolice_repasse_apolice FOREIGN KEY (apolice_id)
@@ -268,6 +270,8 @@ CREATE TABLE IF NOT EXISTS apolice_endosso (
     data_seguralta_recebido TEXT,
     data_plenus_recebido TEXT,
     recibo_id INT,                            -- repasse unico: recibo ao qual esta associado
+    comissao_cocorretagem INT NOT NULL DEFAULT 0,   -- 1 = cocorretagem (SEGURALTA 25% / Plenus 75%)
+    data_deposito_cc TEXT,                    -- cocorretagem, repasse unico: data do deposito na CC da Plenus
     previsto_relatorio_seguralta REAL,
     recebido_relatorio_seguralta REAL,
     previsto_relatorio_plenus REAL,
@@ -300,6 +304,7 @@ CREATE TABLE IF NOT EXISTS apolice_endosso_repasse (
     endosso_id INT NOT NULL,
     parcela TEXT, valor_previsto REAL, valor_recebido REAL, data TEXT,
     recibo_id INT, ordem INT NOT NULL DEFAULT 0,
+    data_deposito_cc TEXT,                    -- cocorretagem: data do deposito na CC da Plenus
     KEY ix_end_repasse_endosso (endosso_id),
     CONSTRAINT fk_end_repasse_endosso FOREIGN KEY (endosso_id)
         REFERENCES apolice_endosso(id) ON DELETE CASCADE,
@@ -395,6 +400,7 @@ CREATE TABLE IF NOT EXISTS consorcio (
     plenus_conferido_banco INT NOT NULL DEFAULT 0,
     comissao_parcelada INT NOT NULL DEFAULT 0,
     comissao_cocorretagem INT NOT NULL DEFAULT 0,
+    data_deposito_cc TEXT,                   -- cocorretagem, repasse unico: data do deposito na CC da Plenus
     previsto_relatorio_seguralta REAL,
     recebido_relatorio_seguralta REAL,
     previsto_relatorio_plenus REAL,
@@ -438,6 +444,7 @@ CREATE TABLE IF NOT EXISTS consorcio_repasse (
     consorcio_id INT NOT NULL,
     parcela TEXT, valor_previsto REAL, valor_recebido REAL, data TEXT,
     conferido_banco INT NOT NULL DEFAULT 0, ordem INT NOT NULL DEFAULT 0,
+    data_deposito_cc TEXT,                   -- cocorretagem: data do deposito na CC da Plenus
     KEY ix_cons_repasse_cons (consorcio_id),
     CONSTRAINT fk_cons_repasse_cons FOREIGN KEY (consorcio_id)
         REFERENCES consorcio(id) ON DELETE CASCADE
@@ -579,6 +586,7 @@ _COLUNAS_ESPERADAS = {
         "data_seguralta_recebido": "TEXT", "data_plenus_recebido": "TEXT",
         "comissao_parcelada": "INT NOT NULL DEFAULT 0",
         "comissao_cocorretagem": "INT NOT NULL DEFAULT 0",
+        "data_deposito_cc": "TEXT",
         "previsto_relatorio_seguralta": "REAL", "recebido_relatorio_seguralta": "REAL",
         "previsto_relatorio_plenus": "REAL", "recebido_relatorio_plenus": "REAL",
         "lancado_quiver": "INT NOT NULL DEFAULT 0", "link_onedrive": "TEXT",
@@ -603,7 +611,7 @@ _COLUNAS_ESPERADAS = {
     "apolice_repasse": {
         "apolice_id": "INT", "parcela": "TEXT", "valor_previsto": "REAL",
         "valor_recebido": "REAL", "data": "TEXT",
-        "ordem": "INT NOT NULL DEFAULT 0",
+        "ordem": "INT NOT NULL DEFAULT 0", "data_deposito_cc": "TEXT",
     },
     "apolice_endosso": {
         "apolice_id": "INT", "numero": "TEXT",
@@ -616,6 +624,7 @@ _COLUNAS_ESPERADAS = {
         "comissao_valor_seguralta_receber": "REAL", "comissao_valor_seguralta_recebido": "REAL",
         "comissao_valor_plenus_receber": "REAL", "comissao_valor_plenus_recebido": "REAL",
         "data_seguralta_recebido": "TEXT", "data_plenus_recebido": "TEXT",
+        "comissao_cocorretagem": "INT NOT NULL DEFAULT 0", "data_deposito_cc": "TEXT",
         "previsto_relatorio_seguralta": "REAL", "recebido_relatorio_seguralta": "REAL",
         "previsto_relatorio_plenus": "REAL", "recebido_relatorio_plenus": "REAL",
         "lancado_quiver": "INT NOT NULL DEFAULT 0", "link_onedrive": "TEXT",
@@ -635,7 +644,7 @@ _COLUNAS_ESPERADAS = {
     "apolice_endosso_repasse": {
         "endosso_id": "INT", "parcela": "TEXT", "valor_previsto": "REAL",
         "valor_recebido": "REAL", "data": "TEXT",
-        "ordem": "INT NOT NULL DEFAULT 0",
+        "ordem": "INT NOT NULL DEFAULT 0", "data_deposito_cc": "TEXT",
     },
     "notificacao_endosso_parcela": {
         "parcela_id": "INT", "marco": "INT", "data_vencimento": "VARCHAR(32)",
@@ -661,6 +670,7 @@ _COLUNAS_ESPERADAS = {
         "plenus_conferido_banco": "INT NOT NULL DEFAULT 0",
         "comissao_parcelada": "INT NOT NULL DEFAULT 0",
         "comissao_cocorretagem": "INT NOT NULL DEFAULT 0",
+        "data_deposito_cc": "TEXT",
         "previsto_relatorio_seguralta": "REAL", "recebido_relatorio_seguralta": "REAL",
         "previsto_relatorio_plenus": "REAL", "recebido_relatorio_plenus": "REAL",
         "lancado_quiver": "INT NOT NULL DEFAULT 0", "link_onedrive": "TEXT",
@@ -680,6 +690,7 @@ _COLUNAS_ESPERADAS = {
         "consorcio_id": "INT", "parcela": "TEXT", "valor_previsto": "REAL",
         "valor_recebido": "REAL", "data": "TEXT",
         "conferido_banco": "INT NOT NULL DEFAULT 0", "ordem": "INT NOT NULL DEFAULT 0",
+        "data_deposito_cc": "TEXT",
     },
     "consorcio_boleto": {
         "consorcio_id": "INT", "identificacao": "TEXT", "valor": "REAL",

@@ -518,7 +518,7 @@ _CAMPOS_APOLICE = (
     "comissao_valor_seguralta_receber", "comissao_valor_plenus_receber",
     "comissao_valor_seguralta_recebido", "comissao_valor_plenus_recebido",
     "data_seguralta_recebido", "data_plenus_recebido", "recibo_id",
-    "comissao_parcelada", "comissao_cocorretagem",
+    "comissao_parcelada", "comissao_cocorretagem", "data_deposito_cc",
     "previsto_relatorio_seguralta", "recebido_relatorio_seguralta",
     "previsto_relatorio_plenus", "recebido_relatorio_plenus",
     "lancado_quiver", "link_onedrive",
@@ -627,6 +627,7 @@ def apolice_form(apolice_id=None):
             request.form.getlist("repasse_recebido"),
             request.form.getlist("repasse_data"),
             request.form.getlist("repasse_recibo_id"),
+            request.form.getlist("repasse_deposito_cc"),
         )
         # cocorretagem: se o repasse veio vazio, o sistema o gera dos 75% da
         # comissão (fica editável — ver comissao.js). Só no salvar e só se vazio.
@@ -769,12 +770,20 @@ def endosso_form(endosso_id=None):
             request.form.getlist("repasse_previsto"),
             request.form.getlist("repasse_recebido"),
             request.form.getlist("repasse_data"),
-            request.form.getlist("repasse_recibo_id"))
+            request.form.getlist("repasse_recibo_id"),
+            request.form.getlist("repasse_deposito_cc"))
+        # cocorretagem: se o repasse veio vazio, o sistema o gera dos 75% da
+        # comissão (fica editável — ver endosso_comissao.js). Só no salvar e só se vazio.
+        if (dados.get("comissao_parcelada") == "1" and dados.get("comissao_cocorretagem")
+                and comissoes and not repasses):
+            repasses = gerar_repasses_cocorretagem(
+                comissoes, dados.get("valor"), dados.get("comissao_percentual"))
         if dados.get("comissao_parcelada") == "1":
             # comissão em parcelas: zera os campos planos de comissão
             for k in ("comissao_valor_seguralta_receber", "comissao_valor_seguralta_recebido",
                       "comissao_valor_plenus_receber", "comissao_valor_plenus_recebido",
-                      "data_seguralta_recebido", "data_plenus_recebido", "recibo_id"):
+                      "data_seguralta_recebido", "data_plenus_recebido", "recibo_id",
+                      "data_deposito_cc"):
                 dados[k] = ""
         else:
             comissoes, repasses, erros_com, erros_rep = [], [], [], []
@@ -848,7 +857,8 @@ _CAMPOS_CONSORCIO = (
 )
 _COMISSAO_FLAT_CONSORCIO = ("comissao_valor_seguralta_receber", "comissao_valor_seguralta_recebido",
                             "comissao_valor_plenus_receber", "comissao_valor_plenus_recebido",
-                            "data_seguralta_recebido", "data_plenus_recebido", "plenus_conferido_banco")
+                            "data_seguralta_recebido", "data_plenus_recebido", "plenus_conferido_banco",
+                            "data_deposito_cc")
 _COMISSAO_REL_CONSORCIO = ("previsto_relatorio_seguralta", "recebido_relatorio_seguralta",
                            "previsto_relatorio_plenus", "recebido_relatorio_plenus")
 
@@ -924,7 +934,8 @@ def consorcio_form(consorcio_id=None):
             request.form.getlist("repasse_previsto"),
             request.form.getlist("repasse_recebido"),
             request.form.getlist("repasse_data"),
-            request.form.getlist("repasse_conferido"))
+            request.form.getlist("repasse_conferido"),
+            request.form.getlist("repasse_deposito_cc"))
         boletos, erros_bol = preparar_boletos(
             request.form.getlist("boleto_identificacao"),
             request.form.getlist("boleto_valor"),
@@ -1968,15 +1979,18 @@ def _agrupar_entradas(linhas, chaves, divs=None):
 # ---- grade EDITÁVEL do menu Entradas: um bloco por apólice, casando as duas
 #      tabelas de comissão (lado Seguralta × lado Plenus) linha a linha ----
 
-def _merge_linhas_bloco(com, rep):
+def _merge_linhas_bloco(com, rep, cocorretagem=False):
     """Casa `apolice_comissao[i]` com `apolice_repasse[i]` POR POSIÇÃO. Faltando
-    um dos lados → campos vazios. Devolve as linhas de exibição do bloco."""
+    um dos lados → campos vazios. Devolve as linhas de exibição do bloco.
+    Cocorretagem não tem recibo/NF (a Plenus recebe direto na conta corrente) —
+    "paga" passa a exigir TAMBÉM a data de depósito preenchida, não só o valor."""
     n = max(len(com), len(rep)) or 1
     linhas = []
     for i in range(n):
         c = com[i] if i < len(com) else {}
         r = rep[i] if i < len(rep) else {}
         pg = r.get("valor_recebido")
+        dep = r.get("data_deposito_cc")
         linhas.append({
             "seg_parcela": c.get("parcela"), "ple_parcela": r.get("parcela"),
             "parcela": c.get("parcela") or r.get("parcela") or "",
@@ -1986,7 +2000,8 @@ def _merge_linhas_bloco(com, rep):
             "ple_data": r.get("data"),
             "recibo_id": r.get("recibo_id"), "recibo_numero": r.get("recibo_numero"),
             "conferido_banco": bool(r.get("conferido_banco")),
-            "paga": pg is not None,
+            "ple_deposito": dep,
+            "paga": (pg is not None and dep is not None) if cocorretagem else (pg is not None),
         })
     return linhas
 
@@ -2031,7 +2046,8 @@ def _blocos_entrada(apolices, chaves, situacao, data_ini=None, data_fim=None, la
 
     blocos = []
     for ap in apolices:
-        linhas = _merge_linhas_bloco(ap["comissoes"], ap["repasses"])
+        linhas = _merge_linhas_bloco(ap["comissoes"], ap["repasses"],
+                                     bool(ap.get("comissao_cocorretagem")))
         if situacao == "paga" and not any(l["paga"] for l in linhas):
             continue
         if situacao == "nao_paga" and not any(not l["paga"] for l in linhas):
@@ -2100,7 +2116,8 @@ def entradas_salvar_apolice(apolice_id):
             request.form.getlist("repasse_previsto"),
             request.form.getlist("repasse_recebido"),
             request.form.getlist("repasse_data"),
-            request.form.getlist("repasse_recibo_id"))
+            request.form.getlist("repasse_recibo_id"),
+            request.form.getlist("repasse_deposito_cc"))
         erros = erros_c + erros_r
         if erros:
             for e in erros:
@@ -2121,6 +2138,7 @@ def entradas_salvar_apolice(apolice_id):
             "data_seguralta_recebido": (request.form.get("data_seguralta_recebido") or "").strip(),
             "data_plenus_recebido": (request.form.get("data_plenus_recebido") or "").strip(),
             "recibo_id": request.form.get("recibo_id"),
+            "data_deposito_cc": (request.form.get("data_deposito_cc") or "").strip(),
         }
         repo.salvar_comissao_unica(apolice_id, valores)
         flash("Comissão da apólice atualizada.", "ok")
@@ -2141,7 +2159,8 @@ def entradas_salvar_endosso(endosso_id):
             request.form.getlist("repasse_previsto"),
             request.form.getlist("repasse_recebido"),
             request.form.getlist("repasse_data"),
-            request.form.getlist("repasse_recibo_id"))
+            request.form.getlist("repasse_recibo_id"),
+            request.form.getlist("repasse_deposito_cc"))
         erros = erros_c + erros_r
         if erros:
             for e in erros:
@@ -2162,6 +2181,7 @@ def entradas_salvar_endosso(endosso_id):
         "data_seguralta_recebido": (request.form.get("data_seguralta_recebido") or "").strip(),
         "data_plenus_recebido": (request.form.get("data_plenus_recebido") or "").strip(),
         "recibo_id": request.form.get("recibo_id"),
+        "data_deposito_cc": (request.form.get("data_deposito_cc") or "").strip(),
     }
     repo.salvar_comissao_endosso(endosso_id, valores)
     flash("Comissão do endosso atualizada.", "ok")
@@ -2182,7 +2202,8 @@ def entradas_salvar_consorcio(consorcio_id):
             request.form.getlist("repasse_previsto"),
             request.form.getlist("repasse_recebido"),
             request.form.getlist("repasse_data"),
-            request.form.getlist("repasse_conferido"))
+            request.form.getlist("repasse_conferido"),
+            request.form.getlist("repasse_deposito_cc"))
         erros = erros_c + erros_r
         if erros:
             for e in erros:
@@ -2203,6 +2224,7 @@ def entradas_salvar_consorcio(consorcio_id):
         "data_seguralta_recebido": (request.form.get("data_seguralta_recebido") or "").strip(),
         "data_plenus_recebido": (request.form.get("data_plenus_recebido") or "").strip(),
         "plenus_conferido_banco": request.form.get("plenus_conferido_banco"),
+        "data_deposito_cc": (request.form.get("data_deposito_cc") or "").strip(),
     }
     repo.salvar_comissao_consorcio(consorcio_id, valores)
     flash("Comissão do consórcio atualizada.", "ok")

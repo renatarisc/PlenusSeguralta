@@ -450,7 +450,7 @@ _COLS_APOLICE = (
     "comissao_valor_seguralta_receber", "comissao_valor_plenus_receber",
     "comissao_valor_seguralta_recebido", "comissao_valor_plenus_recebido",
     "data_seguralta_recebido", "data_plenus_recebido", "recibo_id",
-    "comissao_parcelada", "comissao_cocorretagem",
+    "comissao_parcelada", "comissao_cocorretagem", "data_deposito_cc",
     "previsto_relatorio_seguralta", "recebido_relatorio_seguralta",
     "previsto_relatorio_plenus", "recebido_relatorio_plenus",
     "lancado_quiver", "link_onedrive",
@@ -487,6 +487,7 @@ def _valores_apolice(dados):
         _int_ou_none(dados.get("recibo_id")),
         _sim_nao(dados.get("comissao_parcelada")),
         _sim_nao(dados.get("comissao_cocorretagem")),
+        (dados.get("data_deposito_cc") or "").strip() or None,
         para_decimal(dados.get("previsto_relatorio_seguralta")),
         para_decimal(dados.get("recebido_relatorio_seguralta")),
         para_decimal(dados.get("previsto_relatorio_plenus")),
@@ -539,10 +540,12 @@ def _inserir_repasses(con, apolice_id, linhas):
     for i, r in enumerate(linhas or []):
         con.execute(
             "INSERT INTO apolice_repasse "
-            "(apolice_id, parcela, valor_previsto, valor_recebido, data, recibo_id, ordem) "
-            "VALUES (%s, %s, %s, %s, %s, %s, %s)",
+            "(apolice_id, parcela, valor_previsto, valor_recebido, data, recibo_id, "
+            " data_deposito_cc, ordem) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
             (apolice_id, r.get("parcela"), r.get("valor_previsto"),
-             r.get("valor_recebido"), r.get("data"), _int_ou_none(r.get("recibo_id")), i),
+             r.get("valor_recebido"), r.get("data"), _int_ou_none(r.get("recibo_id")),
+             r.get("data_deposito_cc"), i),
         )
 
 
@@ -714,7 +717,7 @@ def obter_apolice(apolice_id):
         ).fetchall()]
         ap["repasses"] = [dict(x) for x in con.execute(
             "SELECT r.id, r.parcela, r.valor_previsto, r.valor_recebido, r.data, r.recibo_id, "
-            "       rec.numero AS recibo_numero "
+            "       r.data_deposito_cc, rec.numero AS recibo_numero "
             "FROM apolice_repasse r LEFT JOIN recibo rec ON rec.id = r.recibo_id "
             "WHERE r.apolice_id = %s ORDER BY r.ordem, r.id",
             (apolice_id,),
@@ -807,6 +810,7 @@ _COLS_ENDOSSO = (
     "comissao_valor_seguralta_receber", "comissao_valor_seguralta_recebido",
     "comissao_valor_plenus_receber", "comissao_valor_plenus_recebido",
     "data_seguralta_recebido", "data_plenus_recebido", "recibo_id",
+    "comissao_cocorretagem", "data_deposito_cc",
     "previsto_relatorio_seguralta", "recebido_relatorio_seguralta",
     "previsto_relatorio_plenus", "recebido_relatorio_plenus",
     "lancado_quiver", "link_onedrive",
@@ -834,6 +838,8 @@ def _valores_endosso(d):
         (d.get("data_seguralta_recebido") or "").strip() or None,
         (d.get("data_plenus_recebido") or "").strip() or None,
         _int_ou_none(d.get("recibo_id")),
+        _sim_nao(d.get("comissao_cocorretagem")),
+        (d.get("data_deposito_cc") or "").strip() or None,
         para_decimal(d.get("previsto_relatorio_seguralta")),
         para_decimal(d.get("recebido_relatorio_seguralta")),
         para_decimal(d.get("previsto_relatorio_plenus")),
@@ -857,10 +863,12 @@ def _inserir_endosso_repasses(con, endosso_id, linhas):
     for i, r in enumerate(linhas or []):
         con.execute(
             "INSERT INTO apolice_endosso_repasse "
-            "(endosso_id, parcela, valor_previsto, valor_recebido, data, recibo_id, ordem) "
-            "VALUES (%s, %s, %s, %s, %s, %s, %s)",
+            "(endosso_id, parcela, valor_previsto, valor_recebido, data, recibo_id, "
+            " data_deposito_cc, ordem) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
             (endosso_id, r.get("parcela"), r.get("valor_previsto"),
-             r.get("valor_recebido"), r.get("data"), _int_ou_none(r.get("recibo_id")), i))
+             r.get("valor_recebido"), r.get("data"), _int_ou_none(r.get("recibo_id")),
+             r.get("data_deposito_cc"), i))
 
 
 def _inserir_endosso_parcelas(con, endosso_id, parcelas):
@@ -937,7 +945,7 @@ def obter_endosso(endosso_id):
             (endosso_id,)).fetchall()]
         e["repasses"] = [dict(x) for x in con.execute(
             "SELECT r.id, r.parcela, r.valor_previsto, r.valor_recebido, r.data, r.recibo_id, "
-            "       rec.numero AS recibo_numero "
+            "       r.data_deposito_cc, rec.numero AS recibo_numero "
             "FROM apolice_endosso_repasse r LEFT JOIN recibo rec ON rec.id = r.recibo_id "
             "WHERE r.endosso_id = %s ORDER BY r.ordem, r.id",
             (endosso_id,)).fetchall()]
@@ -997,7 +1005,7 @@ _COLS_CONSORCIO = (
     "comissao_valor_seguralta_receber", "comissao_valor_plenus_receber",
     "comissao_valor_seguralta_recebido", "comissao_valor_plenus_recebido",
     "data_seguralta_recebido", "data_plenus_recebido", "plenus_conferido_banco",
-    "comissao_parcelada", "comissao_cocorretagem",
+    "comissao_parcelada", "comissao_cocorretagem", "data_deposito_cc",
     "previsto_relatorio_seguralta", "recebido_relatorio_seguralta",
     "previsto_relatorio_plenus", "recebido_relatorio_plenus",
     "lancado_quiver", "link_onedrive", "observacao",
@@ -1028,6 +1036,7 @@ def _valores_consorcio(d):
         _sim_nao(d.get("plenus_conferido_banco")),
         _sim_nao(d.get("comissao_parcelada")),
         _sim_nao(d.get("comissao_cocorretagem")),
+        (d.get("data_deposito_cc") or "").strip() or None,
         para_decimal(d.get("previsto_relatorio_seguralta")),
         para_decimal(d.get("recebido_relatorio_seguralta")),
         para_decimal(d.get("previsto_relatorio_plenus")),
@@ -1061,10 +1070,11 @@ def _inserir_consorcio_repasses(con, consorcio_id, linhas):
         conf = 1 if r.get("conferido_banco") in (1, "1", True, "sim", "on") else 0
         con.execute(
             "INSERT INTO consorcio_repasse "
-            "(consorcio_id, parcela, valor_previsto, valor_recebido, data, conferido_banco, ordem) "
-            "VALUES (%s, %s, %s, %s, %s, %s, %s)",
+            "(consorcio_id, parcela, valor_previsto, valor_recebido, data, conferido_banco, "
+            " data_deposito_cc, ordem) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
             (consorcio_id, r.get("parcela"), r.get("valor_previsto"),
-             r.get("valor_recebido"), r.get("data"), conf, i))
+             r.get("valor_recebido"), r.get("data"), conf, r.get("data_deposito_cc"), i))
 
 
 def _inserir_consorcio_boletos(con, consorcio_id, boletos):
@@ -1134,7 +1144,8 @@ def obter_consorcio(consorcio_id):
             "FROM consorcio_comissao WHERE consorcio_id = %s ORDER BY ordem, id",
             (consorcio_id,)).fetchall()]
         co["repasses"] = [dict(x) for x in con.execute(
-            "SELECT id, parcela, valor_previsto, valor_recebido, data, conferido_banco "
+            "SELECT id, parcela, valor_previsto, valor_recebido, data, conferido_banco, "
+            "       data_deposito_cc "
             "FROM consorcio_repasse WHERE consorcio_id = %s ORDER BY ordem, id",
             (consorcio_id,)).fetchall()]
         co["boletos"] = [dict(x) for x in con.execute(
@@ -1233,6 +1244,7 @@ def salvar_comissao_unica(apolice_id, valores):
             "  data_seguralta_recebido = %s, "
             "  data_plenus_recebido = %s, "
             "  recibo_id = %s, "
+            "  data_deposito_cc = %s, "
             "  atualizado_em = NOW() "
             "WHERE id = %s",
             (valores.get("comissao_valor_seguralta_receber"),
@@ -1242,6 +1254,7 @@ def salvar_comissao_unica(apolice_id, valores):
              (valores.get("data_seguralta_recebido") or None),
              (valores.get("data_plenus_recebido") or None),
              _int_ou_none(valores.get("recibo_id")),
+             (valores.get("data_deposito_cc") or None),
              apolice_id),
         )
     fazer_backup()
@@ -1267,7 +1280,7 @@ def salvar_comissao_endosso(endosso_id, valores):
             "  comissao_valor_seguralta_receber = %s, comissao_valor_seguralta_recebido = %s, "
             "  comissao_valor_plenus_receber = %s, comissao_valor_plenus_recebido = %s, "
             "  data_seguralta_recebido = %s, data_plenus_recebido = %s, "
-            "  recibo_id = %s, atualizado_em = NOW() "
+            "  recibo_id = %s, data_deposito_cc = %s, atualizado_em = NOW() "
             "WHERE id = %s",
             (valores.get("comissao_valor_seguralta_receber"),
              valores.get("comissao_valor_seguralta_recebido"),
@@ -1276,6 +1289,7 @@ def salvar_comissao_endosso(endosso_id, valores):
              (valores.get("data_seguralta_recebido") or None),
              (valores.get("data_plenus_recebido") or None),
              _int_ou_none(valores.get("recibo_id")),
+             (valores.get("data_deposito_cc") or None),
              endosso_id),
         )
     fazer_backup()
@@ -1301,7 +1315,7 @@ def salvar_comissao_consorcio(consorcio_id, valores):
             "  comissao_valor_seguralta_receber = %s, comissao_valor_seguralta_recebido = %s, "
             "  comissao_valor_plenus_receber = %s, comissao_valor_plenus_recebido = %s, "
             "  data_seguralta_recebido = %s, data_plenus_recebido = %s, "
-            "  plenus_conferido_banco = %s, atualizado_em = NOW() "
+            "  plenus_conferido_banco = %s, data_deposito_cc = %s, atualizado_em = NOW() "
             "WHERE id = %s",
             (valores.get("comissao_valor_seguralta_receber"),
              valores.get("comissao_valor_seguralta_recebido"),
@@ -1310,6 +1324,7 @@ def salvar_comissao_consorcio(consorcio_id, valores):
              (valores.get("data_seguralta_recebido") or None),
              (valores.get("data_plenus_recebido") or None),
              1 if valores.get("plenus_conferido_banco") in (1, "1", True, "sim", "on") else 0,
+             (valores.get("data_deposito_cc") or None),
              consorcio_id),
         )
     fazer_backup()
@@ -2538,7 +2553,7 @@ def comissoes_repasses_por_apolice(data_ini=None, data_fim=None, lado="plenus"):
             "SELECT a.id AS apolice_id, " + cols_apolice + ", "
             "       a.comissao_valor_seguralta_receber, a.comissao_valor_seguralta_recebido, "
             "       a.comissao_valor_plenus_receber,   a.comissao_valor_plenus_recebido, "
-            "       a.data_seguralta_recebido, a.data_plenus_recebido, "
+            "       a.data_seguralta_recebido, a.data_plenus_recebido, a.data_deposito_cc, "
             "       a.recibo_id, rec.numero AS recibo_numero "
             "  FROM apolice a "
             "  LEFT JOIN cliente c     ON c.id = a.cliente_id "
@@ -2553,7 +2568,7 @@ def comissoes_repasses_por_apolice(data_ini=None, data_fim=None, lado="plenus"):
         ).fetchall()
         repasses = con.execute(
             "SELECT r.apolice_id, r.parcela, r.valor_previsto, r.valor_recebido, r.data, "
-            "       r.recibo_id, rec.numero AS recibo_numero "
+            "       r.recibo_id, r.data_deposito_cc, rec.numero AS recibo_numero "
             "  FROM apolice_repasse r LEFT JOIN recibo rec ON rec.id = r.recibo_id "
             " ORDER BY r.apolice_id, r.ordem, r.id"
         ).fetchall()
@@ -2562,7 +2577,7 @@ def comissoes_repasses_por_apolice(data_ini=None, data_fim=None, lado="plenus"):
             "  FROM apolice_endosso_comissao ORDER BY endosso_id, ordem, id").fetchall()
         end_rep = con.execute(
             "SELECT r.endosso_id, r.parcela, r.valor_previsto, r.valor_recebido, r.data, "
-            "       r.recibo_id, rec.numero AS recibo_numero "
+            "       r.recibo_id, r.data_deposito_cc, rec.numero AS recibo_numero "
             "  FROM apolice_endosso_repasse r LEFT JOIN recibo rec ON rec.id = r.recibo_id "
             " ORDER BY r.endosso_id, r.ordem, r.id").fetchall()
         endossos = con.execute(
@@ -2570,10 +2585,11 @@ def comissoes_repasses_por_apolice(data_ini=None, data_fim=None, lado="plenus"):
             "       c.nome AS cliente_nome, a.tipo_seguro_id, t.nome AS tipo_seguro_nome, "
             "       sg.nome AS seguradora_nome, a.numero_apolice, "
             "       e.valor AS premio_liquido, e.comissao_percentual, "
-            "       COALESCE(e.comissao_parcelada, 0) AS comissao_parcelada, 0 AS comissao_cocorretagem, "
+            "       COALESCE(e.comissao_parcelada, 0) AS comissao_parcelada, "
+            "       COALESCE(e.comissao_cocorretagem, 0) AS comissao_cocorretagem, "
             "       e.comissao_valor_seguralta_receber, e.comissao_valor_seguralta_recebido, "
             "       e.comissao_valor_plenus_receber, e.comissao_valor_plenus_recebido, "
-            "       e.data_seguralta_recebido, e.data_plenus_recebido, "
+            "       e.data_seguralta_recebido, e.data_plenus_recebido, e.data_deposito_cc, "
             "       e.recibo_id, rec.numero AS recibo_numero "
             "  FROM apolice_endosso e "
             "  JOIN apolice a          ON a.id = e.apolice_id "
@@ -2588,7 +2604,7 @@ def comissoes_repasses_por_apolice(data_ini=None, data_fim=None, lado="plenus"):
             "  FROM consorcio_comissao ORDER BY consorcio_id, ordem, id").fetchall()
         cons_rep = con.execute(
             "SELECT consorcio_id, parcela, valor_previsto, valor_recebido, data, "
-            "       COALESCE(conferido_banco, 0) AS conferido_banco "
+            "       COALESCE(conferido_banco, 0) AS conferido_banco, data_deposito_cc "
             "  FROM consorcio_repasse ORDER BY consorcio_id, ordem, id").fetchall()
         consorcios = con.execute(
             "SELECT co.id AS consorcio_id, co.numero_grupo, co.numero_cota, "
@@ -2599,7 +2615,7 @@ def comissoes_repasses_por_apolice(data_ini=None, data_fim=None, lado="plenus"):
             "       COALESCE(co.comissao_cocorretagem, 0) AS comissao_cocorretagem, "
             "       co.comissao_valor_seguralta_receber, co.comissao_valor_seguralta_recebido, "
             "       co.comissao_valor_plenus_receber, co.comissao_valor_plenus_recebido, "
-            "       co.data_seguralta_recebido, co.data_plenus_recebido, "
+            "       co.data_seguralta_recebido, co.data_plenus_recebido, co.data_deposito_cc, "
             "       COALESCE(co.plenus_conferido_banco, 0) AS plenus_conferido_banco "
             "  FROM consorcio co "
             "  LEFT JOIN cliente c        ON c.id = co.cliente_id "
@@ -2658,7 +2674,8 @@ def comissoes_repasses_por_apolice(data_ini=None, data_fim=None, lado="plenus"):
                     "valor_previsto": ap["comissao_valor_plenus_receber"],
                     "valor_recebido": ap["comissao_valor_plenus_recebido"],
                     "data": ap["data_plenus_recebido"],
-                    "recibo_id": ap["recibo_id"], "recibo_numero": ap.get("recibo_numero")}]
+                    "recibo_id": ap["recibo_id"], "recibo_numero": ap.get("recibo_numero"),
+                    "data_deposito_cc": ap.get("data_deposito_cc")}]
         if not _no_periodo(com if lado == "seguralta" else rep):
             continue
         ap["comissoes"] = com
@@ -2687,7 +2704,8 @@ def comissoes_repasses_por_apolice(data_ini=None, data_fim=None, lado="plenus"):
                     "valor_previsto": e["comissao_valor_plenus_receber"],
                     "valor_recebido": e["comissao_valor_plenus_recebido"],
                     "data": e["data_plenus_recebido"],
-                    "recibo_id": e["recibo_id"], "recibo_numero": e.get("recibo_numero")}]
+                    "recibo_id": e["recibo_id"], "recibo_numero": e.get("recibo_numero"),
+                    "data_deposito_cc": e.get("data_deposito_cc")}]
         if not _no_periodo(com if lado == "seguralta" else rep):
             continue
         e["is_endosso"] = True
@@ -2717,7 +2735,8 @@ def comissoes_repasses_por_apolice(data_ini=None, data_fim=None, lado="plenus"):
                     "valor_previsto": co["comissao_valor_plenus_receber"],
                     "valor_recebido": co["comissao_valor_plenus_recebido"],
                     "data": co["data_plenus_recebido"],
-                    "conferido_banco": co["plenus_conferido_banco"]}]
+                    "conferido_banco": co["plenus_conferido_banco"],
+                    "data_deposito_cc": co.get("data_deposito_cc")}]
         if not _no_periodo(com if lado == "seguralta" else rep):
             continue
         co["is_consorcio"] = True

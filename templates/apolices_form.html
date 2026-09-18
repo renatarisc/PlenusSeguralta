@@ -326,11 +326,16 @@
           <input id="data_plenus_recebido" name="data_plenus_recebido" type="date"
                  style="max-width:150px" value="{{ a.data_plenus_recebido or '' }}">
         </div>
-        <div class="campo c-2">
+        <div class="campo c-2 col-recibo-only">
           <label>Recibo</label>
           <input type="hidden" name="recibo_id" value="{{ a.recibo_id or '' }}">
           <input value="{{ a.recibo_numero or 'Nenhum' }}" readonly style="max-width:110px"
                  title="O vínculo com o recibo é feito na tela do recibo, pelo campo Data">
+        </div>
+        <div class="campo c-2 col-deposito-only">
+          <label for="data_deposito_cc">Depósito CC</label>
+          <input id="data_deposito_cc" name="data_deposito_cc" type="date" style="max-width:150px"
+                 value="{{ a.data_deposito_cc or '' }}">
         </div>
       </div>
     </div>
@@ -429,7 +434,7 @@
         <table class="lista tab-fluxo" id="tab-repasses">
           <thead><tr><th style="width:10%">Parcela</th><th style="width:19%">Pendente (R$)</th>
               <th style="width:19%">Pago (R$)</th><th style="width:22%">Data</th>
-              <th style="width:14%">Recibo</th><th style="width:16%"></th></tr></thead>
+              <th style="width:14%"><span class="col-recibo-only">Recibo</span><span class="col-deposito-only">Depósito CC</span></th><th style="width:16%"></th></tr></thead>
           <tbody id="corpo-repasses">
             {% for r in a.repasses or [] %}
             <tr class="fluxo-linha">
@@ -438,8 +443,11 @@
               <td><input name="repasse_recebido" inputmode="decimal" data-num value="{{ r.valor_recebido or '' }}"></td>
               <td><input name="repasse_data" type="date" value="{{ r.data or '' }}"></td>
               <td class="col-conf">
-                <input type="hidden" name="repasse_recibo_id" value="{{ r.recibo_id or '' }}">
-                <span class="meta" title="O vínculo com o recibo é feito na tela do recibo, pelo campo Data">{{ r.recibo_numero or '—' }}</span>
+                <span class="col-recibo-only">
+                  <input type="hidden" name="repasse_recibo_id" value="{{ r.recibo_id or '' }}">
+                  <span class="meta" title="O vínculo com o recibo é feito na tela do recibo, pelo campo Data">{{ r.recibo_numero or '—' }}</span>
+                </span>
+                <input class="col-deposito-only" name="repasse_deposito_cc" type="date" value="{{ r.data_deposito_cc or '' }}" aria-label="Depósito CC">
               </td>
               <td class="acoes">
                 <button type="button" class="btn btn--linha btn--mini" data-editar title="Liberar edição">{{ icone('lapis') }}</button>
