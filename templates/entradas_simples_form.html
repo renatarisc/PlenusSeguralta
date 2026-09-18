@@ -45,12 +45,25 @@
           {% endfor %}
         </select>
       </div>
-      <div class="campo c-6">
-        <label for="conta_origem_id">Conta de origem</label>
+      <div class="campo c-3">
+        <label for="conta_origem_id">Conta de origem
+          <span class="dica" style="display:block;font-weight:400">de onde veio o dinheiro</span>
+        </label>
         <select id="conta_origem_id" name="conta_origem_id">
           <option value="">—</option>
           {% for co in contas_origem %}
           <option value="{{ co.id }}" {{ 'selected' if e.conta_origem_id|string == co.id|string }}>{{ co.nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="campo c-3">
+        <label for="conta_destino_id">Conta de destino
+          <span class="dica" style="display:block;font-weight:400">qual conta nossa recebeu</span>
+        </label>
+        <select id="conta_destino_id" name="conta_destino_id">
+          <option value="">—</option>
+          {% for co in contas_origem %}
+          <option value="{{ co.id }}" {{ 'selected' if e.conta_destino_id|string == co.id|string }}>{{ co.nome }}</option>
           {% endfor %}
         </select>
       </div>

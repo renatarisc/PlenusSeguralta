@@ -505,19 +505,24 @@ CREATE TABLE IF NOT EXISTS saida (
 
 -- fluxo de caixa: entradas simples (lancamento avulso, fora das comissoes -
 -- ex.: repasse de outra fonte, estorno, etc.) - so um registro por entrada,
--- sem parcelamento/fixo-mensal/status (ja e' o dinheiro recebido)
+-- sem parcelamento/fixo-mensal/status (ja e' o dinheiro recebido).
+-- conta_origem = de onde veio o dinheiro (pode ser de fora, ex. pessoa fisica);
+-- conta_destino = qual conta NOSSA recebeu (essa e' a que entra no extrato da
+-- Conta Corrente, igual a saida usa conta_origem pra saber de qual conta NOSSA saiu)
 CREATE TABLE IF NOT EXISTS entrada_simples (
     id INT AUTO_INCREMENT PRIMARY KEY,
     descricao TEXT NOT NULL,
     forma_pagamento_id INT,
     conta_origem_id INT,
+    conta_destino_id INT,
     data TEXT,                     -- ISO AAAA-MM-DD
     valor REAL,
     observacao TEXT,
     criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     atualizado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_entrada_simples_formapgto FOREIGN KEY (forma_pagamento_id) REFERENCES forma_pagamento(id),
-    CONSTRAINT fk_entrada_simples_contaorigem FOREIGN KEY (conta_origem_id)  REFERENCES conta_origem(id)
+    CONSTRAINT fk_entrada_simples_contaorigem  FOREIGN KEY (conta_origem_id)  REFERENCES conta_origem(id),
+    CONSTRAINT fk_entrada_simples_contadestino FOREIGN KEY (conta_destino_id) REFERENCES conta_origem(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- nota fiscal emitida pela Plenus; pode ter varios recibos associados
@@ -736,6 +741,7 @@ _COLUNAS_ESPERADAS = {
     },
     "entrada_simples": {
         "descricao": "TEXT", "forma_pagamento_id": "INT", "conta_origem_id": "INT",
+        "conta_destino_id": "INT",
         "data": "TEXT", "valor": "REAL", "observacao": "TEXT",
         "criado_em": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
         "atualizado_em": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",

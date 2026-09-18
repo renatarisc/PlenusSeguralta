@@ -1862,7 +1862,7 @@ def resumo_saidas():
 # ---------- entradas simples (lançamento avulso, fora das comissões) ----------
 
 _COLS_ENTRADA_SIMPLES = ("descricao", "forma_pagamento_id", "conta_origem_id",
-                         "data", "valor", "observacao")
+                         "conta_destino_id", "data", "valor", "observacao")
 
 
 def _valores_entrada_simples(dados):
@@ -1870,6 +1870,7 @@ def _valores_entrada_simples(dados):
         (dados.get("descricao") or "").strip() or None,
         _int_ou_none(dados.get("forma_pagamento_id")),
         _int_ou_none(dados.get("conta_origem_id")),
+        _int_ou_none(dados.get("conta_destino_id")),
         (dados.get("data") or "").strip() or None,
         para_decimal(dados.get("valor")),
         (dados.get("observacao") or "").strip() or None,
@@ -1910,13 +1911,16 @@ def excluir_entrada_simples(entrada_id):
     fazer_backup()
 
 
-def listar_entradas_simples(mes=None, busca=None, forma_pagamento_id=None, conta_origem_id=None):
+def listar_entradas_simples(mes=None, busca=None, forma_pagamento_id=None, conta_origem_id=None,
+                            conta_destino_id=None):
     with conexao() as con:
         linhas = [dict(l) for l in con.execute(
-            "SELECT e.*, fp.nome AS forma_pagamento, co.nome AS conta_origem "
+            "SELECT e.*, fp.nome AS forma_pagamento, co.nome AS conta_origem, "
+            "       cd.nome AS conta_destino "
             "  FROM entrada_simples e "
             "  LEFT JOIN forma_pagamento fp ON fp.id = e.forma_pagamento_id "
             "  LEFT JOIN conta_origem co   ON co.id = e.conta_origem_id "
+            "  LEFT JOIN conta_origem cd   ON cd.id = e.conta_destino_id "
             " ORDER BY COALESCE(e.data, ''), e.id"
         ).fetchall()]
     if mes:
@@ -1925,6 +1929,8 @@ def listar_entradas_simples(mes=None, busca=None, forma_pagamento_id=None, conta
         linhas = [l for l in linhas if l.get("forma_pagamento_id") == forma_pagamento_id]
     if conta_origem_id:
         linhas = [l for l in linhas if l.get("conta_origem_id") == conta_origem_id]
+    if conta_destino_id:
+        linhas = [l for l in linhas if l.get("conta_destino_id") == conta_destino_id]
     termo = (busca or "").strip()
     if termo:
         alvo = _sem_acento_minusculo(termo)
@@ -2276,8 +2282,11 @@ def extrato_conta_corrente():
     * saídas: `saida` com conta de origem "PESSOA JURÍDICA", já PAGAS
       (data_pagamento preenchida) — data do movimento = data_pagamento;
     * entradas — três fluxos que resultam em dinheiro na conta da Plenus:
-        - entrada simples: `entrada_simples` com conta de origem "PESSOA
-          JURÍDICA" e `data` preenchida — lançamento avulso (fora de comissão);
+        - entrada simples: `entrada_simples` com conta de DESTINO "PESSOA
+          JURÍDICA" e `data` preenchida — lançamento avulso (fora de
+          comissão); "conta de origem" é de onde veio o dinheiro (pode ser
+          de fora, ex. pessoa física), "conta de destino" é qual conta NOSSA
+          recebeu — é essa que importa pro extrato;
         - cocorretagem: a Plenus recebe direto da seguradora, sem passar por
           recibo/NF (ver data_deposito_cc) — parcelas E repasse único de
           apólice/endosso/consórcio, só quando cocorretagem = 1. Na vida real
@@ -2316,8 +2325,8 @@ def extrato_conta_corrente():
         for r in con.execute(
             "SELECT e.data, e.valor, e.descricao "
             "  FROM entrada_simples e "
-            "  JOIN conta_origem co ON co.id = e.conta_origem_id "
-            " WHERE co.nome = 'PESSOA JURÍDICA' AND e.data IS NOT NULL"
+            "  JOIN conta_origem cd ON cd.id = e.conta_destino_id "
+            " WHERE cd.nome = 'PESSOA JURÍDICA' AND e.data IS NOT NULL"
         ).fetchall():
             linhas.append({"data": r["data"], "tipo": "entrada", "origem": "entrada_simples",
                            "descricao": r["descricao"] or "Entrada", "valor": float(r["valor"] or 0)})

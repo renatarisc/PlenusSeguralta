@@ -1444,7 +1444,7 @@ def saida_pagamento(saida_id):
 # ---------- Entradas simples (fluxo de caixa) ----------
 
 _CAMPOS_ENTRADA_SIMPLES = ("descricao", "forma_pagamento_id", "conta_origem_id",
-                          "data", "valor", "observacao")
+                          "conta_destino_id", "data", "valor", "observacao")
 
 
 def _entrada_simples_para_form(e):
@@ -1468,14 +1468,17 @@ def entradas_simples_lista():
     busca = request.args.get("busca", "").strip()
     forma_id = request.args.get("forma_pagamento_id", type=int)
     conta_origem_id = request.args.get("conta_origem_id", type=int)
+    conta_destino_id = request.args.get("conta_destino_id", type=int)
     entradas = repo.listar_entradas_simples(mes=mes, busca=busca or None,
                                             forma_pagamento_id=forma_id or None,
-                                            conta_origem_id=conta_origem_id or None)
+                                            conta_origem_id=conta_origem_id or None,
+                                            conta_destino_id=conta_destino_id or None)
     total = sum(e["valor"] or 0 for e in entradas)
-    tem_filtro = bool(busca or forma_id or conta_origem_id or mes)
+    tem_filtro = bool(busca or forma_id or conta_origem_id or conta_destino_id or mes)
     return render_template("entradas_simples_lista.html", ativo="entradas_simples_lista",
                            entradas=entradas, total=total, mes=mes, busca=busca,
                            forma_id=forma_id, conta_origem_id=conta_origem_id,
+                           conta_destino_id=conta_destino_id,
                            tem_filtro=tem_filtro, mes_atual=date.today().month,
                            formas=repo.listar_simples("forma_pagamento"),
                            contas_origem=repo.contas_origem(), MESES=_MESES)

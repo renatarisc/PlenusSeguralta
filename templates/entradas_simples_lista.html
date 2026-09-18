@@ -51,6 +51,15 @@
         {% endfor %}
       </select>
     </div>
+    <div class="campo c-3">
+      <label for="f-conta-destino">Conta de destino</label>
+      <select id="f-conta-destino" name="conta_destino_id">
+        <option value="">Todas</option>
+        {% for co in contas_origem %}
+        <option value="{{ co.id }}" {{ 'selected' if conta_destino_id == co.id }}>{{ co.nome }}</option>
+        {% endfor %}
+      </select>
+    </div>
   </div>
   <div class="filtros__acoes">
     <button class="btn btn--primario" type="submit">{{ icone('busca') }} Buscar</button>
@@ -69,8 +78,8 @@
         <tr>
           <th style="width:120px">Data</th>
           <th>Descrição</th>
-          <th style="width:170px">Forma de pagamento</th>
-          <th style="width:170px">Conta de origem</th>
+          <th style="width:150px">Forma de pagamento</th>
+          <th style="width:190px">Origem → Destino</th>
           <th style="width:130px;text-align:right">Valor</th>
           <th style="width:110px"></th>
         </tr>
@@ -83,7 +92,7 @@
             <a class="cel-titulo" href="{{ url_for('entrada_simples_form', entrada_id=e.id) }}">{{ e.descricao }}</a>
           </td>
           <td>{{ e.forma_pagamento or '—' }}</td>
-          <td>{{ e.conta_origem or '—' }}</td>
+          <td>{{ e.conta_origem or '—' }} → {{ e.conta_destino or '—' }}</td>
           <td style="text-align:right">{{ e.valor|moeda }}</td>
           <td class="acoes">
             <a class="btn btn--linha btn--mini" href="{{ url_for('entrada_simples_form', entrada_id=e.id, voltar=url_lista) }}" title="Editar">{{ icone('lapis') }}</a>
