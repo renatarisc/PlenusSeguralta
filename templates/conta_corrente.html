@@ -58,6 +58,14 @@
         <option value="saida" {{ 'selected' if tipo == 'saida' }}>Só saídas</option>
       </select>
     </div>
+
+    <div class="campo c-4">
+      <label for="r-agrupar">Agrupar por</label>
+      <select id="r-agrupar" name="agrupar">
+        <option value="">— (extrato cronológico)</option>
+        <option value="descricao" {{ 'selected' if agrupar == 'descricao' }}>Descrição</option>
+      </select>
+    </div>
   </div>
   <div class="filtros__acoes">
     <button class="btn btn--primario" type="submit">{{ icone('busca') }} Buscar</button>
@@ -66,7 +74,36 @@
 </form>
 
 <div class="cartao" style="padding:0">
-  {% if movimentos %}
+  {% if grupos is not none %}
+    {% if grupos %}
+    <div class="tabela-wrap">
+      <table class="lista">
+        <thead>
+          <tr>
+            <th>Descrição</th>
+            <th style="width:110px">Tipo</th>
+            <th style="width:90px;text-align:right">Qtd.</th>
+            <th style="width:150px;text-align:right">Valor</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for g in grupos %}
+          <tr>
+            <td>{{ g.descricao }}</td>
+            <td>{{ 'Entrada' if g.tipo == 'entrada' else 'Saída' }}</td>
+            <td style="text-align:right">{{ g.qtd }}</td>
+            <td style="text-align:right;color:{{ 'var(--ok)' if g.tipo == 'entrada' else 'var(--erro)' }}">
+              {{ '+ ' if g.tipo == 'entrada' else '− ' }}{{ g.valor|moeda }}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="vazio">Nenhuma movimentação encontrada para o filtro.</p>
+    {% endif %}
+  {% elif movimentos %}
   <div class="tabela-wrap">
     <table class="lista">
       <thead>
