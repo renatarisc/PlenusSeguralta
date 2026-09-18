@@ -2332,7 +2332,7 @@ def extrato_conta_corrente():
             "SELECT nf.data_pagamento AS data, nf.valor, nf.numero "
             "  FROM nota_fiscal nf WHERE nf.data_pagamento IS NOT NULL"
         ).fetchall():
-            desc = f"Pagamento Seguralta — NF {r['numero'] or '—'}"
+            desc = f"Seguralta (SGA) — NF {r['numero'] or '—'}"
             linhas.append({"data": r["data"], "tipo": "entrada", "origem": "nota_fiscal",
                            "descricao": desc, "valor": float(r["valor"] or 0)})
 
