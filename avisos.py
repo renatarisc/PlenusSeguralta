@@ -29,6 +29,8 @@ TIPOS = {
         "campos": {"vigencia_fim": ("Fim da vigência", "do fim da vigência"),
                    "vigencia_inicio": ("Início da vigência", "do início da vigência")},
         "resolvido": "você marcar “cliente avisado” na apólice",
+        "tambem": "o número vermelho ao lado de “Apólices” no menu (só este aviso tem contador) "
+                  "e a linha vermelha com “vence em” na lista de apólices.",
         "fonte": repo.listar_apolices,
         "pendente": lambda a: not a.get("aviso_vigencia_ok"),
         "vencimento": "vigencia_fim",
@@ -65,6 +67,7 @@ TIPOS = {
         "titulo": "Contas a pagar",
         "campos": {"data_vencimento": ("Vencimento", "do vencimento")},
         "resolvido": "a saída ser marcada como paga",
+        "tambem": "a etiqueta “vence em” na lista de saídas.",
         "fonte": lambda: repo.listar_saidas(status=None),
         "pendente": lambda s: s.get("status") != "pago",
         "vencimento": "data_vencimento",

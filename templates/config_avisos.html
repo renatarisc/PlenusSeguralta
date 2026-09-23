@@ -4,8 +4,8 @@
 
 {% block conteudo %}
 <p style="margin:-4px 0 14px;color:var(--texto-suave)">
-  Define quando cada aviso começa a aparecer no painel, no contador do menu, em destaque nas listas
-  e no e-mail diário. O e-mail se repete todo dia enquanto o aviso estiver pendente.
+  Define quando cada aviso começa a aparecer no painel e no e-mail diário. O e-mail se repete
+  todo dia enquanto o aviso estiver pendente.
 </p>
 
 <form class="form" method="post" novalidate>
@@ -61,6 +61,7 @@
       </div>
     </div>
     <p style="margin:10px 0 0;font-size:12px;color:var(--texto-suave)">Regra salva: {{ aviso_desc(tipo) }}</p>
+    {% if t.tambem %}<p style="margin:4px 0 0;font-size:12px;color:var(--texto-suave)">Também controla: {{ t.tambem }}</p>{% endif %}
   </div>
   {% endfor %}
 
