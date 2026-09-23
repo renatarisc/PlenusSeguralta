@@ -101,6 +101,17 @@
         <label for="vigencia_fim">Vigência — fim</label>
         <input id="vigencia_fim" name="vigencia_fim" type="date" value="{{ a.vigencia_fim or '' }}">
       </div>
+      <div class="campo c-3">
+        <label for="status_apolice_id">Status
+          <a class="link-abrir" href="{{ url_for('cadastro_simples_form', slug='status-apolice') }}" target="_blank" rel="noopener">＋ novo</a>
+        </label>
+        <select id="status_apolice_id" name="status_apolice_id">
+          <option value="">—</option>
+          {% for st in status_apolice_opcoes %}
+          <option value="{{ st.id }}" {{ 'selected' if a.status_apolice_id|string == st.id|string }}>{{ st.nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
 
       <div class="grade__linha" aria-hidden="true"></div>
 

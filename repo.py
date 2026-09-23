@@ -278,7 +278,7 @@ def excluir_cliente(cliente_id):
 # ---------- cadastros simples (tipo_seguro, forma_pagamento) - só nome ----------
 
 _TABELAS_SIMPLES = {"tipo_seguro", "forma_pagamento", "seguradora", "categoria_saida",
-                     "tipo_consorcio", "status_cliente", "conta_origem"}
+                     "tipo_consorcio", "status_cliente", "conta_origem", "status_apolice"}
 
 
 def listar_simples(tabela, busca=None):
@@ -458,7 +458,7 @@ def excluir_campo_cotacao(campo_id):
 # ---------- apólice (+ parcelas) ----------
 
 _COLS_APOLICE = (
-    "cliente_id", "seguradora_id", "tipo_seguro_id", "numero_apolice",
+    "cliente_id", "seguradora_id", "tipo_seguro_id", "status_apolice_id", "numero_apolice",
     "vigencia_inicio", "vigencia_fim",
     "premio_liquido", "iof", "premio_total",
     "forma_pagamento_id", "comissao_percentual",
@@ -490,6 +490,7 @@ def _valores_apolice(dados):
         _int_ou_none(dados.get("cliente_id")),
         _int_ou_none(dados.get("seguradora_id")),
         _int_ou_none(dados.get("tipo_seguro_id")),
+        _int_ou_none(dados.get("status_apolice_id")),
         (dados.get("numero_apolice") or "").strip() or None,
         (dados.get("vigencia_inicio") or "").strip() or None,
         (dados.get("vigencia_fim") or "").strip() or None,
@@ -571,12 +572,14 @@ def _inserir_repasses(con, apolice_id, linhas):
 
 def listar_apolices(cliente_id=None, tipo_seguro_id=None, mes_inicio=None, quiver=None,
                     busca=None, parcela_status=None, mes_fim=None, ordem=None,
-                    forma_pagamento_id=None, seguradora_id=None):
+                    forma_pagamento_id=None, seguradora_id=None, status_apolice_id=None):
     sql = """SELECT a.id, a.numero_apolice, a.vigencia_inicio, a.vigencia_fim,
                     a.premio_liquido, a.lancado_quiver, a.aviso_vigencia_ok, a.cliente_id,
+                    a.status_apolice_id,
                     c.nome AS cliente_nome, c.tipo_pessoa AS cliente_tipo_pessoa,
                     t.nome AS tipo_seguro_nome,
                     s.nome AS seguradora_nome,
+                    sa.nome AS status_apolice_nome,
                     (SELECT p.data FROM apolice_parcela p
                        WHERE p.apolice_id = a.id AND COALESCE(p.paga, 0) = 0 AND p.data IS NOT NULL
                        ORDER BY p.data LIMIT 1) AS proxima_parcela_data,
@@ -588,7 +591,8 @@ def listar_apolices(cliente_id=None, tipo_seguro_id=None, mes_inicio=None, quive
                FROM apolice a
                LEFT JOIN cliente c     ON c.id = a.cliente_id
                LEFT JOIN tipo_seguro t ON t.id = a.tipo_seguro_id
-               LEFT JOIN seguradora s  ON s.id = a.seguradora_id"""
+               LEFT JOIN seguradora s  ON s.id = a.seguradora_id
+               LEFT JOIN status_apolice sa ON sa.id = a.status_apolice_id"""
     filtros, params = [], []
     if cliente_id:
         filtros.append("a.cliente_id = %s")
@@ -599,6 +603,9 @@ def listar_apolices(cliente_id=None, tipo_seguro_id=None, mes_inicio=None, quive
     if seguradora_id:
         filtros.append("a.seguradora_id = %s")
         params.append(seguradora_id)
+    if status_apolice_id:
+        filtros.append("a.status_apolice_id = %s")
+        params.append(status_apolice_id)
     if forma_pagamento_id:
         filtros.append("a.forma_pagamento_id = %s")
         params.append(forma_pagamento_id)

@@ -90,6 +90,8 @@ _CADASTROS_SIMPLES = {
                        "singular": "status de cliente", "acao_novo": "Novo status de cliente"},
     "conta-origem": {"tabela": "conta_origem", "titulo": "Contas de Origem",
                      "singular": "conta de origem", "acao_novo": "Nova conta de origem"},
+    "status-apolice": {"tabela": "status_apolice", "titulo": "Status da Apólice",
+                       "singular": "status de apólice", "acao_novo": "Novo status de apólice"},
 }
 
 # disponível em todo template (máscaras na exibição, itens do menu)
@@ -134,6 +136,7 @@ app.jinja_env.globals["MENU"] = [
         {"rota": "cadastro_simples", "texto": "Tipos de Consórcio", "icone": "tag", "slug": "tipo-consorcio"},
         {"rota": "cadastro_simples", "texto": "Status do Cliente", "icone": "tag", "slug": "status-cliente"},
         {"rota": "cadastro_simples", "texto": "Contas de Origem", "icone": "tag", "slug": "conta-origem"},
+        {"rota": "cadastro_simples", "texto": "Status da Apólice", "icone": "tag", "slug": "status-apolice"},
     ]},
     {"rota": "usuarios_lista", "texto": "Usuários", "icone": "cadeado", "divisoria_antes": True},
 ]
@@ -518,7 +521,7 @@ def cadastro_simples_excluir(slug, item_id):
 # ---------- Apólices ----------
 
 _CAMPOS_APOLICE = (
-    "cliente_id", "seguradora_id", "tipo_seguro_id", "numero_apolice",
+    "cliente_id", "seguradora_id", "tipo_seguro_id", "status_apolice_id", "numero_apolice",
     "vigencia_inicio", "vigencia_fim",
     "premio_liquido", "iof", "premio_total",
     "forma_pagamento_id", "comissao_percentual",
@@ -566,6 +569,7 @@ def _dados_form_apolice():
         seguradoras=repo.listar_simples("seguradora"),
         tipos=repo.listar_simples("tipo_seguro"),
         formas=repo.listar_simples("forma_pagamento"),
+        status_apolice_opcoes=repo.listar_simples("status_apolice"),
     )
 
 
@@ -579,6 +583,7 @@ def apolices():
     tipo_id = request.args.get("tipo", type=int)
     seguradora_id = request.args.get("seguradora", type=int)
     forma_id = request.args.get("forma", type=int)
+    status_id = request.args.get("status", type=int)
     mes = request.args.get("mes", type=int)
     if mes not in range(1, 13):
         mes = None
@@ -599,14 +604,16 @@ def apolices():
         "apolices_lista.html", ativo="apolices",
         apolices=repo.listar_apolices(cliente_id=cliente_id, tipo_seguro_id=tipo_id,
                                       seguradora_id=seguradora_id, forma_pagamento_id=forma_id,
+                                      status_apolice_id=status_id,
                                       mes_inicio=mes, mes_fim=mes_fim, quiver=quiver,
                                       busca=busca or None, parcela_status=parcela or None,
                                       ordem=ordem or None),
         cliente_filtro=cliente, busca=busca, tipo_id=tipo_id, seguradora_id=seguradora_id,
-        forma_id=forma_id,
+        forma_id=forma_id, status_id=status_id,
         mes=mes, mes_fim=mes_fim, quiver=quiver_arg, parcela=parcela, ord=ordem,
         tipos=repo.listar_simples("tipo_seguro"), seguradoras=repo.listar_simples("seguradora"),
-        formas=repo.listar_simples("forma_pagamento"), MESES=_MESES)
+        formas=repo.listar_simples("forma_pagamento"),
+        status_apolice_opcoes=repo.listar_simples("status_apolice"), MESES=_MESES)
 
 
 @app.route("/apolices/nova", methods=["GET", "POST"])

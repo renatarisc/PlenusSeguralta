@@ -85,10 +85,19 @@
         <option value="sem" {{ 'selected' if parcela == 'sem' }}>Sem parcela pendente</option>
       </select>
     </div>
+    <div class="campo c-2">
+      <label for="f-status">Status</label>
+      <select id="f-status" name="status">
+        <option value="">Todos</option>
+        {% for st in status_apolice_opcoes %}
+        <option value="{{ st.id }}" {{ 'selected' if status_id == st.id }}>{{ st.nome }}</option>
+        {% endfor %}
+      </select>
+    </div>
   </div>
   <div class="filtros__acoes">
     <button class="btn btn--primario" type="submit">{{ icone('busca') }} Buscar</button>
-    {% if busca or tipo_id or seguradora_id or mes or mes_fim or quiver or parcela %}
+    {% if busca or tipo_id or seguradora_id or mes or mes_fim or quiver or parcela or status_id %}
     <a class="btn btn--linha" href="{{ url_for('apolices', cliente=cliente_filtro.id) if cliente_filtro else url_for('apolices') }}">Limpar</a>
     {% endif %}
   </div>
@@ -109,7 +118,7 @@
             <a class="th-ord" href="{{ url_for('apolices', **_q) }}" title="Ordenar por nome do cliente (A→Z)">{{ icone('ord') }}</a>
           {%- endif -%}
         </th>{% endif %}<th>Número da apólice</th><th>Seguradora</th>
-            <th>Tipo de seguro</th><th>Vigência</th><th class="col-prox">Próxima parcela</th></tr>
+            <th>Tipo de seguro</th><th>Status</th><th>Vigência</th><th class="col-prox">Próxima parcela</th></tr>
       </thead>
       <tbody>
         {% for a in apolices %}
@@ -119,6 +128,7 @@
           <td><a class="cel-link" href="{{ url_for('apolice_form', apolice_id=a.id) }}">{{ a.numero_apolice or '—' }}</a>{% if a.qtd_endossos %} <a class="tag-endosso" href="{{ url_for('endossos_lista', apolice=a.id) }}" title="{{ a.qtd_endossos }} endosso(s)">+{{ a.qtd_endossos }} end.</a>{% endif %}</td>
           <td>{{ a.seguradora_nome or '—' }}</td>
           <td>{{ a.tipo_seguro_nome or '—' }}</td>
+          <td>{% if a.status_apolice_nome %}<span class="tag-status">{{ a.status_apolice_nome }}</span>{% else %}—{% endif %}</td>
           <td>
             <span class="vig-datas">{{ a.vigencia_inicio|data_br }} – {{ a.vigencia_fim|data_br }}</span>
             {% if d is not none and d < 0 %}

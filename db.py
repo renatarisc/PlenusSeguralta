@@ -140,6 +140,12 @@ CREATE TABLE IF NOT EXISTS conta_origem (
     UNIQUE KEY ix_conta_origem_nome_unico (nome)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS status_apolice (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nome VARCHAR(191) NOT NULL,
+    UNIQUE KEY ix_status_apolice_nome_unico (nome)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- campos configuraveis da cotacao (montam o formulario de cotacao)
 CREATE TABLE IF NOT EXISTS cotacao_campo (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -156,6 +162,7 @@ CREATE TABLE IF NOT EXISTS apolice (
     cliente_id INT,
     seguradora_id INT,
     tipo_seguro_id INT,
+    status_apolice_id INT,
     numero_apolice TEXT,
     vigencia_inicio TEXT,
     vigencia_fim TEXT,
@@ -196,7 +203,8 @@ CREATE TABLE IF NOT EXISTS apolice (
     CONSTRAINT fk_apolice_seguradora  FOREIGN KEY (seguradora_id)     REFERENCES seguradora(id),
     CONSTRAINT fk_apolice_tiposeguro  FOREIGN KEY (tipo_seguro_id)    REFERENCES tipo_seguro(id),
     CONSTRAINT fk_apolice_formapgto   FOREIGN KEY (forma_pagamento_id) REFERENCES forma_pagamento(id),
-    CONSTRAINT fk_apolice_recibo      FOREIGN KEY (recibo_id)         REFERENCES recibo(id) ON DELETE SET NULL
+    CONSTRAINT fk_apolice_recibo      FOREIGN KEY (recibo_id)         REFERENCES recibo(id) ON DELETE SET NULL,
+    CONSTRAINT fk_apolice_status      FOREIGN KEY (status_apolice_id) REFERENCES status_apolice(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS apolice_parcela (
@@ -595,6 +603,7 @@ _COLUNAS_ESPERADAS = {
     "categoria_saida": {"nome": "TEXT"},
     "tipo_consorcio": {"nome": "VARCHAR(191)"},
     "conta_origem": {"nome": "VARCHAR(191)"},
+    "status_apolice": {"nome": "VARCHAR(191)"},
     "cotacao_campo": {
         "nome": "TEXT", "tipo": "TEXT", "ordem": "INT NOT NULL DEFAULT 0",
         "papel": "VARCHAR(40) NOT NULL DEFAULT ''", "opcoes": "TEXT",
@@ -602,7 +611,7 @@ _COLUNAS_ESPERADAS = {
     },
     "apolice": {
         "cliente_id": "INT", "seguradora_id": "INT",
-        "tipo_seguro_id": "INT", "numero_apolice": "TEXT",
+        "tipo_seguro_id": "INT", "status_apolice_id": "INT", "numero_apolice": "TEXT",
         "vigencia_inicio": "TEXT", "vigencia_fim": "TEXT",
         "premio_liquido": "REAL", "iof": "REAL", "premio_total": "REAL",
         "forma_pagamento_id": "INT", "comissao_percentual": "REAL",
@@ -861,6 +870,7 @@ def _colunas_da_tabela(con, tabela):
 _FKS_ESPERADAS = {
     "cliente": [("fk_cliente_status", "status_cliente_id", "status_cliente")],
     "saida": [("fk_saida_contaorigem", "conta_origem_id", "conta_origem")],
+    "apolice": [("fk_apolice_status", "status_apolice_id", "status_apolice")],
 }
 
 
