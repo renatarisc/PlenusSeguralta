@@ -146,6 +146,16 @@ CREATE TABLE IF NOT EXISTS status_apolice (
     UNIQUE KEY ix_status_apolice_nome_unico (nome)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- regras dos avisos (painel, contador do menu, listas e e-mail diario); uma linha por tipo
+CREATE TABLE IF NOT EXISTS regra_aviso (
+    tipo VARCHAR(40) PRIMARY KEY,
+    ativo INT NOT NULL DEFAULT 1,
+    campo_base VARCHAR(40) NOT NULL,     -- data de referencia (lista fechada por tipo, em avisos.py)
+    dias_inicio INT NOT NULL DEFAULT 0,  -- comeca em data_base + N dias (negativo = antes)
+    dias_parar_apos INT,                 -- para em data_base + N dias; NULL = so quando resolvido
+    avisar_sem_data INT NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- campos configuraveis da cotacao (montam o formulario de cotacao)
 CREATE TABLE IF NOT EXISTS cotacao_campo (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -604,6 +614,11 @@ _COLUNAS_ESPERADAS = {
     "tipo_consorcio": {"nome": "VARCHAR(191)"},
     "conta_origem": {"nome": "VARCHAR(191)"},
     "status_apolice": {"nome": "VARCHAR(191)"},
+    "regra_aviso": {
+        "ativo": "INT NOT NULL DEFAULT 1", "campo_base": "VARCHAR(40) NOT NULL DEFAULT ''",
+        "dias_inicio": "INT NOT NULL DEFAULT 0", "dias_parar_apos": "INT",
+        "avisar_sem_data": "INT NOT NULL DEFAULT 0",
+    },
     "cotacao_campo": {
         "nome": "TEXT", "tipo": "TEXT", "ordem": "INT NOT NULL DEFAULT 0",
         "papel": "VARCHAR(40) NOT NULL DEFAULT ''", "opcoes": "TEXT",
@@ -886,6 +901,27 @@ def inicializar_db():
         _migrar_recibo_opcional(con)
         _migrar_conf_banco_para_recibo(con)
         _backfill_dados(con)
+        _semear_regras_aviso(con)
+
+
+# valores iniciais das regras de aviso (so entram se o tipo ainda nao existir na tabela):
+# tipo -> (campo_base, dias_inicio, dias_parar_apos, avisar_sem_data)
+_REGRAS_AVISO_PADRAO = {
+    "vigencia":                ("vigencia_fim", -10, 45, 0),
+    "boleto_vencer":           ("data_vencimento", -10, 45, 0),
+    "boleto_enviar_consorcio": ("data_emissao", 0, None, 1),
+    "boleto_enviar_apolice":   ("data_vencimento", -10, None, 0),
+    "conta_pagar":             ("data_vencimento", -10, None, 0),
+}
+
+
+def _semear_regras_aviso(con):
+    for tipo, (campo, inicio, parar, sem_data) in _REGRAS_AVISO_PADRAO.items():
+        con.execute(
+            "INSERT IGNORE INTO regra_aviso (tipo, ativo, campo_base, dias_inicio, "
+            "dias_parar_apos, avisar_sem_data) VALUES (%s, 1, %s, %s, %s, %s)",
+            (tipo, campo, inicio, parar, sem_data),
+        )
 
 
 def _migrar_recibo_opcional(con):

@@ -148,7 +148,8 @@
       <tbody>
         {% for a in apolices %}
         {% set d = dias_ate(a.vigencia_fim) %}
-        <tr class="{{ 'apolice-vencida' if d is not none and d < 0 else ('apolice-vencendo' if d is not none and d <= DIAS_ALERTA_VIGENCIA) }}">
+        {% set alerta = em_aviso('vigencia', a) %}
+        <tr class="{{ 'apolice-vencida' if d is not none and d < 0 else ('apolice-vencendo' if alerta) }}">
           {% if not cliente_filtro %}<td class="col-cliente">{% if a.cliente_tipo_pessoa == 'J' %}<span class="tag-pj" title="Pessoa jurídica">PJ</span>{% endif %}<a class="cel-nome" href="{{ url_for('apolice_form', apolice_id=a.id) }}">{{ a.cliente_nome or '—' }}</a></td>{% endif %}
           <td><a class="cel-link" href="{{ url_for('apolice_form', apolice_id=a.id) }}">{{ a.numero_apolice or '—' }}</a>{% if a.qtd_endossos %} <a class="tag-endosso" href="{{ url_for('endossos_lista', apolice=a.id) }}" title="{{ a.qtd_endossos }} endosso(s)">+{{ a.qtd_endossos }} end.</a>{% endif %}</td>
           <td>{{ a.seguradora_nome or '—' }}</td>
@@ -158,7 +159,7 @@
             <span class="vig-datas">{{ a.vigencia_inicio|data_br }} – {{ a.vigencia_fim|data_br }}</span>
             {% if d is not none and d < 0 %}
             <span class="tag-venc tag-venc--fim">vencida há {{ -d }}d</span>
-            {% elif d is not none and d <= DIAS_ALERTA_VIGENCIA %}
+            {% elif d is not none and alerta %}
             <span class="tag-venc">{{ 'vence hoje' if d == 0 else 'vence em ' ~ d ~ 'd' }}</span>
             {% endif %}
           </td>

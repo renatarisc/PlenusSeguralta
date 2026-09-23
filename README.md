@@ -74,14 +74,12 @@ o `servir.py` nem conectam direto no banco — só acessam o Plenus pelo navegad
 
 ## Avisos de vencimento (e-mail + Google Agenda)
 
-- **No sistema**: na lista de apólices e no Painel, o que está a ≤ 20 dias do fim da
-  vigência (ou vencido) fica em vermelho; o Painel também tem o card "Boletos a vencer".
+- **Regras**: menu **Avisos** (tabela `regra_aviso`, lógica em `avisos.py`). Para cada tipo
+  (vigência, boleto a vencer, boleto a enviar — consórcio / apólice e endosso, conta a
+  pagar) define a data base, a partir de quantos dias antes/depois dela avisa e, se quiser,
+  quando para. O painel, o contador do menu, o destaque nas listas e o e-mail usam a mesma regra.
 - **E-mail** (`verificar_vencimentos.py`, 1x/dia): manda e-mail **todo dia** enquanto o
-  vencimento estiver dentro da janela de antecedência (`max(marcos_dias)` para a vigência,
-  `max(marcos_dias_boleto)` para o boleto) **até você marcar no sistema que o cliente foi
-  avisado** — botão **"✓ avisei o cliente"** no Painel, ou o campo "Cliente avisado" na
-  apólice / na parcela. Para de enviar `dias_max_aviso_apos_vencer` dias depois de vencer
-  (padrão 45).
+  aviso estiver pendente — até você marcar "✓ avisei o cliente" / "✓ paga" / "✓ enviei".
 - **Google Agenda**: cria um evento na data do vencimento (apólice e parcela de boleto),
   com lembretes automáticos; some quando a apólice vence/é apagada ou o boleto é pago.
 - Parcela marcada como **paga** também sai da lista de boletos e para de gerar aviso.

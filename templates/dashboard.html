@@ -31,13 +31,14 @@
       </thead>
       <tbody>
         {% for a in vencendo %}
-        <tr class="{{ 'apolice-vencida' if a.dias_restantes < 0 else 'apolice-vencendo' }}">
+        <tr class="{{ 'apolice-vencida' if a.dias_restantes is not none and a.dias_restantes < 0 else 'apolice-vencendo' }}">
           <td><a class="cel-nome" href="{{ url_for('apolice_form', apolice_id=a.id) }}">{{ a.numero_apolice or '—' }}</a></td>
           <td>{{ a.cliente_nome or '—' }}</td>
           <td>{{ a.seguradora_nome or '—' }}</td>
           <td>
-            {{ a.vigencia_fim|data_br }}
-            {% if a.dias_restantes < 0 %}
+            {{ a.vigencia_fim|data_br if a.vigencia_fim else '—' }}
+            {% if a.dias_restantes is none %}
+            {% elif a.dias_restantes < 0 %}
             <span class="tag-venc tag-venc--fim">vencida há {{ -a.dias_restantes }}d</span>
             {% else %}
             <span class="tag-venc">{{ 'vence hoje' if a.dias_restantes == 0 else 'vence em ' ~ a.dias_restantes ~ 'd' }}</span>
@@ -57,8 +58,7 @@
     </table>
   </div>
   <p style="margin:12px 0 0;font-size:12px;color:var(--texto-suave)">
-    Apólices que vencem nos próximos {{ DIAS_ALERTA_VIGENCIA }} dias (ou já vencidas).
-    O e-mail se repete todo dia até você clicar em <strong>✓ avisei o cliente</strong>.
+    {{ aviso_desc('vigencia') }} O e-mail se repete todo dia enquanto estiver pendente.
   </p>
 </div>
 {% endif %}
@@ -86,8 +86,9 @@
           </td>
           <td>{{ p.identificacao or '—' }}</td>
           <td>
-            {{ p.data|data_br }}
-            {% if p.dias_restantes < 0 %}
+            {{ p.data|data_br if p.data else '—' }}
+            {% if p.dias_restantes is none %}
+            {% elif p.dias_restantes < 0 %}
             <span class="tag-venc tag-venc--fim">vencido há {{ -p.dias_restantes }}d</span>
             {% else %}
             <span class="tag-venc">{{ 'vence hoje' if p.dias_restantes == 0 else 'vence em ' ~ p.dias_restantes ~ 'd' }}</span>
@@ -117,8 +118,8 @@
     </table>
   </div>
   <p style="margin:12px 0 0;font-size:12px;color:var(--texto-suave)">
-    Parcelas de apólices, endossos e consórcios com pagamento em boleto vencendo nos próximos {{ DIAS_ALERTA_BOLETO }} dias (ou já vencidas).
-    O e-mail se repete todo dia, a partir de 10 dias para vencer, até você clicar em <strong>✓ avisei o cliente</strong> ou marcar a parcela como <strong>✓ paga</strong>.
+    Parcelas de apólices, endossos e consórcios com pagamento em boleto. {{ aviso_desc('boleto_vencer') }}
+    O e-mail se repete todo dia enquanto estiver pendente.
   </p>
 </div>
 {% endif %}
@@ -171,10 +172,10 @@
     </table>
   </div>
   <p style="margin:12px 0 0;font-size:12px;color:var(--texto-suave)">
-    Boletos que a Plenus precisa repassar ao cliente: de apólices e endossos com pagamento
-    em boleto vencendo nos próximos {{ DIAS_ALERTA_BOLETO }} dias (ou já vencidos) e de consórcios
-    (status <strong>A enviar</strong>). Clique em <strong>✓ enviei</strong> só depois de mandar
-    o boleto para o cliente.
+    Boletos que a Plenus precisa repassar ao cliente. Clique em <strong>✓ enviei</strong> só
+    depois de mandar o boleto para o cliente.<br>
+    Consórcio: {{ aviso_desc('boleto_enviar_consorcio') }}<br>
+    Apólice e endosso: {{ aviso_desc('boleto_enviar_apolice') }}
   </p>
 </div>
 {% endif %}
@@ -216,7 +217,7 @@
     </table>
   </div>
   <p style="margin:12px 0 0;font-size:12px;color:var(--texto-suave)">
-    Saídas não pagas vencendo nos próximos {{ DIAS_ALERTA_SAIDA }} dias (ou já vencidas).
+    {{ aviso_desc('conta_pagar') }}
   </p>
 </div>
 {% endif %}

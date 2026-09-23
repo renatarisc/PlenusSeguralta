@@ -5,11 +5,9 @@ Rodar 1x por dia (Tarefa Agendada do Windows / cron no VPS):
     venv\\Scripts\\python.exe verificar_vencimentos.py
 
 O que faz:
-- **E-mail**: manda um e-mail TODO DIA enquanto o vencimento estiver dentro da janela de
-  antecedência (`max(marcos_dias)` p/ a vigência da apólice, `max(marcos_dias_boleto)` p/ a
-  parcela de boleto) E o usuário ainda NÃO marcou no sistema que o cliente foi avisado
-  (`aviso_vigencia_ok` na apólice / `aviso_ok` na parcela) E, no boleto, a parcela não
-  está paga. Para de enviar `dias_max_aviso_apos_vencer` dias depois de vencer (padrão 45).
+- **E-mail**: manda um e-mail TODO DIA para cada vigência / boleto a vencer que esteja
+  pendente dentro da janela configurada em Configurações › Avisos (ver avisos.py), mais um
+  e-mail consolidado com os boletos que ainda precisam ser enviados ao cliente.
 - **Google Agenda**: cria/atualiza UM evento por apólice (data = fim da vigência) e por
   parcela de boleto não paga (data = vencimento), com lembretes automáticos
   (`lembretes_dias`). Remove o evento quando a apólice vence/some ou o boleto é pago.
@@ -23,6 +21,7 @@ Flags:  --forcar (envia de novo mesmo se já mandou hoje)   --seco (não faz nad
 import sys
 
 import agenda
+import avisos
 import db
 import repo
 from validacao import dias_ate_data
@@ -43,21 +42,12 @@ def _enviar_canais(cfg, assunto, corpo):
     return ok, " | ".join(partes)
 
 
-def _passo_email(cfg, forcar, seco):
-    """E-mail DIÁRIO enquanto: dentro da janela de antecedência, o 'cliente avisado' não
-    foi marcado no sistema, e (boleto) a parcela não está paga. Para de enviar `cap` dias
-    depois de vencer, pra não spammar apólice velha nunca renovada."""
-    janela_vig = max([int(m) for m in cfg.get("marcos_dias", [10, 5, 1])] or [10])
-    janela_bol = max([int(m) for m in cfg.get("marcos_dias_boleto", [10, 1])] or [10])
-    cap = int(cfg.get("dias_max_aviso_apos_vencer", 45))
+def _passo_email(cfg, forcar, seco, regras):
+    """E-mail DIÁRIO para cada vigência / boleto a vencer pendente na janela da regra."""
     enviados = pulados = 0
 
-    for ap in repo.listar_apolices():
-        if ap.get("aviso_vigencia_ok"):
-            continue
-        d = dias_ate_data(ap.get("vigencia_fim"))
-        if d is None or d > janela_vig or d < -cap:
-            continue
+    for ap in avisos.itens("vigencia", regras):
+        d = ap["dias_restantes"]
         if not forcar and repo.email_vigencia_enviado_hoje(ap["id"]):
             pulados += 1
             continue
@@ -73,12 +63,8 @@ def _passo_email(cfg, forcar, seco):
             print(f"  ERRO registrar {rot} -> {e!r}")
         print(f"  {'OK  ' if ok else 'ERRO'} {rot} -> {det}"); enviados += 1
 
-    for p in repo.parcelas_boleto_pendentes():
-        if p.get("aviso_ok"):
-            continue
-        d = dias_ate_data(p.get("data"))
-        if d is None or d > janela_bol or d < -cap:
-            continue
+    for p in avisos.itens("boleto_vencer", regras):
+        d = p["dias_restantes"]
         orig = p.get("origem", "apolice")
         if not forcar and repo.email_boleto_enviado_hoje(p["parcela_id"], orig):
             pulados += 1
@@ -104,11 +90,12 @@ def _passo_email(cfg, forcar, seco):
     return enviados, pulados
 
 
-def _passo_envio(cfg, seco):
+def _passo_envio(cfg, seco, regras):
     """Lembrete diário (um e-mail consolidado) dos boletos que a corretora ainda precisa
     repassar ao cliente — apólice, endosso e consórcio."""
-    janela = max([int(m) for m in cfg.get("marcos_dias_boleto", [10, 1])] or [10])
-    itens = repo.boletos_a_enviar(janela)
+    itens = (avisos.itens("boleto_enviar_consorcio", regras)
+             + avisos.itens("boleto_enviar_apolice", regras))
+    itens.sort(key=lambda p: p.get("data") or "9999")
     if not itens:
         print("  boletos a enviar: nenhum")
         return 0
@@ -177,8 +164,9 @@ def main(argv):
     print(f"E-mail: {'ativo' if email_ativo else 'simulado'} | "
           f"Google Agenda: {'ativo' if agenda_ativo else 'simulado'}")
 
-    enviados, pulados = _passo_email(cfg, forcar, seco)
-    a_enviar = _passo_envio(cfg, seco)
+    regras = repo.regras_aviso()
+    enviados, pulados = _passo_email(cfg, forcar, seco, regras)
+    a_enviar = _passo_envio(cfg, seco, regras)
     _passo_agenda(cfg, seco)
 
     print(f"Concluído: {enviados} e-mail(s) de vencimento, {pulados} já enviado(s) antes, "

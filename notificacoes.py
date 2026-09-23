@@ -18,8 +18,6 @@ _CONFIG_PATH = os.path.join(_RAIZ, "plenus_config.json")
 _LOG_PATH = os.path.join(_RAIZ, "notificacoes.log")
 
 _PADRAO = {
-    "marcos_dias": [10, 5, 1],          # e-mail antes do fim da vigência
-    "marcos_dias_boleto": [10, 1],      # e-mail antes do vencimento da parcela de boleto
     "email": {"ativo": False, "smtp_host": "smtp.gmail.com", "smtp_port": 587,
               "usuario": "", "senha": "", "de": "", "para": []},
     "google_agenda": {"ativo": False, "calendar_id": "", "conta_servico_json": "",
@@ -194,6 +192,8 @@ def _moeda(v):
 
 
 def _quando(dias):
+    if dias is None:
+        return "está sem data de vencimento"
     if dias == 0:
         return "vence HOJE"
     if dias < 0:
@@ -259,7 +259,7 @@ def _ref_boleto(p):
 
 def texto_boletos_a_enviar(itens):
     """(assunto, corpo) do lembrete diário dos boletos que a corretora precisa
-    repassar aos clientes. `itens` = lista de repo.boletos_a_enviar(...)."""
+    repassar aos clientes. `itens` = avisos.itens('boleto_enviar_*')."""
     n = len(itens)
     assunto = f"[Plenus] {n} boleto(s) para enviar ao cliente"
     linhas = [f"{n} boleto(s) aguardando envio ao cliente:", ""]

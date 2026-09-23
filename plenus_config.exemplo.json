@@ -11,13 +11,7 @@
   },
   "_db": "MySQL local. Crie o schema e o usuário com: CREATE DATABASE plenus CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci; CREATE USER 'plenus'@'localhost' IDENTIFIED BY '...'; GRANT ALL PRIVILEGES ON plenus.* TO 'plenus'@'localhost'; FLUSH PRIVILEGES;",
 
-  "marcos_dias": [10, 5, 1],
-  "_marcos_dias": "usa o MAIOR valor: começa a mandar e-mail a partir de X dias antes do FIM DA VIGÊNCIA",
-  "marcos_dias_boleto": [10, 1],
-  "_marcos_dias_boleto": "idem para a PARCELA DE BOLETO",
-  "dias_max_aviso_apos_vencer": 45,
-  "_dias_max_aviso_apos_vencer": "para de mandar e-mail N dias depois de vencer (se nunca marcaram 'cliente avisado')",
-  "_como_para_o_email": "o e-mail é DIÁRIO até marcar 'cliente avisado' na apólice/parcela dentro do Plenus (ou marcar a parcela como paga)",
+  "_avisos": "quando cada aviso começa/para é configurado no próprio sistema, em Configurações › Avisos",
 
   "email": {
     "ativo": false,

@@ -15,6 +15,7 @@ from flask import (Flask, render_template, request, redirect, url_for, flash, js
 from flask_wtf.csrf import CSRFProtect
 from werkzeug.middleware.proxy_fix import ProxyFix
 
+import avisos
 import db
 import repo
 import leitura_pdf
@@ -68,10 +69,6 @@ def _cabecalhos_seguranca(resp):
     return resp
 
 
-DIAS_ALERTA_VIGENCIA = 20  # <= N dias p/ vencer -> destaque vermelho + aviso no painel
-DIAS_ALERTA_BOLETO = 15    # janela do card "Boletos a vencer" no painel
-DIAS_ALERTA_SAIDA = 15     # janela do card "Contas a pagar" no painel
-
 db.inicializar_db()
 
 # slug na URL  <->  nome da tabela  (cadastros simples de "só nome")
@@ -104,9 +101,6 @@ app.jinja_env.filters["moeda"] = formatar_moeda
 app.jinja_env.filters["data_br"] = formatar_data_br
 app.jinja_env.globals["telefone"] = formatar_telefone
 app.jinja_env.globals["dias_ate"] = dias_ate_data
-app.jinja_env.globals["DIAS_ALERTA_VIGENCIA"] = DIAS_ALERTA_VIGENCIA
-app.jinja_env.globals["DIAS_ALERTA_BOLETO"] = DIAS_ALERTA_BOLETO
-app.jinja_env.globals["DIAS_ALERTA_SAIDA"] = DIAS_ALERTA_SAIDA
 app.jinja_env.globals["MENU"] = [
     {"rota": "dashboard", "texto": "Painel", "icone": "painel"},
     {"rota": "clientes_lista", "texto": "Clientes", "icone": "clientes"},
@@ -138,7 +132,8 @@ app.jinja_env.globals["MENU"] = [
         {"rota": "cadastro_simples", "texto": "Contas de Origem", "icone": "tag", "slug": "conta-origem"},
         {"rota": "cadastro_simples", "texto": "Status da Apólice", "icone": "tag", "slug": "status-apolice"},
     ]},
-    {"rota": "usuarios_lista", "texto": "Usuários", "icone": "cadeado", "divisoria_antes": True},
+    {"rota": "config_avisos", "texto": "Avisos", "icone": "sino", "divisoria_antes": True},
+    {"rota": "usuarios_lista", "texto": "Usuários", "icone": "cadeado"},
 ]
 
 
@@ -299,20 +294,64 @@ def usuario_excluir(uid):
 
 @app.context_processor
 def _injeta_alertas():
-    # contador de apólices vencendo, disponível em todo template (badge do menu)
-    return {"qtd_vencendo": repo.contar_apolices_por_vencer(DIAS_ALERTA_VIGENCIA)}
+    regras = repo.regras_aviso()
+    return {
+        "qtd_vencendo": avisos.contar_vigencia(regras),
+        "em_aviso": lambda tipo, item: avisos.na_janela(tipo, regras.get(tipo), item),
+        "aviso_desc": lambda tipo: avisos.descricao(tipo, regras.get(tipo)),
+    }
 
 
 @app.route("/")
 def dashboard():
+    regras = repo.regras_aviso()
+    enviar = (avisos.itens("boleto_enviar_consorcio", regras)
+              + avisos.itens("boleto_enviar_apolice", regras))
+    enviar.sort(key=lambda p: p.get("data") or "9999")
     return render_template("dashboard.html", ativo="dashboard",
                            resumo=repo.resumo_painel(),
                            por_seguradora=repo.apolices_por_seguradora(),
                            por_tipo=repo.apolices_por_tipo(),
-                           vencendo=repo.apolices_por_vencer(DIAS_ALERTA_VIGENCIA),
-                           boletos=repo.parcelas_boleto_a_vencer(DIAS_ALERTA_BOLETO),
-                           boletos_enviar=repo.boletos_a_enviar(DIAS_ALERTA_BOLETO),
-                           contas_pagar=repo.saidas_a_pagar(DIAS_ALERTA_SAIDA))
+                           vencendo=avisos.itens("vigencia", regras),
+                           boletos=avisos.itens("boleto_vencer", regras),
+                           boletos_enviar=enviar,
+                           contas_pagar=avisos.itens("conta_pagar", regras))
+
+
+@app.route("/configuracoes/avisos", methods=["GET", "POST"])
+def config_avisos():
+    regras = repo.regras_aviso()
+    if request.method == "POST":
+        novas, erros = {}, []
+        for tipo, t in avisos.TIPOS.items():
+            if tipo not in regras:
+                continue
+            campo = request.form.get(f"{tipo}__campo_base", "")
+            dias = request.form.get(f"{tipo}__dias", "").strip()
+            parar = request.form.get(f"{tipo}__parar", "").strip()
+            if campo not in t["campos"]:
+                erros.append(f"{t['titulo']}: escolha a data base.")
+                continue
+            if not dias.isdigit() or (parar and not parar.isdigit()):
+                erros.append(f"{t['titulo']}: informe os dias como número inteiro (0 ou mais).")
+                continue
+            n = int(dias)
+            novas[tipo] = {
+                "ativo": 1 if request.form.get(f"{tipo}__ativo") == "1" else 0,
+                "campo_base": campo,
+                "dias_inicio": -n if request.form.get(f"{tipo}__sentido") == "antes" else n,
+                "dias_parar_apos": int(parar) if parar else None,
+                "avisar_sem_data": 1 if request.form.get(f"{tipo}__sem_data") == "1" else 0,
+            }
+        if not erros:
+            repo.salvar_regras_aviso(novas)
+            flash("Regras de aviso salvas.", "ok")
+            return redirect(url_for("config_avisos"))
+        for e in erros:
+            flash(e, "erro")
+        regras = {**regras, **{k: {**regras[k], **v} for k, v in novas.items()}}
+    return render_template("config_avisos.html", ativo="config_avisos",
+                           tipos=avisos.TIPOS, regras=regras)
 
 
 @app.route("/consorcios/boleto/<int:boleto_id>/enviado", methods=["POST"])

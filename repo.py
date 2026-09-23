@@ -703,30 +703,32 @@ def apolices_por_seguradora():
         return [dict(l) for l in linhas]
 
 
-def apolices_por_vencer(limite_dias, incluir_avisadas=False):
-    """Apólices com vigência a <= limite_dias do fim (inclui as já vencidas), da mais urgente
-    pra menos. Cada item ganha `dias_restantes` (negativo = já venceu). Por padrão esconde
-    as que já foram marcadas como 'cliente avisado'."""
-    itens = []
-    for a in listar_apolices():
-        if not incluir_avisadas and a.get("aviso_vigencia_ok"):
-            continue
-        d = dias_ate_data(a.get("vigencia_fim"))
-        if d is not None and d <= limite_dias:
-            a["dias_restantes"] = d
-            itens.append(a)
-    itens.sort(key=lambda x: x["dias_restantes"])
-    return itens
-
-
-def contar_apolices_por_vencer(limite_dias):
+def apolices_datas_vigencia():
+    """Só o necessário p/ contar avisos de vigência (contador do menu, roda em toda página)."""
     with conexao() as con:
-        return _um(con.execute(
-            "SELECT COUNT(*) FROM apolice "
-            "WHERE vigencia_fim IS NOT NULL AND vigencia_fim <> '' "
-            "  AND vigencia_fim <= (CURDATE() + INTERVAL %s DAY)",
-            (int(limite_dias),),
-        ))
+        return [dict(l) for l in con.execute(
+            "SELECT id, vigencia_inicio, vigencia_fim, aviso_vigencia_ok FROM apolice"
+        ).fetchall()]
+
+
+# ---------- regras de aviso ----------
+
+def regras_aviso():
+    with conexao() as con:
+        return {l["tipo"]: dict(l) for l in con.execute("SELECT * FROM regra_aviso").fetchall()}
+
+
+def salvar_regras_aviso(regras):
+    """`regras`: {tipo: {ativo, campo_base, dias_inicio, dias_parar_apos, avisar_sem_data}}."""
+    with conexao() as con:
+        for tipo, r in regras.items():
+            con.execute(
+                "UPDATE regra_aviso SET ativo = %s, campo_base = %s, dias_inicio = %s, "
+                "dias_parar_apos = %s, avisar_sem_data = %s WHERE tipo = %s",
+                (r["ativo"], r["campo_base"], r["dias_inicio"], r["dias_parar_apos"],
+                 r["avisar_sem_data"], tipo),
+            )
+    fazer_backup()
 
 
 def obter_apolice(apolice_id):
@@ -1496,29 +1498,8 @@ def parcelas_boleto_pendentes():
     return linhas
 
 
-def parcelas_boleto_a_vencer(limite_dias, incluir_avisadas=False):
-    """Parcelas de boleto vencendo em <= limite_dias (inclui as já vencidas), mais urgente
-    primeiro. Por padrão esconde as que já foram marcadas como 'cliente avisado'."""
-    itens = []
-    for p in parcelas_boleto_pendentes():
-        if not incluir_avisadas and p.get("aviso_ok"):
-            continue
-        d = dias_ate_data(p.get("data"))
-        if d is not None and d <= limite_dias:
-            p["dias_restantes"] = d
-            itens.append(p)
-    itens.sort(key=lambda x: x["dias_restantes"])
-    return itens
-
-
-def contar_parcelas_boleto_a_vencer(limite_dias):
-    return len(parcelas_boleto_a_vencer(limite_dias))
-
-
-def boletos_consorcio_a_enviar():
-    """Boletos de consórcio já disponíveis para envio: status 'a_enviar' e com
-    data de emissão vazia ou já alcançada (não mostra emissões futuras). Mais
-    antigo primeiro."""
+def boletos_consorcio_nao_enviados():
+    """Boletos de consórcio com status 'a_enviar' (a janela de aviso é decidida em avisos.py)."""
     with conexao() as con:
         linhas = [dict(l) for l in con.execute(
             "SELECT b.id AS boleto_id, b.identificacao, b.valor, "
@@ -1531,8 +1512,6 @@ def boletos_consorcio_a_enviar():
             "  LEFT JOIN seguradora s      ON s.id = co.seguradora_id "
             "  LEFT JOIN tipo_consorcio tc ON tc.id = co.tipo_consorcio_id "
             " WHERE COALESCE(b.status, '') = 'a_enviar' "
-            "   AND (b.data_emissao IS NULL OR b.data_emissao = '' "
-            "        OR b.data_emissao <= CURDATE()) "
             " ORDER BY COALESCE(b.data_emissao, ''), COALESCE(b.data_vencimento, ''), b.id"
         ).fetchall()]
     return linhas
@@ -1547,37 +1526,6 @@ def marcar_boleto_consorcio_enviado(boleto_id, enviado=True):
             "WHERE id = %s AND COALESCE(status, '') <> 'pago'",
             ("enviado" if enviado else "a_enviar", boleto_id))
     fazer_backup()
-
-
-def boletos_a_enviar(limite_dias):
-    """Boletos que a corretora ainda precisa repassar ao cliente — de apólices,
-    endossos E consórcios — mais antigo primeiro.
-
-    * consórcio: reaproveita `boletos_consorcio_a_enviar()` (status 'a_enviar' + emissão
-      já alcançada; sem janela de vencimento);
-    * apólice/endosso: parcela de boleto não paga, ainda não enviada, com vencimento
-      em <= `limite_dias` dias (inclui as já vencidas)."""
-    itens = []
-    for b in boletos_consorcio_a_enviar():
-        b["origem"] = "consorcio"
-        b["parcela_id"] = b["boleto_id"]
-        b["data"] = b.get("data_vencimento")
-        b["dias_restantes"] = dias_ate_data(b.get("data_vencimento"))
-        itens.append(b)
-    for p in parcelas_boleto_pendentes():
-        if p.get("origem") == "consorcio" or p.get("enviado"):
-            continue
-        d = dias_ate_data(p.get("data"))
-        if d is None or d > limite_dias:
-            continue
-        p["dias_restantes"] = d
-        itens.append(p)
-    itens.sort(key=lambda x: x.get("data") or "")
-    return itens
-
-
-def contar_boletos_a_enviar(limite_dias):
-    return len(boletos_a_enviar(limite_dias))
 
 
 def marcar_parcela_enviada(parcela_id, enviado, origem="apolice"):
@@ -1875,19 +1823,6 @@ def descricoes_saida():
             "WHERE descricao IS NOT NULL AND TRIM(descricao) <> '' "
             "ORDER BY descricao"
         ).fetchall()]
-
-
-def saidas_a_pagar(limite_dias):
-    """Saídas não pagas vencendo em <= limite_dias (inclui as já vencidas), mais urgente 1º."""
-    itens = []
-    for s in listar_saidas(status=None):
-        if s["status"] == "pago":
-            continue
-        d = s["dias_restantes"]
-        if d is not None and d <= limite_dias:
-            itens.append(s)
-    itens.sort(key=lambda x: (x["dias_restantes"] is None, x["dias_restantes"]))
-    return itens
 
 
 def resumo_saidas():

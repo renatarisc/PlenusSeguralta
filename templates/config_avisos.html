@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block titulo %}Avisos{% endblock %}
+{% block cabecalho %}Avisos{% endblock %}
+
+{% block conteudo %}
+<p style="margin:-4px 0 14px;color:var(--texto-suave)">
+  Define quando cada aviso começa a aparecer no painel, no contador do menu, em destaque nas listas
+  e no e-mail diário. O e-mail se repete todo dia enquanto o aviso estiver pendente.
+</p>
+
+<form class="form" method="post" novalidate>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  {% for tipo, t in tipos.items() if tipo in regras %}
+  {% set r = regras[tipo] %}
+  <div class="cartao">
+    <h2>{{ t.titulo }}</h2>
+    <div class="grade" style="align-items:end">
+      <div class="campo c-2">
+        <label for="{{ tipo }}__ativo">Ativo</label>
+        <select id="{{ tipo }}__ativo" name="{{ tipo }}__ativo">
+          <option value="1" {{ 'selected' if r.ativo }}>Sim</option>
+          <option value="0" {{ 'selected' if not r.ativo }}>Não</option>
+        </select>
+      </div>
+      <div class="campo c-2">
+        <label for="{{ tipo }}__dias">Começar a avisar</label>
+        <input id="{{ tipo }}__dias" name="{{ tipo }}__dias" type="number" min="0" step="1"
+               value="{{ r.dias_inicio|abs }}">
+      </div>
+      <div class="campo c-2">
+        <label for="{{ tipo }}__sentido">dias</label>
+        <select id="{{ tipo }}__sentido" name="{{ tipo }}__sentido">
+          <option value="antes" {{ 'selected' if r.dias_inicio < 0 }}>antes</option>
+          <option value="depois" {{ 'selected' if r.dias_inicio >= 0 }}>depois</option>
+        </select>
+      </div>
+      <div class="campo c-3">
+        <label for="{{ tipo }}__campo_base">da data</label>
+        <select id="{{ tipo }}__campo_base" name="{{ tipo }}__campo_base">
+          {% for campo, (rotulo, _de) in t.campos.items() %}
+          <option value="{{ campo }}" {{ 'selected' if r.campo_base == campo }}>{{ rotulo }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="campo c-3">
+        <label for="{{ tipo }}__sem_data">Avisar se a data estiver vazia</label>
+        <select id="{{ tipo }}__sem_data" name="{{ tipo }}__sem_data">
+          <option value="0" {{ 'selected' if not r.avisar_sem_data }}>Não</option>
+          <option value="1" {{ 'selected' if r.avisar_sem_data }}>Sim</option>
+        </select>
+      </div>
+      <div class="campo c-4">
+        <label for="{{ tipo }}__parar">Parar de avisar (dias depois da data)</label>
+        <input id="{{ tipo }}__parar" name="{{ tipo }}__parar" type="number" min="0" step="1"
+               value="{{ r.dias_parar_apos if r.dias_parar_apos is not none else '' }}">
+      </div>
+      <div class="campo c-8">
+        <span class="dica">Deixe “parar de avisar” vazio para avisar até {{ t.resolvido }}.
+          Com 0 dias, o aviso começa no próprio dia da data escolhida.</span>
+      </div>
+    </div>
+    <p style="margin:10px 0 0;font-size:12px;color:var(--texto-suave)">Regra salva: {{ aviso_desc(tipo) }}</p>
+  </div>
+  {% endfor %}
+
+  <div class="rodape-form">
+    <button class="btn btn--primario" type="submit">Salvar</button>
+  </div>
+</form>
+{% endblock %}
