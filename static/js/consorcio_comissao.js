@@ -334,7 +334,6 @@
 
   // ---------- cocorretagem: repasse = 75% da comissão (gerado, editável) ----------
   const btnRepCoco = document.getElementById("btn-repasse-coco");
-  const relboxPlenus = document.getElementById("relbox-plenus");
   const cent = (x) => Math.round((Number(x) || 0) * 100) / 100;
 
   function repasseDaComissao() {
@@ -389,7 +388,6 @@
   function syncCoco() {
     const co = ehCoco();
     if (acaoRepCoco) acaoRepCoco.hidden = !co;
-    if (relboxPlenus) relboxPlenus.hidden = co;
     if (geradorRepasse) geradorRepasse.hidden = co;
   }
   if (chkCoco) chkCoco.addEventListener("change", syncCoco);
