@@ -592,6 +592,10 @@ def apolices():
         mes_fim = None
     quiver_arg = request.args.get("quiver", "")
     quiver = 1 if quiver_arg == "1" else 0 if quiver_arg == "0" else None
+    apolice_enviada_arg = request.args.get("apolice_enviada", "")
+    apolice_enviada = 1 if apolice_enviada_arg == "1" else 0 if apolice_enviada_arg == "0" else None
+    cartao_enviado_arg = request.args.get("cartao_enviado", "")
+    cartao_enviado = int(cartao_enviado_arg) if cartao_enviado_arg in ("0", "1", "2") else None
     busca = request.args.get("busca", "").strip()
     parcela = request.args.get("parcela", "")
     if parcela not in ("vencida", "proxima", "sem"):
@@ -605,11 +609,13 @@ def apolices():
         apolices=repo.listar_apolices(cliente_id=cliente_id, tipo_seguro_id=tipo_id,
                                       seguradora_id=seguradora_id, forma_pagamento_id=forma_id,
                                       status_apolice_id=status_id,
+                                      apolice_enviada=apolice_enviada, cartao_enviado=cartao_enviado,
                                       mes_inicio=mes, mes_fim=mes_fim, quiver=quiver,
                                       busca=busca or None, parcela_status=parcela or None,
                                       ordem=ordem or None),
         cliente_filtro=cliente, busca=busca, tipo_id=tipo_id, seguradora_id=seguradora_id,
         forma_id=forma_id, status_id=status_id,
+        apolice_enviada=apolice_enviada_arg, cartao_enviado=cartao_enviado_arg,
         mes=mes, mes_fim=mes_fim, quiver=quiver_arg, parcela=parcela, ord=ordem,
         tipos=repo.listar_simples("tipo_seguro"), seguradoras=repo.listar_simples("seguradora"),
         formas=repo.listar_simples("forma_pagamento"),

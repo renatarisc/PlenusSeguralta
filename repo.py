@@ -572,7 +572,8 @@ def _inserir_repasses(con, apolice_id, linhas):
 
 def listar_apolices(cliente_id=None, tipo_seguro_id=None, mes_inicio=None, quiver=None,
                     busca=None, parcela_status=None, mes_fim=None, ordem=None,
-                    forma_pagamento_id=None, seguradora_id=None, status_apolice_id=None):
+                    forma_pagamento_id=None, seguradora_id=None, status_apolice_id=None,
+                    apolice_enviada=None, cartao_enviado=None):
     sql = """SELECT a.id, a.numero_apolice, a.vigencia_inicio, a.vigencia_fim,
                     a.premio_liquido, a.lancado_quiver, a.aviso_vigencia_ok, a.cliente_id,
                     a.status_apolice_id,
@@ -618,6 +619,12 @@ def listar_apolices(cliente_id=None, tipo_seguro_id=None, mes_inicio=None, quive
     if quiver in (0, 1, True, False):
         filtros.append("COALESCE(a.lancado_quiver, 0) = %s")
         params.append(1 if quiver in (1, True) else 0)
+    if apolice_enviada in (0, 1, True, False):
+        filtros.append("COALESCE(a.apolice_enviada, 0) = %s")
+        params.append(1 if apolice_enviada in (1, True) else 0)
+    if cartao_enviado in (0, 1, 2):
+        filtros.append("COALESCE(a.cartao_enviado, 0) = %s")
+        params.append(cartao_enviado)
     if filtros:
         sql += " WHERE " + " AND ".join(filtros)
     if ordem == "cliente":

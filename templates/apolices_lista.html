@@ -94,10 +94,35 @@
         {% endfor %}
       </select>
     </div>
+    <div class="campo c-2">
+      <label for="f-quiver">Lançado no Quiver</label>
+      <select id="f-quiver" name="quiver">
+        <option value="">Todas</option>
+        <option value="1" {{ 'selected' if quiver == '1' }}>Sim</option>
+        <option value="0" {{ 'selected' if quiver == '0' }}>Não</option>
+      </select>
+    </div>
+    <div class="campo c-2">
+      <label for="f-apolice-enviada">Apólice enviada</label>
+      <select id="f-apolice-enviada" name="apolice_enviada">
+        <option value="">Todas</option>
+        <option value="1" {{ 'selected' if apolice_enviada == '1' }}>Sim</option>
+        <option value="0" {{ 'selected' if apolice_enviada == '0' }}>Não</option>
+      </select>
+    </div>
+    <div class="campo c-2">
+      <label for="f-cartao-enviado">Cartão enviado</label>
+      <select id="f-cartao-enviado" name="cartao_enviado">
+        <option value="">Todas</option>
+        <option value="1" {{ 'selected' if cartao_enviado == '1' }}>Sim</option>
+        <option value="0" {{ 'selected' if cartao_enviado == '0' }}>Não</option>
+        <option value="2" {{ 'selected' if cartao_enviado == '2' }}>Não contempla</option>
+      </select>
+    </div>
   </div>
   <div class="filtros__acoes">
     <button class="btn btn--primario" type="submit">{{ icone('busca') }} Buscar</button>
-    {% if busca or tipo_id or seguradora_id or mes or mes_fim or quiver or parcela or status_id %}
+    {% if busca or tipo_id or seguradora_id or mes or mes_fim or quiver or parcela or status_id or apolice_enviada or cartao_enviado %}
     <a class="btn btn--linha" href="{{ url_for('apolices', cliente=cliente_filtro.id) if cliente_filtro else url_for('apolices') }}">Limpar</a>
     {% endif %}
   </div>
@@ -153,7 +178,7 @@
   </div>
   {% else %}
   <p class="vazio">
-    {% if busca or tipo_id or seguradora_id or mes or mes_fim or quiver or parcela %}Nenhuma apólice encontrada para o filtro.
+    {% if busca or tipo_id or seguradora_id or mes or mes_fim or quiver or parcela or status_id or apolice_enviada or cartao_enviado %}Nenhuma apólice encontrada para o filtro.
     {% elif cliente_filtro %}Este cliente ainda não tem apólices.
     {% else %}Nenhuma apólice cadastrada ainda.{% endif %}
   </p>
