@@ -20,6 +20,7 @@ import db
 import repo
 import leitura_pdf
 import cotacao_leitura_pdf
+import notificacoes
 import seguranca
 from validacao import (
     formatar_cpf, formatar_cnpj, formatar_documento, formatar_cep, formatar_telefone, validar_cliente,
@@ -350,8 +351,10 @@ def config_avisos():
         for e in erros:
             flash(e, "erro")
         regras = {**regras, **{k: {**regras[k], **v} for k, v in novas.items()}}
+    email = notificacoes.carregar_config().get("email", {})
     return render_template("config_avisos.html", ativo="config_avisos",
-                           tipos=avisos.TIPOS, regras=regras)
+                           tipos=avisos.TIPOS, regras=regras,
+                           email_ativo=bool(email.get("ativo")), email_para=email.get("para") or [])
 
 
 @app.route("/consorcios/boleto/<int:boleto_id>/enviado", methods=["POST"])

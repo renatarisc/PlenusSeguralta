@@ -25,6 +25,7 @@ def _consorcio_nao_enviados():
 # vencimento: chave usada p/ `dias_restantes` (o "vence em Nd" das telas)
 TIPOS = {
     "vigencia": {
+        "email": True,
         "titulo": "Vigência da apólice",
         "campos": {"vigencia_fim": ("Fim da vigência", "do fim da vigência"),
                    "vigencia_inicio": ("Início da vigência", "do início da vigência")},
@@ -36,6 +37,7 @@ TIPOS = {
         "vencimento": "vigencia_fim",
     },
     "boleto_vencer": {
+        "email": True,
         "titulo": "Boletos de clientes a vencer",
         "campos": {"data_vencimento": ("Vencimento da parcela", "do vencimento da parcela")},
         "chaves": {"data_vencimento": "data"},
@@ -45,6 +47,7 @@ TIPOS = {
         "vencimento": "data",
     },
     "boleto_enviar_consorcio": {
+        "email": True,
         "titulo": "Boletos a enviar — consórcio",
         "campos": {"data_emissao": ("Emissão do boleto", "da emissão do boleto"),
                    "data_vencimento": ("Vencimento do boleto", "do vencimento do boleto")},
@@ -54,6 +57,7 @@ TIPOS = {
         "vencimento": "data_vencimento",
     },
     "boleto_enviar_apolice": {
+        "email": True,
         "titulo": "Boletos a enviar — apólice e endosso",
         "campos": {"data_vencimento": ("Vencimento da parcela", "do vencimento da parcela")},
         "chaves": {"data_vencimento": "data"},
@@ -64,6 +68,7 @@ TIPOS = {
         "vencimento": "data",
     },
     "conta_pagar": {
+        "email": False,
         "titulo": "Contas a pagar",
         "campos": {"data_vencimento": ("Vencimento", "do vencimento")},
         "resolvido": "a saída ser marcada como paga",
