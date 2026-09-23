@@ -395,6 +395,11 @@ def cliente_form(cliente_id=None):
             dup = repo.cliente_por_documento(dados.get("cpf"), ignorar_id=cliente_id)
             if dup:
                 erros.append(f"Já existe um cliente com esse {rotulo_doc}: {dup['nome']}.")
+        if not erros:
+            dup_nome = repo.cliente_por_nome(dados.get("nome"), ignorar_id=cliente_id)
+            if dup_nome:
+                flash(f"Atenção: já existe um cliente cadastrado com o nome \"{dup_nome['nome']}\" "
+                      "(verifique se não é o mesmo cliente antes de salvar).", "aviso")
         if erros:
             for e in erros:
                 flash(e, "erro")

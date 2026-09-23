@@ -232,6 +232,21 @@ def cliente_por_documento(doc, ignorar_id=None):
         return dict(l) if l else None
 
 
+def cliente_por_nome(nome, ignorar_id=None):
+    """Cliente que já tem esse nome (comparação sem acento/maiúsculas/espaços nas pontas) -> {id, nome}, ou None."""
+    nome = (nome or "").strip()
+    if not nome:
+        return None
+    sql = "SELECT id, nome FROM cliente WHERE LOWER(TRIM(nome)) = LOWER(TRIM(%s))"
+    params = [nome]
+    if ignorar_id:
+        sql += " AND id <> %s"
+        params.append(ignorar_id)
+    with conexao() as con:
+        l = con.execute(sql, params).fetchone()
+        return dict(l) if l else None
+
+
 def criar_cliente(dados):
     with conexao() as con:
         marc = ", ".join("%s" for _ in _COLS_CLIENTE)
