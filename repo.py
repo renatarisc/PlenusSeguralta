@@ -941,11 +941,17 @@ SELECT e.*, a.numero_apolice, a.cliente_id,
 """
 
 
-def listar_endossos(apolice_id=None, busca=None):
+def listar_endossos(apolice_id=None, busca=None, quiver=None):
     sql, params = _SQL_ENDOSSO_SEL, []
+    filtros = []
     if apolice_id:
-        sql += " WHERE e.apolice_id = %s"
+        filtros.append("e.apolice_id = %s")
         params.append(apolice_id)
+    if quiver in (0, 1, True, False):
+        filtros.append("COALESCE(e.lancado_quiver, 0) = %s")
+        params.append(1 if quiver in (1, True) else 0)
+    if filtros:
+        sql += " WHERE " + " AND ".join(filtros)
     sql += " ORDER BY e.criado_em DESC, e.id DESC"
     with conexao() as con:
         linhas = [dict(l) for l in con.execute(sql, params).fetchall()]
@@ -1149,10 +1155,15 @@ SELECT co.*,
 """
 
 
-def listar_consorcios(busca=None):
+def listar_consorcios(busca=None, quiver=None):
+    sql = _SQL_CONSORCIO_SEL
+    params = []
+    if quiver in (0, 1, True, False):
+        sql += " WHERE COALESCE(co.lancado_quiver, 0) = %s"
+        params.append(1 if quiver in (1, True) else 0)
+    sql += " ORDER BY co.criado_em DESC, co.id DESC"
     with conexao() as con:
-        linhas = [dict(l) for l in con.execute(
-            _SQL_CONSORCIO_SEL + " ORDER BY co.criado_em DESC, co.id DESC").fetchall()]
+        linhas = [dict(l) for l in con.execute(sql, params).fetchall()]
     termo = (busca or "").strip()
     if termo:
         alvo = _sem_acento_minusculo(termo)

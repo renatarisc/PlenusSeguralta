@@ -751,12 +751,14 @@ def _endosso_para_form(e, parcelas=None, comissoes=None, repasses=None):
 def endossos_lista():
     apolice_id = request.args.get("apolice", type=int)
     busca = request.args.get("busca", "").strip()
+    quiver_arg = request.args.get("quiver", "")
+    quiver = 1 if quiver_arg == "1" else 0 if quiver_arg == "0" else None
     return render_template(
         "endossos_lista.html", ativo="endossos_lista",
-        endossos=repo.listar_endossos(apolice_id or None, busca or None),
-        busca=busca, apolice_id=apolice_id,
+        endossos=repo.listar_endossos(apolice_id or None, busca or None, quiver=quiver),
+        busca=busca, apolice_id=apolice_id, quiver=quiver_arg,
         apolice_filtro=repo.obter_apolice_basico(apolice_id) if apolice_id else None,
-        tem_filtro=bool(busca or apolice_id),
+        tem_filtro=bool(busca or apolice_id or quiver_arg),
         situacoes=dict(_ENDOSSO_SITUACOES))
 
 
@@ -922,10 +924,12 @@ def _consorcio_para_form(co, parcela_valores=None, comissoes=None, repasses=None
 @app.route("/consorcios")
 def consorcios_lista():
     busca = request.args.get("busca", "").strip()
+    quiver_arg = request.args.get("quiver", "")
+    quiver = 1 if quiver_arg == "1" else 0 if quiver_arg == "0" else None
     return render_template(
         "consorcios_lista.html", ativo="consorcios_lista",
-        consorcios=repo.listar_consorcios(busca or None),
-        busca=busca, tem_filtro=bool(busca),
+        consorcios=repo.listar_consorcios(busca or None, quiver=quiver),
+        busca=busca, quiver=quiver_arg, tem_filtro=bool(busca or quiver_arg),
         situacoes=dict(_CONSORCIO_SITUACOES))
 
 

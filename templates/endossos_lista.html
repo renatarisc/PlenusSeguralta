@@ -21,6 +21,14 @@
                placeholder="Cliente, nº da apólice ou nº do endosso" onfocus="this.select()">
       </div>
     </div>
+    <div class="campo c-2">
+      <label for="f-quiver">Lançado no Quiver</label>
+      <select id="f-quiver" name="quiver">
+        <option value="">Todos</option>
+        <option value="1" {{ 'selected' if quiver == '1' }}>Sim</option>
+        <option value="0" {{ 'selected' if quiver == '0' }}>Não</option>
+      </select>
+    </div>
   </div>
   <div class="filtros__acoes">
     <button class="btn btn--primario" type="submit">{{ icone('busca') }} Buscar</button>
