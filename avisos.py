@@ -124,6 +124,16 @@ def contar_vigencia(regras):
                if pendente(a) and na_janela("vigencia", regra, a))
 
 
+def destinatarios_email(cfg):
+    """Quem recebe o e-mail diário: a lista salva na tela Avisos; se nunca foi salva, a do
+    plenus_config.json (`email.para`)."""
+    salvos = repo.destinatarios_email()
+    if salvos is not None:
+        return salvos
+    para = cfg.get("email", {}).get("para") or []
+    return [para] if isinstance(para, str) else list(para)
+
+
 def _dias(n):
     return f"{n} dia" + ("s" if n != 1 else "")
 

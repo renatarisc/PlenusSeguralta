@@ -718,9 +718,24 @@ def regras_aviso():
         return {l["tipo"]: dict(l) for l in con.execute("SELECT * FROM regra_aviso").fetchall()}
 
 
-def salvar_regras_aviso(regras):
-    """`regras`: {tipo: {ativo, campo_base, dias_inicio, dias_parar_apos, avisar_sem_data}}."""
+def destinatarios_email():
+    """Lista salva pela tela Avisos, ou None se nunca foi salva (vale a do plenus_config.json)."""
     with conexao() as con:
+        l = con.execute("SELECT valor FROM config_sistema WHERE chave = 'email_destinatarios'").fetchone()
+    if l is None:
+        return None
+    return [e for e in (l["valor"] or "").splitlines() if e.strip()]
+
+
+def salvar_regras_aviso(regras, destinatarios):
+    """`regras`: {tipo: {ativo, campo_base, dias_inicio, dias_parar_apos, avisar_sem_data}};
+    `destinatarios`: lista de e-mails do aviso diário."""
+    with conexao() as con:
+        con.execute(
+            "INSERT INTO config_sistema (chave, valor) VALUES ('email_destinatarios', %s) "
+            "ON DUPLICATE KEY UPDATE valor = VALUES(valor)",
+            ("\n".join(destinatarios),),
+        )
         for tipo, r in regras.items():
             con.execute(
                 "UPDATE regra_aviso SET ativo = %s, campo_base = %s, dias_inicio = %s, "

@@ -7,23 +7,26 @@
   Define quando cada aviso começa a aparecer no painel e no e-mail diário. O e-mail se repete
   todo dia enquanto o aviso estiver pendente.
 </p>
-<div class="cartao">
-  <h2>E-mail diário</h2>
-  {% if email_ativo and email_para %}
-  <p style="margin:0">Enviado para: <strong>{{ email_para|join(', ') }}</strong></p>
-  {% elif email_para %}
-  <p style="margin:0">O envio está <strong>desativado</strong> (nada sai, só fica registrado no log).
-    Destinatários configurados: {{ email_para|join(', ') }}</p>
-  {% else %}
-  <p style="margin:0">Nenhum destinatário configurado — o e-mail não é enviado.</p>
-  {% endif %}
-  <p style="margin:6px 0 0;font-size:12px;color:var(--texto-suave)">Os destinatários ficam no
-    arquivo de configuração do servidor (plenus_config.json); para trocar, é preciso alterar lá.</p>
-</div>
-
-
 <form class="form" method="post" novalidate>
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  <div class="cartao">
+    <h2>E-mail diário</h2>
+    <div class="grade">
+      <div class="campo c-6">
+        <label for="email_para">Destinatários (um e-mail por linha)</label>
+        <textarea id="email_para" name="email_para" rows="3">{{ email_para|join('\n') }}</textarea>
+      </div>
+    </div>
+    {% if not email_ativo %}
+    <p style="margin:6px 0 0">O envio de e-mail está <strong>desativado</strong> no servidor
+      (nada sai, só fica registrado no log).</p>
+    {% elif not email_para %}
+    <p style="margin:6px 0 0">Sem destinatários, nenhum e-mail é enviado.</p>
+    {% endif %}
+    <p style="margin:6px 0 0;font-size:12px;color:var(--texto-suave)">O remetente e a senha do
+      e-mail continuam no arquivo de configuração do servidor.</p>
+  </div>
 
   {% for tipo, t in tipos.items() if tipo in regras %}
   {% set r = regras[tipo] %}

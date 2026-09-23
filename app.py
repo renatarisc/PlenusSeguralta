@@ -30,7 +30,7 @@ from validacao import (
     gerar_repasses_cocorretagem, para_decimal,
     validar_saida, preparar_lancamentos_saida, validar_endosso,
     validar_consorcio, preparar_parcela_valores, preparar_boletos,
-    validar_nota_fiscal, validar_recibo, validar_entrada_simples,
+    validar_nota_fiscal, validar_recibo, validar_entrada_simples, email_valido,
 )
 
 _HTTPS = os.environ.get("PLENUS_HTTPS") == "1"
@@ -322,8 +322,18 @@ def dashboard():
 @app.route("/configuracoes/avisos", methods=["GET", "POST"])
 def config_avisos():
     regras = repo.regras_aviso()
+    email = notificacoes.carregar_config().get("email", {})
+    email_para = avisos.destinatarios_email({"email": email})
     if request.method == "POST":
         novas, erros = {}, []
+        email_para = []
+        for e in re.split(r"[\s,;]+", request.form.get("email_para", "")):
+            if not e:
+                continue
+            if not email_valido(e):
+                erros.append(f"E-mail inválido nos destinatários: {e}")
+            elif e.lower() not in (x.lower() for x in email_para):
+                email_para.append(e)
         for tipo, t in avisos.TIPOS.items():
             if tipo not in regras:
                 continue
@@ -345,16 +355,16 @@ def config_avisos():
                 "avisar_sem_data": 1 if request.form.get(f"{tipo}__sem_data") == "1" else 0,
             }
         if not erros:
-            repo.salvar_regras_aviso(novas)
+            repo.salvar_regras_aviso(novas, email_para)
             flash("Regras de aviso salvas.", "ok")
             return redirect(url_for("config_avisos"))
         for e in erros:
             flash(e, "erro")
         regras = {**regras, **{k: {**regras[k], **v} for k, v in novas.items()}}
-    email = notificacoes.carregar_config().get("email", {})
+        email_para = [e for e in re.split(r"[\s,;]+", request.form.get("email_para", "")) if e]
     return render_template("config_avisos.html", ativo="config_avisos",
                            tipos=avisos.TIPOS, regras=regras,
-                           email_ativo=bool(email.get("ativo")), email_para=email.get("para") or [])
+                           email_ativo=bool(email.get("ativo")), email_para=email_para)
 
 
 @app.route("/consorcios/boleto/<int:boleto_id>/enviado", methods=["POST"])

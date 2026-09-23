@@ -156,6 +156,12 @@ CREATE TABLE IF NOT EXISTS regra_aviso (
     avisar_sem_data INT NOT NULL DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- configuracoes editaveis pela tela (chave/valor); ex.: email_destinatarios (um por linha)
+CREATE TABLE IF NOT EXISTS config_sistema (
+    chave VARCHAR(64) PRIMARY KEY,
+    valor TEXT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- campos configuraveis da cotacao (montam o formulario de cotacao)
 CREATE TABLE IF NOT EXISTS cotacao_campo (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -619,6 +625,7 @@ _COLUNAS_ESPERADAS = {
         "dias_inicio": "INT NOT NULL DEFAULT 0", "dias_parar_apos": "INT",
         "avisar_sem_data": "INT NOT NULL DEFAULT 0",
     },
+    "config_sistema": {"valor": "TEXT"},
     "cotacao_campo": {
         "nome": "TEXT", "tipo": "TEXT", "ordem": "INT NOT NULL DEFAULT 0",
         "papel": "VARCHAR(40) NOT NULL DEFAULT ''", "opcoes": "TEXT",

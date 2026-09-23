@@ -158,6 +158,7 @@ def main(argv):
     seco = "--seco" in argv
     db.inicializar_db()
     cfg = carregar_config()
+    cfg.setdefault("email", {})["para"] = avisos.destinatarios_email(cfg)
 
     email_ativo = cfg.get("email", {}).get("ativo")
     agenda_ativo = agenda.agenda_ativa(cfg)
