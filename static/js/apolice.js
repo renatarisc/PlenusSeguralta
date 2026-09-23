@@ -290,6 +290,17 @@
     });
   });
 
+  // ---- "cartão enviado = Não contempla" esconde a data do envio (cartão) ----
+  const cartaoEnviado = document.getElementById("cartao_enviado");
+  const cartaoEnviadoDataWrap = document.getElementById("cartao_enviado_data_wrap");
+  if (cartaoEnviado && cartaoEnviadoDataWrap) {
+    const syncCartaoData = () => {
+      cartaoEnviadoDataWrap.hidden = cartaoEnviado.value === "2";
+    };
+    cartaoEnviado.addEventListener("change", syncCartaoData);
+    syncCartaoData();
+  }
+
   // ---- prêmio total = líquido + IOF (enquanto o usuário não editar o total à mão) ----
   const pl = document.getElementById("premio_liquido");
   const iof = document.getElementById("iof");

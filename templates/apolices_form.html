@@ -521,11 +521,12 @@
       <div class="campo c-3">
         <label for="cartao_enviado">Cartão enviado</label>
         <select id="cartao_enviado" name="cartao_enviado" data-par-data="cartao_enviado_data">
-          <option value="0" {{ 'selected' if not a.cartao_enviado }}>Não</option>
-          <option value="1" {{ 'selected' if a.cartao_enviado }}>Sim</option>
+          <option value="0" {{ 'selected' if (a.get('cartao_enviado', 0)|int(0)) == 0 }}>Não</option>
+          <option value="1" {{ 'selected' if (a.get('cartao_enviado', 0)|int(0)) == 1 }}>Sim</option>
+          <option value="2" {{ 'selected' if (a.get('cartao_enviado', 0)|int(0)) == 2 }}>Não contempla</option>
         </select>
       </div>
-      <div class="campo c-3">
+      <div class="campo c-3" id="cartao_enviado_data_wrap">
         <label for="cartao_enviado_data">Data do envio (cartão)</label>
         <input id="cartao_enviado_data" name="cartao_enviado_data" type="date"
                value="{{ a.cartao_enviado_data or '' }}">

@@ -465,7 +465,12 @@ def _sim_nao(v):
     return 1 if str(v or "").strip().lower() in ("1", "sim", "on", "true") else 0
 
 
+def _cartao_enviado_valor(v):
+    return 2 if str(v or "").strip() == "2" else _sim_nao(v)
+
+
 def _valores_apolice(dados):
+    cartao_enviado = _cartao_enviado_valor(dados.get("cartao_enviado"))
     return [
         _int_ou_none(dados.get("cliente_id")),
         _int_ou_none(dados.get("seguradora_id")),
@@ -500,8 +505,8 @@ def _valores_apolice(dados):
         (dados.get("aviso_vigencia_ok_em") or "").strip() or None,
         _sim_nao(dados.get("apolice_enviada")),
         (dados.get("apolice_enviada_data") or "").strip() or None,
-        _sim_nao(dados.get("cartao_enviado")),
-        (dados.get("cartao_enviado_data") or "").strip() or None,
+        cartao_enviado,
+        None if cartao_enviado == 2 else (dados.get("cartao_enviado_data") or "").strip() or None,
         (dados.get("observacao") or "").strip() or None,
     ]
 
