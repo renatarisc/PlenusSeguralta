@@ -99,7 +99,7 @@
           </td>
           <td class="acoes">
             <form method="post" action="{{ url_for('parcela_aviso', parcela_id=p.parcela_id) }}"
-                  onsubmit="return confirm('Confirmar que você avisou {{ p.cliente_nome or 'o cliente' }} sobre o boleto {{ p.identificacao or '' }}?')">
+                  data-confirmar="Confirmar que você avisou {{ p.cliente_nome or 'o cliente' }} sobre o boleto {{ p.identificacao or '' }}?">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="aviso" value="1">
               <input type="hidden" name="origem" value="{{ p.origem }}">
@@ -107,7 +107,7 @@
               <button class="btn btn--linha btn--mini" type="submit" title="Cliente avisado do boleto">✓ avisei o cliente</button>
             </form>
             <form method="post" action="{{ url_for('parcela_pagamento', parcela_id=p.parcela_id) }}"
-                  onsubmit="return confirm('Marcar o boleto {{ p.identificacao or '' }} de {{ p.cliente_nome or 'cliente' }} como pago?')">
+                  data-confirmar="Marcar o boleto {{ p.identificacao or '' }} de {{ p.cliente_nome or 'cliente' }} como pago?">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="paga" value="1">
               <input type="hidden" name="origem" value="{{ p.origem }}">
@@ -164,7 +164,7 @@
           </td>
           <td class="acoes">
             <form method="post" action="{{ url_for('parcela_enviado', parcela_id=p.parcela_id) }}"
-                  onsubmit="return confirm('Confirmar que o boleto {{ p.identificacao or '' }} foi enviado a {{ p.cliente_nome or 'o cliente' }}?')">
+                  data-confirmar="Confirmar que o boleto {{ p.identificacao or '' }} foi enviado a {{ p.cliente_nome or 'o cliente' }}?">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="enviado" value="1">
               <input type="hidden" name="origem" value="{{ p.origem }}">

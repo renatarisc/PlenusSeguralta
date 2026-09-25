@@ -11,7 +11,7 @@
 <a class="btn btn--linha" href="{{ url_for('clientes_lista') }}">{{ icone('voltar') }} Voltar</a>
 {% if c.id %}
 <form method="post" action="{{ url_for('cliente_excluir', cliente_id=c.id) }}" style="display:inline"
-      onsubmit="return confirm('Excluir o cliente {{ c.nome }}? Esta ação não pode ser desfeita.')">
+      data-confirmar="Excluir o cliente {{ c.nome }}? Esta ação não pode ser desfeita.">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <button type="submit" class="btn btn--perigo">{{ icone('lixo') }} Excluir</button>
 </form>

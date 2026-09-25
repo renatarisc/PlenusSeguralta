@@ -7,7 +7,7 @@
 <a class="btn btn--linha" href="{{ voltar or url_for('recibos_lista') }}">{{ icone('voltar') }} Voltar</a>
 {% if r.id %}
 <form method="post" action="{{ url_for('recibo_excluir', recibo_id=r.id) }}" style="display:inline"
-      onsubmit="return confirm('Excluir o recibo {{ r.numero or r.id }}?')">
+      data-confirmar="Excluir o recibo {{ r.numero or r.id }}?">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <input type="hidden" name="voltar" value="{{ voltar }}">
   <button type="submit" class="btn btn--perigo">{{ icone('lixo') }} Excluir</button>

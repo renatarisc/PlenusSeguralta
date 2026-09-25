@@ -97,7 +97,7 @@
           <td class="acoes">
             <a class="btn btn--linha btn--mini" href="{{ url_for('entrada_simples_form', entrada_id=e.id, voltar=url_lista) }}" title="Editar">{{ icone('lapis') }}</a>
             <form method="post" action="{{ url_for('entrada_simples_excluir', entrada_id=e.id) }}"
-                  onsubmit="return confirm('Excluir a entrada &quot;{{ e.descricao }}&quot;?')">
+                  data-confirmar="Excluir a entrada “{{ e.descricao }}”?">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="voltar" value="{{ url_lista }}">
               <button class="btn btn--perigo btn--mini" type="submit" title="Excluir">{{ icone('lixo') }}</button>

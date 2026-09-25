@@ -48,7 +48,7 @@
           <td class="acoes">
             <a class="btn btn--linha btn--mini" href="{{ url_for('cotacao_campo_form', campo_id=c.id) }}">{{ icone('lapis') }}</a>
             <form method="post" action="{{ url_for('cotacao_campo_excluir', campo_id=c.id) }}"
-                  onsubmit="return confirm('Excluir o campo “{{ c.nome }}”?')">
+                  data-confirmar="Excluir o campo “{{ c.nome }}”?">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button class="btn btn--perigo btn--mini" type="submit">{{ icone('lixo') }}</button>
             </form>

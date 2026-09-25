@@ -691,6 +691,7 @@ def apolice_form(apolice_id=None):
             request.form.getlist("parcela_paga"),
             request.form.getlist("parcela_aviso"),
             request.form.getlist("parcela_enviado"),
+            request.form.getlist("parcela_id"),
         )
         comissoes, erros_com = preparar_comissoes(
             request.form.getlist("comissao_parcela"),
@@ -845,7 +846,8 @@ def endosso_form(endosso_id=None):
             request.form.getlist("parcela_valor"),
             request.form.getlist("parcela_paga"),
             request.form.getlist("parcela_aviso"),
-            request.form.getlist("parcela_enviado"))
+            request.form.getlist("parcela_enviado"),
+            request.form.getlist("parcela_id"))
         comissoes, erros_com = preparar_comissoes(
             request.form.getlist("comissao_parcela"),
             request.form.getlist("comissao_previsto"),
@@ -1031,7 +1033,8 @@ def consorcio_form(consorcio_id=None):
             request.form.getlist("boleto_vencimento"),
             request.form.getlist("boleto_pagamento"),
             request.form.getlist("boleto_status"),
-            request.form.getlist("boleto_aviso"))
+            request.form.getlist("boleto_aviso"),
+            request.form.getlist("boleto_id"))
         if (dados.get("comissao_parcelada") == "1" and dados.get("comissao_cocorretagem") == "1"
                 and comissoes and not repasses):
             repasses = gerar_repasses_cocorretagem(
@@ -1151,7 +1154,8 @@ def servico_form(servico_id=None):
             request.form.getlist("parcela_valor"),
             request.form.getlist("parcela_paga"),
             request.form.getlist("parcela_aviso"),
-            request.form.getlist("parcela_enviado"))
+            request.form.getlist("parcela_enviado"),
+            request.form.getlist("parcela_id"))
         comissoes, erros_com = preparar_comissoes(
             request.form.getlist("comissao_parcela"),
             request.form.getlist("comissao_previsto"),

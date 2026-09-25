@@ -11,7 +11,7 @@
 <a class="btn btn--linha" href="{{ voltar or url_for('consorcios_lista') }}">{{ icone('voltar') }} Voltar</a>
 {% if co.id %}
 <form method="post" action="{{ url_for('consorcio_excluir', consorcio_id=co.id) }}" style="display:inline"
-      onsubmit="return confirm('Excluir este consórcio? Esta ação não pode ser desfeita.')">
+      data-confirmar="Excluir este consórcio? Esta ação não pode ser desfeita.">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <button type="submit" class="btn btn--perigo">{{ icone('lixo') }} Excluir</button>
 </form>
@@ -184,7 +184,7 @@
         <tbody id="corpo-boletos">
           {% for b in co.boletos or [] %}
           <tr class="boleto {{ 'parcela--paga' if b.status == 'pago' }}">
-            <td><input name="boleto_identificacao" value="{{ b.identificacao or '' }}"></td>
+            <td><input type="hidden" name="boleto_id" value="{{ b.id or '' }}"><input name="boleto_identificacao" value="{{ b.identificacao or '' }}"></td>
             <td><input name="boleto_valor" inputmode="decimal" data-num value="{{ b.valor or '' }}"></td>
             <td><input name="boleto_emissao" type="date" value="{{ b.data_emissao or '' }}"></td>
             <td><input name="boleto_vencimento" type="date" value="{{ b.data_vencimento or '' }}"></td>
@@ -512,7 +512,7 @@
 
 <template id="tpl-boleto">
   <tr class="boleto">
-    <td><input name="boleto_identificacao"></td>
+    <td><input type="hidden" name="boleto_id" value=""><input name="boleto_identificacao"></td>
     <td><input name="boleto_valor" inputmode="decimal" data-num></td>
     <td><input name="boleto_emissao" type="date"></td>
     <td><input name="boleto_vencimento" type="date"></td>

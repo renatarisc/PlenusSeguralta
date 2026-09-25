@@ -78,7 +78,7 @@
           <td class="acoes">
             <a class="btn btn--linha btn--mini" href="{{ url_for('nota_fiscal_form', nota_fiscal_id=nf.id, voltar=url_lista) }}" title="Editar">{{ icone('lapis') }}</a>
             <form method="post" action="{{ url_for('nota_fiscal_excluir', nota_fiscal_id=nf.id) }}"
-                  onsubmit="return confirm('Excluir a nota fiscal &quot;{{ nf.numero or nf.id }}&quot;? Os recibos vinculados não são excluídos, só ficam sem nota fiscal.')">
+                  data-confirmar="Excluir a nota fiscal “{{ nf.numero or nf.id }}”? Os recibos vinculados não são excluídos, só ficam sem nota fiscal.">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="voltar" value="{{ url_lista }}">
               <button class="btn btn--perigo btn--mini" type="submit" title="Excluir">{{ icone('lixo') }}</button>

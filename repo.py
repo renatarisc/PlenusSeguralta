@@ -547,6 +547,50 @@ def _inserir_parcelas(con, apolice_id, parcelas):
         )
 
 
+def _sincronizar_parcelas(con, tabela, col_dono, dono_id, parcelas):
+    """Grava as parcelas vindas do formulário SEM apagar e recriar as que já existem:
+    a linha com `id` (parcela deste dono) é atualizada no lugar, o que preserva o id — e
+    com ele o histórico de avisos (notificacao_*, ON DELETE CASCADE) e o evento da agenda —
+    e as datas pago_em/aviso_ok_em/enviado_em (só mudam quando a marcação muda).
+    Linha sem id (ou com id que não é deste dono) entra como nova; parcela que não veio
+    mais no formulário foi removida pelo usuário e é apagada."""
+    hoje = date.today().isoformat()
+    atuais = {r["id"]: r for r in con.execute(
+        f"SELECT id, paga, pago_em, aviso_ok, aviso_ok_em, enviado, enviado_em "
+        f"FROM {tabela} WHERE {col_dono} = %s", (dono_id,)).fetchall()}
+    mantidos = set()
+    for p in parcelas or []:
+        pid = _int_ou_none(p.get("id"))
+        ant = atuais.get(pid) if pid not in mantidos else None
+        marc = {}
+        for flag, col_em in (("paga", "pago_em"), ("aviso_ok", "aviso_ok_em"),
+                             ("enviado", "enviado_em")):
+            v = 1 if p.get(flag) in (1, "1", True, "sim", "on") else 0
+            if not v:
+                em = None
+            elif ant and ant[flag] and ant[col_em]:
+                em = ant[col_em]                 # já estava marcada: mantém a data original
+            else:
+                em = (p.get(col_em) or "").strip() or hoje
+            marc[flag], marc[col_em] = v, em
+        valores = (p.get("identificacao"), p.get("data"), p.get("valor"),
+                   marc["paga"], marc["pago_em"], marc["aviso_ok"], marc["aviso_ok_em"],
+                   marc["enviado"], marc["enviado_em"])
+        if ant:
+            con.execute(
+                f"UPDATE {tabela} SET identificacao = %s, data = %s, valor = %s, paga = %s, "
+                f"pago_em = %s, aviso_ok = %s, aviso_ok_em = %s, enviado = %s, enviado_em = %s "
+                f"WHERE id = %s", valores + (pid,))
+            mantidos.add(pid)
+        else:
+            con.execute(
+                f"INSERT INTO {tabela} ({col_dono}, identificacao, data, valor, paga, pago_em, "
+                f"aviso_ok, aviso_ok_em, enviado, enviado_em) "
+                f"VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)", (dono_id,) + valores)
+    for pid in set(atuais) - mantidos:
+        con.execute(f"DELETE FROM {tabela} WHERE id = %s", (pid,))
+
+
 def _inserir_comissoes(con, apolice_id, linhas):
     for i, c in enumerate(linhas or []):
         con.execute(
@@ -837,8 +881,7 @@ def atualizar_apolice(apolice_id, dados, parcelas, comissoes=None, repasses=None
             f"UPDATE apolice SET {atrib}, atualizado_em = NOW() WHERE id = %s",
             _valores_apolice(dados) + [apolice_id],
         )
-        con.execute("DELETE FROM apolice_parcela WHERE apolice_id = %s", (apolice_id,))
-        _inserir_parcelas(con, apolice_id, parcelas)
+        _sincronizar_parcelas(con, "apolice_parcela", "apolice_id", apolice_id, parcelas)
         con.execute("DELETE FROM apolice_comissao WHERE apolice_id = %s", (apolice_id,))
         _inserir_comissoes(con, apolice_id, comissoes)
         con.execute("DELETE FROM apolice_repasse WHERE apolice_id = %s", (apolice_id,))
@@ -1031,9 +1074,9 @@ def atualizar_endosso(endosso_id, dados, parcelas=None, comissoes=None, repasses
         con.execute(
             f"UPDATE apolice_endosso SET {atrib}, atualizado_em = NOW() WHERE id = %s",
             _valores_endosso(dados) + [endosso_id])
-        for tab in ("apolice_endosso_parcela", "apolice_endosso_comissao", "apolice_endosso_repasse"):
+        _sincronizar_parcelas(con, "apolice_endosso_parcela", "endosso_id", endosso_id, parcelas)
+        for tab in ("apolice_endosso_comissao", "apolice_endosso_repasse"):
             con.execute(f"DELETE FROM {tab} WHERE endosso_id = %s", (endosso_id,))
-        _inserir_endosso_parcelas(con, endosso_id, parcelas)
         _inserir_endosso_comissoes(con, endosso_id, comissoes)
         _inserir_endosso_repasses(con, endosso_id, repasses)
     fazer_backup()
@@ -1155,6 +1198,47 @@ def _inserir_consorcio_boletos(con, consorcio_id, boletos):
              pago_em, status, aviso, aviso_em, i))
 
 
+def _sincronizar_consorcio_boletos(con, consorcio_id, boletos):
+    """Mesma ideia de `_sincronizar_parcelas`, para os boletos do consórcio: atualiza no
+    lugar os que já existem (preserva id, histórico de avisos e aviso_ok_em)."""
+    hoje = date.today().isoformat()
+    atuais = {r["id"]: r for r in con.execute(
+        "SELECT id, aviso_ok, aviso_ok_em FROM consorcio_boleto WHERE consorcio_id = %s",
+        (consorcio_id,)).fetchall()}
+    mantidos = set()
+    for i, b in enumerate(boletos or []):
+        bid = _int_ou_none(b.get("id"))
+        ant = atuais.get(bid) if bid not in mantidos else None
+        pago_em = (b.get("data_pagamento") or "").strip() or None
+        _st = (b.get("status") or "").strip()
+        status = "pago" if pago_em else (_st if _st in ("a_enviar", "enviado", "pago") else "a_enviar")
+        aviso = 1 if b.get("aviso_ok") in (1, "1", True, "sim", "on") else 0
+        if not aviso:
+            aviso_em = None
+        elif ant and ant["aviso_ok"] and ant["aviso_ok_em"]:
+            aviso_em = ant["aviso_ok_em"]
+        else:
+            aviso_em = (b.get("aviso_ok_em") or "").strip() or hoje
+        valores = (b.get("identificacao"), b.get("valor"),
+                   (b.get("data_emissao") or "").strip() or None,
+                   (b.get("data_vencimento") or "").strip() or None,
+                   pago_em, status, aviso, aviso_em, i)
+        if ant:
+            con.execute(
+                "UPDATE consorcio_boleto SET identificacao = %s, valor = %s, data_emissao = %s, "
+                "data_vencimento = %s, data_pagamento = %s, status = %s, aviso_ok = %s, "
+                "aviso_ok_em = %s, ordem = %s WHERE id = %s", valores + (bid,))
+            mantidos.add(bid)
+        else:
+            con.execute(
+                "INSERT INTO consorcio_boleto "
+                "(consorcio_id, identificacao, valor, data_emissao, data_vencimento, "
+                " data_pagamento, status, aviso_ok, aviso_ok_em, ordem) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)", (consorcio_id,) + valores)
+    for bid in set(atuais) - mantidos:
+        con.execute("DELETE FROM consorcio_boleto WHERE id = %s", (bid,))
+
+
 _SQL_CONSORCIO_SEL = """
 SELECT co.*,
        c.nome AS cliente_nome, c.tipo_pessoa AS cliente_tipo_pessoa, s.nome AS seguradora_nome,
@@ -1242,13 +1326,12 @@ def atualizar_consorcio(consorcio_id, dados, parcela_valores=None, comissoes=Non
         con.execute(
             f"UPDATE consorcio SET {atrib}, atualizado_em = NOW() WHERE id = %s",
             _valores_consorcio(dados) + [consorcio_id])
-        for tab in ("consorcio_parcela_valor", "consorcio_comissao",
-                    "consorcio_repasse", "consorcio_boleto"):
+        for tab in ("consorcio_parcela_valor", "consorcio_comissao", "consorcio_repasse"):
             con.execute(f"DELETE FROM {tab} WHERE consorcio_id = %s", (consorcio_id,))
         _inserir_consorcio_parcela_valores(con, consorcio_id, parcela_valores)
         _inserir_consorcio_comissoes(con, consorcio_id, comissoes)
         _inserir_consorcio_repasses(con, consorcio_id, repasses)
-        _inserir_consorcio_boletos(con, consorcio_id, boletos)
+        _sincronizar_consorcio_boletos(con, consorcio_id, boletos)
     fazer_backup()
 
 
@@ -1454,9 +1537,9 @@ def atualizar_servico(servico_id, dados, parcelas=None, comissoes=None, repasses
         con.execute(
             f"UPDATE servico SET {atrib}, atualizado_em = NOW() WHERE id = %s",
             _valores_servico(dados) + [servico_id])
-        for tab in ("servico_parcela", "servico_comissao", "servico_repasse"):
+        _sincronizar_parcelas(con, "servico_parcela", "servico_id", servico_id, parcelas)
+        for tab in ("servico_comissao", "servico_repasse"):
             con.execute(f"DELETE FROM {tab} WHERE servico_id = %s", (servico_id,))
-        _inserir_servico_parcelas(con, servico_id, parcelas)
         _inserir_servico_comissoes(con, servico_id, comissoes)
         _inserir_servico_repasses(con, servico_id, repasses)
     fazer_backup()
@@ -2499,7 +2582,10 @@ def parcelas_repasse_por_data(data, recibo_id=None):
             "  JOIN apolice a ON a.id = e.apolice_id "
             "  LEFT JOIN cliente c ON c.id = a.cliente_id "
             " WHERE r.data = %s AND r.valor_recebido IS NOT NULL "
-            "   AND (r.recibo_id IS NULL OR r.recibo_id = %s)",
+            # cocorretagem cai direto na conta corrente (não passa por recibo); a que já
+            # estiver vinculada continua aparecendo, pra não sumir de um recibo existente
+            "   AND (r.recibo_id = %s OR (r.recibo_id IS NULL "
+            "        AND COALESCE(e.comissao_cocorretagem, 0) = 0))",
             (data, recibo_id)).fetchall()
         for r in rows:
             linhas.append({"origem": "endosso_repasse", "id": r["id"], "recibo_id": r["recibo_id"],
@@ -2515,7 +2601,8 @@ def parcelas_repasse_por_data(data, recibo_id=None):
             "  LEFT JOIN cliente c ON c.id = a.cliente_id "
             " WHERE e.data_plenus_recebido = %s AND e.comissao_valor_plenus_recebido IS NOT NULL "
             "   AND COALESCE(e.comissao_parcelada, 0) = 0 "
-            "   AND (e.recibo_id IS NULL OR e.recibo_id = %s)",
+            "   AND (e.recibo_id = %s OR (e.recibo_id IS NULL "
+            "        AND COALESCE(e.comissao_cocorretagem, 0) = 0))",
             (data, recibo_id)).fetchall()
         for r in rows:
             linhas.append({"origem": "endosso_unica", "id": r["id"], "recibo_id": r["recibo_id"],

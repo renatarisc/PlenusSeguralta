@@ -169,15 +169,16 @@ def _sim(v):
     return 1 if str(v).strip().lower() in ("1", "sim", "on", "true") else 0
 
 
-def preparar_parcelas(identificacoes, datas, valores, pagas=None, avisos=None, enviados=None):
+def preparar_parcelas(identificacoes, datas, valores, pagas=None, avisos=None, enviados=None,
+                      ids=None):
     """Recebe listas paralelas (request.form.getlist). Ignora linhas totalmente vazias.
-    Devolve (parcelas, erros) — dict {identificacao, data, valor(float|None), paga, aviso_ok,
-    enviado}."""
+    Devolve (parcelas, erros) — dict {id, identificacao, data, valor(float|None), paga,
+    aviso_ok, enviado}. `id` = parcela já gravada (vazio nas linhas novas)."""
     parcelas, erros = [], []
     linhas = zip_longest(identificacoes or [], datas or [], valores or [],
-                         pagas or [], avisos or [], enviados or [], fillvalue="")
+                         pagas or [], avisos or [], enviados or [], ids or [], fillvalue="")
     n = 0
-    for ident, data, valor, paga, aviso, enviado in linhas:
+    for ident, data, valor, paga, aviso, enviado, pid in linhas:
         ident = (ident or "").strip()
         data = (data or "").strip()
         valor_txt = (valor or "").strip()
@@ -188,6 +189,7 @@ def preparar_parcelas(identificacoes, datas, valores, pagas=None, avisos=None, e
         if valor_txt and v is None:
             erros.append(f"Parcela {n}: valor numérico inválido.")
         parcelas.append({
+            "id": (pid or "").strip() or None,
             "identificacao": ident or None, "data": data or None, "valor": v,
             "paga": _sim(paga), "aviso_ok": _sim(aviso), "enviado": _sim(enviado),
         })
@@ -462,7 +464,8 @@ def preparar_parcela_valores(valores, datas):
 _STATUS_BOLETO = ("a_enviar", "enviado", "pago")
 
 
-def preparar_boletos(identificacoes, valores, emissoes, vencimentos, pagamentos, status=None, avisos=None):
+def preparar_boletos(identificacoes, valores, emissoes, vencimentos, pagamentos, status=None, avisos=None,
+                     ids=None):
     """Boletos do consórcio (listas paralelas do form). Ignora linhas vazias.
     Devolve (linhas, erros) — {identificacao, valor(float|None), data_emissao,
     data_vencimento, data_pagamento, status, aviso_ok}. `status` fica 'pago' se
@@ -470,9 +473,9 @@ def preparar_boletos(identificacoes, valores, emissoes, vencimentos, pagamentos,
     quando o usuário marca que enviou)."""
     linhas, erros = [], []
     z = zip_longest(identificacoes or [], valores or [], emissoes or [], vencimentos or [],
-                    pagamentos or [], status or [], avisos or [], fillvalue="")
+                    pagamentos or [], status or [], avisos or [], ids or [], fillvalue="")
     n = 0
-    for ident, valor, emis, venc, pago, st, aviso in z:
+    for ident, valor, emis, venc, pago, st, aviso, bid in z:
         ident = (ident or "").strip()
         valor_txt = (valor or "").strip()
         emis = (emis or "").strip()
@@ -487,6 +490,7 @@ def preparar_boletos(identificacoes, valores, emissoes, vencimentos, pagamentos,
             erros.append(f"Boleto {n}: valor numérico inválido.")
         st_final = "pago" if pago else (st if st in _STATUS_BOLETO else "a_enviar")
         linhas.append({
+            "id": (bid or "").strip() or None,
             "identificacao": ident or None, "valor": v,
             "data_emissao": emis or None, "data_vencimento": venc or None,
             "data_pagamento": pago or None, "status": st_final, "aviso_ok": _sim(aviso),

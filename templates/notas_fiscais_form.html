@@ -9,7 +9,7 @@
 <a class="btn btn--linha" href="{{ voltar or url_for('notas_fiscais_lista') }}">{{ icone('voltar') }} Voltar</a>
 {% if nf.id %}
 <form method="post" action="{{ url_for('nota_fiscal_excluir', nota_fiscal_id=nf.id) }}" style="display:inline"
-      onsubmit="return confirm('Excluir a nota fiscal {{ nf.numero or nf.id }}? Os recibos vinculados NÃO são excluídos, só ficam sem nota fiscal.')">
+      data-confirmar="Excluir a nota fiscal {{ nf.numero or nf.id }}? Os recibos vinculados NÃO são excluídos, só ficam sem nota fiscal.">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <input type="hidden" name="voltar" value="{{ voltar }}">
   <button type="submit" class="btn btn--perigo">{{ icone('lixo') }} Excluir</button>
@@ -34,6 +34,7 @@
         <label for="valor">Valor (R$)</label>
         <input id="valor" name="valor" inputmode="decimal" data-num value="{{ nf.valor or '' }}">
       </div>
+      <div class="campo c-12" style="margin-top:-6px"><span class="dica" id="nf-conferencia"></span></div>
       <div class="campo c-2">
         <label for="data_emissao">Emissão</label>
         <input id="data_emissao" name="data_emissao" type="date" value="{{ nf.data_emissao or '' }}">
@@ -57,7 +58,8 @@
     <h2>Recibos associados</h2>
     <p class="dica" style="margin:-4px 0 12px">
       Marque os recibos desta nota fiscal - o valor acima é sugerido pela soma dos
-      valores líquidos marcados, mas pode ser alterado à mão.
+      valores líquidos marcados. Digite no Valor o que a Seguralta informou que vai pagar:
+      diferença de centavos é arredondamento dela e vale o valor da nota.
     </p>
     {% if candidatos %}
     <div class="tabela-wrap">

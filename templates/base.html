@@ -154,6 +154,13 @@
       else if (v === "0" && !g.querySelector(".nav__item--ativo")) g.classList.remove("aberto");
     } catch (e) {}
   });
+
+  // ---- <form data-confirmar="texto">: pede confirmação antes de enviar ----
+  // (o texto vem escapado como atributo; um nome com apóstrofo não quebra a pergunta)
+  document.addEventListener("submit", function (e) {
+    const t = e.target.getAttribute && e.target.getAttribute("data-confirmar");
+    if (t && !confirm(t)) e.preventDefault();
+  }, true);
 </script>
 {% block scripts %}{% endblock %}
 </body>
