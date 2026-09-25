@@ -155,6 +155,11 @@ def _exigir_login():
         return redirect(url_for("primeiro_acesso"))
     if not session.get("usuario_id"):
         return redirect(url_for("login", proxima=request.full_path if request.query_string else request.path))
+    if not repo.usuario_ativo(session["usuario_id"]):
+        # desativado ou excluído depois de logar: derruba a sessão
+        session.clear()
+        flash("Seu acesso foi desativado. Fale com o administrador.", "erro")
+        return redirect(url_for("login"))
 
 
 @app.context_processor
@@ -265,6 +270,11 @@ def usuario_form(uid=None):
         erros = _erros_usuario(nome, login_, senha, senha_obrigatoria=(uid is None))
         if not erros and repo.login_em_uso(login_, ignorar_id=uid):
             erros.append("Já existe um usuário com esse login.")
+        if uid and not ativo and usuario.get("ativo"):
+            if uid == session.get("usuario_id"):
+                erros.append("Você não pode desativar o próprio usuário.")
+            elif repo.contar_usuarios_ativos() <= 1:
+                erros.append("Precisa existir ao menos um usuário ativo.")
         if erros:
             for e in erros:
                 flash(e, "erro")
@@ -291,6 +301,8 @@ def usuario_excluir(uid):
         flash("Você não pode excluir o próprio usuário.", "erro")
     elif repo.contar_usuarios() <= 1:
         flash("Precisa existir ao menos um usuário.", "erro")
+    elif (repo.obter_usuario(uid) or {}).get("ativo") and repo.contar_usuarios_ativos() <= 1:
+        flash("Precisa existir ao menos um usuário ativo.", "erro")
     else:
         repo.excluir_usuario(uid)
         flash("Usuário excluído.", "ok")
@@ -755,6 +767,11 @@ def apolice_form(apolice_id=None):
 
 @app.route("/apolices/<int:apolice_id>/excluir", methods=["POST"])
 def apolice_excluir(apolice_id):
+    qtd_end = repo.contar_endossos_por_apolice(apolice_id)
+    if qtd_end:
+        flash(f"Não é possível excluir: esta apólice tem {qtd_end} endosso(s). "
+              "Exclua os endossos primeiro.", "erro")
+        return redirect(url_for("apolice_form", apolice_id=apolice_id))
     try:
         repo.excluir_apolice(apolice_id)
     except IntegrityError:
@@ -2847,4 +2864,6 @@ def fluxo_relatorios_pdf(slug):
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    # só desenvolvimento: escuta apenas nesta máquina (o debugger executa código);
+    # para compartilhar na rede use servir.py. PLENUS_DEBUG=0 desliga o debug.
+    app.run(host="127.0.0.1", port=5000, debug=os.environ.get("PLENUS_DEBUG", "1") == "1")

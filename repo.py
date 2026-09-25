@@ -22,6 +22,18 @@ def contar_usuarios():
         return _um(con.execute("SELECT COUNT(*) FROM usuario"))
 
 
+def contar_usuarios_ativos():
+    with conexao() as con:
+        return _um(con.execute("SELECT COUNT(*) FROM usuario WHERE ativo = 1"))
+
+
+def usuario_ativo(uid):
+    """True se o usuário existe e está ativo (checado a cada requisição)."""
+    with conexao() as con:
+        r = con.execute("SELECT ativo FROM usuario WHERE id = %s", (uid,)).fetchone()
+    return bool(r and r["ativo"])
+
+
 def listar_usuarios():
     with conexao() as con:
         return [dict(l) for l in con.execute(
@@ -2902,6 +2914,9 @@ def listar_entradas_repasse(data_ini=None, data_fim=None):
         "       sg.nome AS seguradora_nome, "
         "       a.numero_apolice, a.premio_liquido, a.comissao_percentual, "
         "       COALESCE(a.comissao_cocorretagem, 0) AS comissao_cocorretagem ")
+    # linhas de endosso: mesmas colunas, mas a cocorretagem é a do próprio endosso
+    cols_endosso = cols_apolice.replace("COALESCE(a.comissao_cocorretagem, 0)",
+                                        "COALESCE(e.comissao_cocorretagem, 0)")
     joins = (" FROM apolice a "
              " LEFT JOIN cliente c     ON c.id = a.cliente_id "
              " LEFT JOIN tipo_seguro t ON t.id = a.tipo_seguro_id "
@@ -2932,7 +2947,7 @@ def listar_entradas_repasse(data_ini=None, data_fim=None):
         ).fetchall()
         # endossos SEM comissão parcelada: repasse "único" dos campos achatados
         endossos = con.execute(
-            "SELECT a.id AS apolice_id, " + cols_apolice + ", "
+            "SELECT a.id AS apolice_id, " + cols_endosso + ", "
             "       e.numero AS _end_num, "
             "       e.comissao_valor_plenus_receber  AS valor_previsto, "
             "       e.comissao_valor_plenus_recebido AS valor_recebido, "
@@ -2949,7 +2964,7 @@ def listar_entradas_repasse(data_ini=None, data_fim=None):
         ).fetchall()
         # endossos COM comissão parcelada: uma linha por parcela de repasse
         endossos_parc = con.execute(
-            "SELECT a.id AS apolice_id, " + cols_apolice + ", "
+            "SELECT a.id AS apolice_id, " + cols_endosso + ", "
             "       e.numero AS _end_num, r.parcela AS _end_parc, "
             "       r.data, r.valor_previsto, r.valor_recebido, "
             "       r.recibo_id, rec.numero AS recibo_numero "
@@ -3142,7 +3157,8 @@ def panorama_comissoes(busca=None, data_ini=None, data_fim=None):
             "       COALESCE(e.vigencia_inicio, a.vigencia_inicio) AS vigencia_inicio, "
             "       c.nome AS cliente_nome, ts.nome AS tipo_seguro_nome, "
             "       COALESCE(s.nome, '(sem seguradora)') AS seguradora_nome, "
-            "       e.valor AS premio_liquido, e.comissao_percentual, 0 AS cocorretagem, "
+            "       e.valor AS premio_liquido, e.comissao_percentual, "
+            "       COALESCE(e.comissao_cocorretagem, 0) AS cocorretagem, "
             "       CASE WHEN COALESCE(e.comissao_parcelada,0)=1 "
             "            THEN (SELECT SUM(x.valor_recebido) FROM apolice_endosso_comissao x WHERE x.endosso_id=e.id) "
             "            ELSE e.comissao_valor_seguralta_recebido END AS receb_seguralta, "
