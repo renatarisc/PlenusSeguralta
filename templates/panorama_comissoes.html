@@ -15,12 +15,15 @@
 {% endmacro %}
 
 {% macro linha_ap(r) %}
-{%- set vida = r.tipo_seguro_nome and 'vida' in r.tipo_seguro_nome|lower and not r.is_endosso and not r.is_consorcio -%}
-<tr{{ ' class="rel-endosso"' if r.is_endosso or r.is_consorcio }}>
+{%- set vida = r.tipo_seguro_nome and 'vida' in r.tipo_seguro_nome|lower and not r.is_endosso and not r.is_consorcio and not r.is_servico -%}
+<tr{{ ' class="rel-endosso"' if r.is_endosso or r.is_consorcio or r.is_servico }}>
   <td>
     {% if r.is_consorcio %}
     <a class="cel-nome" href="{{ url_for('consorcio_form', consorcio_id=r.consorcio_id) }}">Grupo {{ r.consorcio_grupo or '—' }}{% if r.numero_cota %} / cota {{ r.numero_cota }}{% endif %}</a>
     <span class="tipo-seg">CONSÓRCIO{% if r.tipo_seguro_nome %} · {{ r.tipo_seguro_nome }}{% endif %}</span>
+    {% elif r.is_servico %}
+    <a class="cel-nome" href="{{ url_for('servico_form', servico_id=r.servico_id) }}">{{ r.numero_apolice or '—' }}</a>
+    <span class="tipo-seg">SERVIÇO{% if r.tipo_seguro_nome %} · {{ r.tipo_seguro_nome }}{% endif %}</span>
     {% elif r.is_endosso %}
     <a class="cel-nome" href="{{ url_for('endosso_form', endosso_id=r.endosso_id) }}">{{ r.numero_apolice or '—' }}</a>
     <span class="tipo-seg">ENDOSSO{% if r.endosso_numero %} {{ r.endosso_numero }}{% endif %}</span>

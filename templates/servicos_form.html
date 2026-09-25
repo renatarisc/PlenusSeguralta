@@ -1,0 +1,584 @@
+{% extends "base.html" %}
+{% set a = servico or {} %}
+{# o gerador substitui a tabela inteira: some quando já há linha concluída #}
+{% set tem_parcela_paga = (a.parcelas or []) | selectattr('paga') | list | length > 0 %}
+{% set pode_gerar = not a.id or not tem_parcela_paga %}
+{% set pode_gerar_comissao = not ((a.comissoes or []) | selectattr('valor_recebido') | list) %}
+{% set pode_gerar_repasse = not ((a.repasses or []) | selectattr('valor_recebido') | list) %}
+{% macro nome_cliente() -%}
+{%- set ns = namespace(n='') -%}
+{%- for c in clientes if c.id|string == a.cliente_id|string -%}{%- set ns.n = c.nome -%}{%- endfor -%}
+{{- ns.n -}}
+{%- endmacro %}
+{% block titulo %}{{ 'Editar serviço' if a.id else 'Novo serviço' }}{% endblock %}
+{% block cabecalho %}{{ 'Editar serviço' if a.id else 'Novo serviço' }}{% set _cli = nome_cliente() %}{% if a.id and _cli %} · <span style="color:var(--texto-suave);font-weight:600">{{ _cli }}</span>{% endif %}{% endblock %}
+
+{% block acoes %}
+<a class="btn btn--linha" href="{{ voltar or url_for('servicos_lista') }}">{{ icone('voltar') }} Voltar</a>
+{% if a.id %}
+<form method="post" action="{{ url_for('servico_excluir', servico_id=a.id) }}" style="display:inline"
+      onsubmit="return confirm('Excluir este serviço{{ ' (apólice ' ~ a.numero_apolice ~ ')' if a.numero_apolice }}? Esta ação não pode ser desfeita.')">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <button type="submit" class="btn btn--perigo">{{ icone('lixo') }} Excluir</button>
+</form>
+{% endif %}
+{% endblock %}
+
+{% block conteudo %}
+{% if not clientes or not tipos_servico %}
+<div class="cartao" style="border-color:#f0d9b8;background:#fff8ec">
+  <p style="margin:0;color:var(--texto-suave)">
+    {% if not clientes %}Cadastre ao menos um <a href="{{ url_for('cliente_form') }}">cliente</a>. {% endif %}
+    {% if not tipos_servico %}Cadastre ao menos um <a href="{{ url_for('cadastro_simples', slug='tipo-servico') }}">tipo de serviço</a>.{% endif %}
+  </p>
+</div>
+{% endif %}
+
+<form class="form" method="post" novalidate
+      action="{{ url_for('servico_form', servico_id=a.id) if a.id else url_for('servico_form') }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="voltar" value="{{ voltar }}">
+  {# marcado por apolice.js quando o "Salvar" de uma linha de parcela dispara o submit #}
+  <input type="hidden" name="permanecer" id="apolice-permanecer" value="">
+
+  <div class="cartao">
+    <h2>Dados do serviço</h2>
+    <div class="grade">
+      <div class="campo c-6">
+        <label for="cliente_id">Cliente *
+          <a class="link-abrir" href="{{ url_for('cliente_form') }}" target="_blank" rel="noopener">＋ novo</a>
+          <a class="link-abrir" id="link-abrir-cliente" data-base="{{ url_for('clientes_lista') }}"
+             href="{{ url_for('cliente_form', cliente_id=a.cliente_id) if a.cliente_id else '#' }}"
+             target="_blank" rel="noopener" {{ 'hidden' if not a.cliente_id }}>abrir ficha</a>
+        </label>
+        <select id="cliente_id" name="cliente_id" required
+                data-url-veiculos="{{ url_for('servico_veiculos', cliente_id=0) }}">
+          <option value="">—</option>
+          {% for c in clientes %}
+          <option value="{{ c.id }}" {{ 'selected' if a.cliente_id|string == c.id|string }}>{{ c.nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="campo c-6">
+        <label for="tipo_servico_id">Tipo de serviço *
+          <a class="link-abrir" href="{{ url_for('cadastro_simples_form', slug='tipo-servico') }}" target="_blank" rel="noopener">＋ novo</a>
+        </label>
+        <select id="tipo_servico_id" name="tipo_servico_id" required>
+          <option value="">—</option>
+          {% for t in tipos_servico %}
+          <option value="{{ t.id }}" {{ 'selected' if a.tipo_servico_id|string == t.id|string }}>{{ t.nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="campo c-4">
+        <label for="seguradora_id">Seguradora *
+          <a class="link-abrir" href="{{ url_for('cadastro_simples_form', slug='seguradora') }}" target="_blank" rel="noopener">＋ nova</a>
+        </label>
+        <select id="seguradora_id" name="seguradora_id" required>
+          <option value="">—</option>
+          {% for s in seguradoras %}
+          <option value="{{ s.id }}" {{ 'selected' if a.seguradora_id|string == s.id|string }}>{{ s.nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="campo c-2">
+        <label for="numero_apolice">Número da apólice</label>
+        <input id="numero_apolice" name="numero_apolice" value="{{ a.numero_apolice or '' }}">
+      </div>
+      <div class="campo c-2">
+        <label for="vigencia_inicio">Vigência — início</label>
+        <input id="vigencia_inicio" name="vigencia_inicio" type="date" value="{{ a.vigencia_inicio or '' }}">
+      </div>
+      <div class="campo c-2">
+        <label for="vigencia_fim">Vigência — fim</label>
+        <input id="vigencia_fim" name="vigencia_fim" type="date" value="{{ a.vigencia_fim or '' }}">
+      </div>
+      <div class="campo c-2">
+        <label for="status_apolice_id">Status
+          <a class="link-abrir" href="{{ url_for('cadastro_simples_form', slug='status-apolice') }}" target="_blank" rel="noopener">＋ novo</a>
+        </label>
+        <select id="status_apolice_id" name="status_apolice_id">
+          <option value="">—</option>
+          {% for st in status_apolice_opcoes %}
+          <option value="{{ st.id }}" {{ 'selected' if a.status_apolice_id|string == st.id|string }}>{{ st.nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+  </div>
+
+  {# veículo: lista os carros que o cliente já tem cadastrados (apólices, endossos, outros
+     serviços) para confirmar que é o mesmo, ou libera os campos para um carro novo.
+     servico.js monta/atualiza a lista quando o cliente muda. #}
+  <div class="cartao" id="card-veiculo-servico">
+    <h2>Veículo</h2>
+    <div id="veiculos-cliente" class="veic-opcoes"
+         data-placa="{{ a.veiculo_placa or '' }}" data-descricao="{{ a.veiculo_descricao or '' }}">
+      {% for v in veiculos or [] %}
+      <label class="veic-opcao">
+        <input type="radio" name="veiculo_escolha" value="{{ loop.index0 }}"
+               data-placa="{{ v.placa }}" data-descricao="{{ v.descricao }}">
+        <span><strong>{{ v.placa or 'sem placa' }}</strong> {{ v.descricao or '' }}
+          <small class="meta">— {{ v.origem }}</small></span>
+      </label>
+      {% endfor %}
+      <label class="veic-opcao">
+        <input type="radio" name="veiculo_escolha" value="novo">
+        <span>Cadastrar outro carro</span>
+      </label>
+    </div>
+    <p class="dica" id="veiculos-dica" style="margin:4px 0 12px"></p>
+    <div class="grade" id="veiculo-campos">
+      <div class="campo c-3">
+        <label for="veiculo_placa">Placa</label>
+        <input id="veiculo_placa" name="veiculo_placa" maxlength="8" autocapitalize="characters"
+               style="text-transform:uppercase" value="{{ a.veiculo_placa or '' }}">
+      </div>
+      <div class="campo c-9">
+        <label for="veiculo_descricao">Veículo (marca / modelo / ano)</label>
+        <input id="veiculo_descricao" name="veiculo_descricao" value="{{ a.veiculo_descricao or '' }}">
+      </div>
+    </div>
+  </div>
+
+  <div class="cartao">
+    <h2>Pagamento</h2>
+    <div class="grade" style="margin-bottom:14px">
+      <div class="campo c-3">
+        <label for="premio_liquido">Prêmio líquido (R$)</label>
+        <input id="premio_liquido" name="premio_liquido" inputmode="decimal" data-num
+               value="{{ a.premio_liquido or '' }}">
+      </div>
+      <div class="campo c-3">
+        <label for="iof">IOF (R$)</label>
+        <input id="iof" name="iof" inputmode="decimal" data-num
+               value="{{ a.iof or '' }}">
+      </div>
+      <div class="campo c-3">
+        <label for="premio_total">Prêmio total (R$)</label>
+        <input id="premio_total" name="premio_total" inputmode="decimal" data-num
+               value="{{ a.premio_total or '' }}">
+      </div>
+      <div class="campo c-3">
+        <label for="forma_pagamento_id">Forma de pagamento
+          <a class="link-abrir" href="{{ url_for('cadastro_simples_form', slug='forma-pagamento') }}" target="_blank" rel="noopener">＋ nova</a>
+        </label>
+        <select id="forma_pagamento_id" name="forma_pagamento_id">
+          <option value="">—</option>
+          {% for f in formas %}
+          <option value="{{ f.id }}" {{ 'selected' if a.forma_pagamento_id|string == f.id|string }}>{{ f.nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    {% if pode_gerar %}
+    <div class="gerador">
+      <div class="grade">
+        <div class="campo c-2">
+          <label for="ger_qtd">Qtd.</label>
+          <input id="ger_qtd" type="number" min="1" max="120">
+        </div>
+        <div class="campo c-2">
+          <label for="ger_total">Valor (R$)</label>
+          <input id="ger_total" inputmode="decimal" data-num>
+        </div>
+        <div class="campo c-3">
+          <label for="ger_modo">Esse valor é</label>
+          <select id="ger_modo">
+            <option value="parcela">por parcela (repete)</option>
+            <option value="total">o total (dividir)</option>
+          </select>
+        </div>
+        <div class="campo c-3">
+          <label for="ger_data1">1ª data</label>
+          <input id="ger_data1" type="date">
+        </div>
+        <div class="campo c-2">
+          <button type="button" class="btn btn--primario" id="btn-gerar-parcelas">Gerar parcelas</button>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="tabela-wrap">
+      <table class="lista" id="tab-parcelas">
+        <thead>
+          <tr><th style="width:22%">Identificação</th><th style="width:18%">Data</th>
+              <th style="width:16%">Valor (R$)</th><th style="width:16%">Status</th>
+              <th style="width:15%">Cliente avisado</th><th style="width:13%"></th></tr>
+        </thead>
+        <tbody id="corpo-parcelas">
+          {% set _ns = namespace(boleto=false) %}
+          {% for f in formas %}{% if f.id|string == a.forma_pagamento_id|string and 'boleto' in f.nome|lower %}{% set _ns.boleto = true %}{% endif %}{% endfor %}
+          {% for p in a.parcelas or [] %}
+          {% set _st = 'pago' if p.paga else ('enviado' if p.enviado else ('a_enviar' if _ns.boleto else 'a_pagar')) %}
+          <tr class="parcela {{ 'parcela--paga' if p.paga }}">
+            <td><input name="parcela_identificacao" value="{{ p.identificacao or '' }}"></td>
+            <td><input name="parcela_data" type="date" value="{{ p.data or '' }}"></td>
+            <td><input name="parcela_valor" inputmode="decimal" data-num value="{{ p.valor or '' }}"></td>
+            <td>
+              <select data-parcela-status>
+                <option value="a_pagar" {{ 'selected' if _st == 'a_pagar' }}>A pagar</option>
+                <option value="a_enviar" {{ 'selected' if _st == 'a_enviar' }}>A enviar</option>
+                <option value="enviado" {{ 'selected' if _st == 'enviado' }}>Enviado</option>
+                <option value="pago" {{ 'selected' if _st == 'pago' }}>Pago</option>
+              </select>
+              <input type="hidden" name="parcela_paga" value="{{ '1' if p.paga else '0' }}">
+              <input type="hidden" name="parcela_enviado" value="{{ '1' if p.enviado else '0' }}">
+            </td>
+            <td>
+              <select name="parcela_aviso">
+                <option value="0" {{ 'selected' if not p.aviso_ok }}>Não</option>
+                <option value="1" {{ 'selected' if p.aviso_ok }}>Sim</option>
+              </select>
+            </td>
+            <td class="acoes">
+              <button type="button" class="btn btn--linha btn--mini" data-editar-parcela title="Liberar edição">{{ icone('lapis') }}</button>
+              <button type="button" class="btn btn--perigo btn--mini" data-remover-parcela title="Remover">{{ icone('x') }}</button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div style="padding:10px 0 0">
+      <button type="button" class="btn {{ 'btn--linha' if a.parcelas else 'btn--primario' }}" id="btn-add-parcela">{{ icone('mais') }} {{ 'Adicionar parcela' if a.parcelas else 'Adicionar parcela única' }}</button>
+      <span class="dica" id="resumo-parcelas" style="margin-left:10px"></span>
+    </div>
+
+    <div class="grade" style="margin-top:16px">
+      <div class="campo c-12">
+        <label for="observacao">Observação</label>
+        <textarea id="observacao" name="observacao" rows="3">{{ a.observacao or '' }}</textarea>
+      </div>
+    </div>
+  </div>
+
+  <div class="cartao">
+    <h2>Comissão</h2>
+    <div class="grade">
+      <div class="campo c-3">
+        <label for="comissao_percentual">Percentual (%)</label>
+        <input id="comissao_percentual" name="comissao_percentual" inputmode="decimal" data-num
+               value="{{ a.comissao_percentual or '' }}">
+      </div>
+      <div class="campo c-9" style="gap:8px;justify-content:flex-end">
+        <label class="check">
+          <input type="checkbox" id="comissao_cocorretagem" name="comissao_cocorretagem" value="1"
+                 {{ 'checked' if a.comissao_cocorretagem }}>
+          Cocorretagem — Seguralta 25% e Plenus 75% da comissão
+        </label>
+        <label class="check">
+          <input type="checkbox" id="comissao_parcelada" name="comissao_parcelada" value="1"
+                 {{ 'checked' if a.comissao_parcelada }}>
+          Comissão em parcelas
+        </label>
+      </div>
+    </div>
+
+    {# ---------- repasse único: os 4 valores achatados ---------- #}
+    <div id="comissao-unico" {{ 'hidden' if a.comissao_parcelada }}>
+      <div class="grade" style="align-items:end;margin-top:20px">
+        <div class="campo c-4">
+          <label aria-hidden="true">&nbsp;</label>
+          <button type="button" class="btn btn--primario" id="btn-calc-seg-receber" style="width:100%">
+            Calcular % do prêmio líquido
+          </button>
+        </div>
+        <div class="campo c-2">
+          <label for="comissao_valor_seguralta_receber">Seguralta a receber</label>
+          <input id="comissao_valor_seguralta_receber" name="comissao_valor_seguralta_receber"
+                 inputmode="decimal" data-num style="max-width:120px"
+                 value="{{ a.comissao_valor_seguralta_receber or '' }}">
+        </div>
+        <div class="campo c-2">
+          <label for="comissao_valor_seguralta_recebido">Seguralta recebido</label>
+          <input id="comissao_valor_seguralta_recebido" name="comissao_valor_seguralta_recebido"
+                 inputmode="decimal" data-num style="max-width:120px"
+                 value="{{ a.comissao_valor_seguralta_recebido or '' }}">
+        </div>
+        <div class="campo c-2">
+          <label for="data_seguralta_recebido">Seguralta recebido em</label>
+          <input id="data_seguralta_recebido" name="data_seguralta_recebido" type="date"
+                 style="max-width:150px" value="{{ a.data_seguralta_recebido or '' }}">
+        </div>
+
+        <div class="grade__linha" aria-hidden="true"></div>
+
+        <div class="campo c-4">
+          <label aria-hidden="true">&nbsp;</label>
+          <button type="button" class="btn btn--primario" id="btn-calc-plenus-receber" style="width:100%">
+            Calcular 75% do recebido - Seguralta
+          </button>
+        </div>
+        <div class="campo c-2">
+          <label for="comissao_valor_plenus_receber">Plenus a receber</label>
+          <input id="comissao_valor_plenus_receber" name="comissao_valor_plenus_receber"
+                 inputmode="decimal" data-num style="max-width:120px"
+                 value="{{ a.comissao_valor_plenus_receber or '' }}">
+        </div>
+        <div class="campo c-2">
+          <label for="comissao_valor_plenus_recebido">Plenus recebido</label>
+          <input id="comissao_valor_plenus_recebido" name="comissao_valor_plenus_recebido"
+                 inputmode="decimal" data-num style="max-width:120px"
+                 value="{{ a.comissao_valor_plenus_recebido or '' }}">
+        </div>
+        <div class="campo c-2">
+          <label for="data_plenus_recebido">Plenus recebido em</label>
+          <input id="data_plenus_recebido" name="data_plenus_recebido" type="date"
+                 style="max-width:150px" value="{{ a.data_plenus_recebido or '' }}">
+        </div>
+        <div class="campo c-2 col-recibo-only">
+          <label>Recibo</label>
+          <input type="hidden" name="recibo_id" value="{{ a.recibo_id or '' }}">
+          <input value="{{ a.recibo_numero or 'Nenhum' }}" readonly style="max-width:110px"
+                 title="O vínculo com o recibo é feito na tela do recibo, pelo campo Data">
+        </div>
+        <div class="campo c-2 col-deposito-only">
+          <label for="data_deposito_cc">Depósito CC</label>
+          <input id="data_deposito_cc" name="data_deposito_cc" type="date" style="max-width:150px"
+                 value="{{ a.data_deposito_cc or '' }}">
+        </div>
+      </div>
+    </div>
+
+    {# ---------- repasse parcelado: resumo + botão que abre a janela ---------- #}
+    <div id="comissao-parcelado" {{ 'hidden' if not a.comissao_parcelada }} style="margin-top:12px">
+      <button type="button" class="btn btn--primario" id="btn-abrir-comissao">
+        {{ icone('apolices') }} Abrir tabelas de comissão
+      </button>
+      <span class="dica" id="resumo-comissao-parcelada" style="margin-left:10px">
+        {{ (a.comissoes or [])|length }} lançamento(s) de comissão ·
+        {{ (a.repasses or [])|length }} repasse(s)
+      </span>
+    </div>
+
+    {# ---------- a janela (dialog) com as duas tabelas ---------- #}
+    <dialog id="dlg-comissao" class="dlg">
+      <div class="dlg__cab">
+        <strong id="dlg-com-titulo">Comissão parcelada (repasse mensal)</strong>
+        <button type="button" class="btn btn--linha btn--mini" data-fechar-comissao title="Fechar">{{ icone('x') }}</button>
+      </div>
+      <div class="dlg__corpo">
+      <h3 class="titulo-secao">Comissão <span id="tit-comissao">— a Seguralta recebe da seguradora</span></h3>
+      {% if pode_gerar_comissao %}
+      <div class="gerador">
+        <div class="grade">
+          <div class="campo c-2"><label for="ger_com_qtd">Qtd. de meses</label>
+            <input id="ger_com_qtd" type="number" min="1" max="120"></div>
+          <div class="campo c-2"><label for="ger_com_valor">Previsto (R$)</label>
+            <input id="ger_com_valor" inputmode="decimal" data-num></div>
+          <div class="campo c-3"><label for="ger_com_data1">1ª data</label>
+            <input id="ger_com_data1" type="date"></div>
+          <div class="campo c-2"><button type="button" class="btn btn--primario" id="btn-gerar-comissoes">Gerar parcelas</button></div>
+        </div>
+      </div>
+      {% endif %}
+      <div class="tabela-wrap">
+        <table class="lista tab-fluxo" id="tab-comissoes">
+          <thead><tr><th style="width:12%">Parcela</th><th style="width:21%">Previsto (R$)</th>
+              <th style="width:21%">Recebido (R$)</th><th style="width:30%">Data</th><th style="width:16%"></th></tr></thead>
+          <tbody id="corpo-comissoes">
+            {% for c in a.comissoes or [] %}
+            <tr class="fluxo-linha">
+              <td><input name="comissao_parcela" value="{{ c.parcela or '' }}"></td>
+              <td><input name="comissao_previsto" inputmode="decimal" data-num value="{{ c.valor_previsto or '' }}"></td>
+              <td><input name="comissao_recebido" inputmode="decimal" data-num value="{{ c.valor_recebido or '' }}"></td>
+              <td><input name="comissao_data" type="date" value="{{ c.data or '' }}"></td>
+              <td class="acoes">
+                <button type="button" class="btn btn--linha btn--mini" data-editar title="Liberar edição">{{ icone('lapis') }}</button>
+                <button type="button" class="btn btn--perigo btn--mini" data-remover title="Remover">{{ icone('x') }}</button>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div style="padding:8px 0 0">
+        <button type="button" class="btn btn--linha" id="btn-add-comissao">{{ icone('mais') }} Adicionar mês</button>
+        <span class="dica" id="total-comissoes" style="margin-left:10px"></span>
+      </div>
+      <div class="rel-box" hidden>
+        <div class="grade" style="align-items:end">
+          <div class="campo c-6">
+            <label for="previsto_relatorio_seguralta">Comissão prevista no relatório</label>
+            <input id="previsto_relatorio_seguralta" name="previsto_relatorio_seguralta"
+                   inputmode="decimal" data-num value="{{ a.previsto_relatorio_seguralta or '' }}">
+          </div>
+          <div class="campo c-6">
+            <label for="recebido_relatorio_seguralta">Comissão recebida no relatório</label>
+            <input id="recebido_relatorio_seguralta" name="recebido_relatorio_seguralta"
+                   inputmode="decimal" data-num value="{{ a.recebido_relatorio_seguralta or '' }}">
+          </div>
+          <div class="campo c-12" style="margin-top:2px"><span id="aviso-com" class="aviso-diverge"></span></div>
+        </div>
+      </div>
+      <div id="conf-comissao" class="conferencia" hidden></div>
+
+      <h3 class="titulo-secao"><span id="tit-repasse-a">Repasses</span> <span id="tit-repasse-b">— a Plenus recebe da Seguralta</span></h3>
+      <div id="repasse-coco-acao" hidden style="padding:2px 0 10px">
+        <button type="button" class="btn btn--primario" id="btn-repasse-coco">Gerar do 75% da comissão</button>
+      </div>
+      {% if pode_gerar_repasse %}
+      <div class="gerador" id="gerador-repasse">
+        <div class="grade">
+          <div class="campo c-2"><label for="ger_rep_qtd">Qtd. de meses</label>
+            <input id="ger_rep_qtd" type="number" min="1" max="120"></div>
+          <div class="campo c-2"><label for="ger_rep_valor">Pendente (R$)</label>
+            <input id="ger_rep_valor" inputmode="decimal" data-num></div>
+          <div class="campo c-3"><label for="ger_rep_data1">1ª data</label>
+            <input id="ger_rep_data1" type="date"></div>
+          <div class="campo c-2"><button type="button" class="btn btn--primario" id="btn-gerar-repasses">Gerar parcelas</button></div>
+        </div>
+      </div>
+      {% endif %}
+      <div class="tabela-wrap">
+        <table class="lista tab-fluxo" id="tab-repasses">
+          <thead><tr><th style="width:10%">Parcela</th><th style="width:19%">Pendente (R$)</th>
+              <th style="width:19%">Pago (R$)</th><th style="width:22%">Data</th>
+              <th style="width:14%"><span class="col-recibo-only">Recibo</span><span class="col-deposito-only">Depósito CC</span></th><th style="width:16%"></th></tr></thead>
+          <tbody id="corpo-repasses">
+            {% for r in a.repasses or [] %}
+            <tr class="fluxo-linha">
+              <td><input name="repasse_parcela" value="{{ r.parcela or '' }}"></td>
+              <td><input name="repasse_previsto" inputmode="decimal" data-num value="{{ r.valor_previsto or '' }}"></td>
+              <td><input name="repasse_recebido" inputmode="decimal" data-num value="{{ r.valor_recebido or '' }}"></td>
+              <td><input name="repasse_data" type="date" value="{{ r.data or '' }}"></td>
+              <td class="col-conf">
+                <span class="col-recibo-only">
+                  <input type="hidden" name="repasse_recibo_id" value="{{ r.recibo_id or '' }}">
+                  <span class="meta" title="O vínculo com o recibo é feito na tela do recibo, pelo campo Data">{{ r.recibo_numero or '—' }}</span>
+                </span>
+                <input class="col-deposito-only" name="repasse_deposito_cc" type="date" value="{{ r.data_deposito_cc or '' }}" aria-label="Depósito CC">
+              </td>
+              <td class="acoes">
+                <button type="button" class="btn btn--linha btn--mini" data-editar title="Liberar edição">{{ icone('lapis') }}</button>
+                <button type="button" class="btn btn--perigo btn--mini" data-remover title="Remover">{{ icone('x') }}</button>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div style="padding:8px 0 0">
+        <button type="button" class="btn btn--linha" id="btn-add-repasse">{{ icone('mais') }} Adicionar mês</button>
+        <span class="dica" id="total-repasses" style="margin-left:10px"></span>
+      </div>
+      <div class="rel-box" id="relbox-plenus" hidden>
+        <div class="grade" style="align-items:end">
+          <div class="campo c-6">
+            <label for="previsto_relatorio_plenus">Repasse previsto no relatório</label>
+            <input id="previsto_relatorio_plenus" name="previsto_relatorio_plenus"
+                   inputmode="decimal" data-num value="{{ a.previsto_relatorio_plenus or '' }}">
+          </div>
+          <div class="campo c-6">
+            <label for="recebido_relatorio_plenus">Repasse recebido no relatório</label>
+            <input id="recebido_relatorio_plenus" name="recebido_relatorio_plenus"
+                   inputmode="decimal" data-num value="{{ a.recebido_relatorio_plenus or '' }}">
+          </div>
+          <div class="campo c-12" style="margin-top:2px"><span id="aviso-rep" class="aviso-diverge"></span></div>
+        </div>
+      </div>
+      <div id="conf-repasse" class="conferencia" hidden></div>
+      </div>{# .dlg__corpo #}
+      <div class="dlg__rodape">
+        <button type="button" class="btn btn--linha" data-fechar-comissao>Fechar</button>
+        <button type="submit" class="btn btn--primario">Salvar</button>
+      </div>
+    </dialog>
+  </div>
+
+  <div class="cartao">
+    <h2>Outros</h2>
+    <div class="grade">
+      <div class="campo c-3">
+        <label for="lancado_quiver">Lançado no Quiver</label>
+        <select id="lancado_quiver" name="lancado_quiver">
+          <option value="0" {{ 'selected' if not a.lancado_quiver }}>Não</option>
+          <option value="1" {{ 'selected' if a.lancado_quiver }}>Sim</option>
+        </select>
+      </div>
+      <div class="campo c-9">
+        <label for="link_onedrive">
+          Link da pasta no OneDrive
+          <a id="link_onedrive_abrir" class="link-abrir" target="_blank" rel="noopener"
+             href="{{ a.link_onedrive or '#' }}" {{ 'hidden' if not a.link_onedrive }}>abrir ↗</a>
+        </label>
+        <input id="link_onedrive" name="link_onedrive" type="url"
+               value="{{ a.link_onedrive or '' }}">
+      </div>
+    </div>
+  </div>
+
+  <div class="rodape-form">
+    <a class="btn btn--linha" href="{{ voltar or url_for('servicos_lista') }}">Cancelar</a>
+    <button class="btn btn--primario" type="submit">Salvar</button>
+  </div>
+</form>
+
+<template id="tpl-parcela">
+  <tr class="parcela">
+    <td><input name="parcela_identificacao"></td>
+    <td><input name="parcela_data" type="date"></td>
+    <td><input name="parcela_valor" inputmode="decimal" data-num></td>
+    <td>
+      <select data-parcela-status>
+        <option value="a_pagar" selected>A pagar</option>
+        <option value="a_enviar">A enviar</option>
+        <option value="enviado">Enviado</option>
+        <option value="pago">Pago</option>
+      </select>
+      <input type="hidden" name="parcela_paga" value="0">
+      <input type="hidden" name="parcela_enviado" value="0">
+    </td>
+    <td>
+      <select name="parcela_aviso">
+        <option value="0" selected>Não</option>
+        <option value="1">Sim</option>
+      </select>
+    </td>
+    <td class="acoes">
+      <button type="button" class="btn btn--linha btn--mini" data-editar-parcela title="Liberar edição">{{ icone('lapis') }}</button>
+      <button type="button" class="btn btn--perigo btn--mini" data-remover-parcela title="Remover">{{ icone('x') }}</button>
+    </td>
+  </tr>
+</template>
+
+<template id="tpl-comissao">
+  <tr class="fluxo-linha">
+    <td><input name="comissao_parcela"></td>
+    <td><input name="comissao_previsto" inputmode="decimal" data-num></td>
+    <td><input name="comissao_recebido" inputmode="decimal" data-num></td>
+    <td><input name="comissao_data" type="date"></td>
+    <td class="acoes">
+      <button type="button" class="btn btn--linha btn--mini" data-editar title="Liberar edição">{{ icone('lapis') }}</button>
+      <button type="button" class="btn btn--perigo btn--mini" data-remover title="Remover">{{ icone('x') }}</button>
+    </td>
+  </tr>
+</template>
+
+<template id="tpl-repasse">
+  <tr class="fluxo-linha">
+    <td><input name="repasse_parcela"></td>
+    <td><input name="repasse_previsto" inputmode="decimal" data-num></td>
+    <td><input name="repasse_recebido" inputmode="decimal" data-num></td>
+    <td><input name="repasse_data" type="date"></td>
+    <td class="col-conf">
+      <input type="hidden" name="repasse_recibo_id" value="">
+      <span class="meta">—</span>
+    </td>
+    <td class="acoes">
+      <button type="button" class="btn btn--linha btn--mini" data-editar title="Liberar edição">{{ icone('lapis') }}</button>
+      <button type="button" class="btn btn--perigo btn--mini" data-remover title="Remover">{{ icone('x') }}</button>
+    </td>
+  </tr>
+</template>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/apolice.js') }}"></script>
+<script src="{{ url_for('static', filename='js/comissao.js') }}"></script>
+<script src="{{ url_for('static', filename='js/servico.js') }}"></script>
+{% endblock %}

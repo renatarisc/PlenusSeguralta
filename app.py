@@ -28,7 +28,7 @@ from validacao import (
     validar_apolice, preparar_parcelas, preparar_comissoes, preparar_repasses,
     preparar_repasses_consorcio,
     gerar_repasses_cocorretagem, para_decimal,
-    validar_saida, preparar_lancamentos_saida, validar_endosso,
+    validar_saida, preparar_lancamentos_saida, validar_endosso, validar_servico,
     validar_consorcio, preparar_parcela_valores, preparar_boletos,
     validar_nota_fiscal, validar_recibo, validar_entrada_simples, email_valido,
 )
@@ -90,6 +90,8 @@ _CADASTROS_SIMPLES = {
                      "singular": "conta de origem", "acao_novo": "Nova conta de origem"},
     "status-apolice": {"tabela": "status_apolice", "titulo": "Status da Apólice",
                        "singular": "status de apólice", "acao_novo": "Novo status de apólice"},
+    "tipo-servico": {"tabela": "tipo_servico", "titulo": "Tipos de Serviço",
+                     "singular": "tipo de serviço", "acao_novo": "Novo tipo de serviço"},
 }
 
 # disponível em todo template (máscaras na exibição, itens do menu)
@@ -108,6 +110,7 @@ app.jinja_env.globals["MENU"] = [
     {"rota": "apolices", "texto": "Apólices", "icone": "apolices"},
     {"rota": "endossos_lista", "texto": "Endossos", "icone": "endosso"},
     {"rota": "consorcios_lista", "texto": "Consórcios", "icone": "consorcio"},
+    {"rota": "servicos_lista", "texto": "Serviços", "icone": "servico"},
     {"grupo": "Cotação", "icone": "cotacao", "divisoria_antes": True, "filhos": [
         {"rota": "cotacao_campos", "texto": "Cadastrar Campo", "icone": "lapis"},
         {"rota": "cotacao_gerar", "texto": "Gerar", "icone": "relatorio"},
@@ -132,6 +135,7 @@ app.jinja_env.globals["MENU"] = [
         {"rota": "cadastro_simples", "texto": "Status do Cliente", "icone": "tag", "slug": "status-cliente"},
         {"rota": "cadastro_simples", "texto": "Contas de Origem", "icone": "tag", "slug": "conta-origem"},
         {"rota": "cadastro_simples", "texto": "Status da Apólice", "icone": "tag", "slug": "status-apolice"},
+        {"rota": "cadastro_simples", "texto": "Tipos de Serviço", "icone": "tag", "slug": "tipo-servico"},
     ]},
     {"rota": "config_avisos", "texto": "Avisos", "icone": "sino", "divisoria_antes": True},
     {"rota": "usuarios_lista", "texto": "Usuários", "icone": "cadeado"},
@@ -480,8 +484,9 @@ def cliente_form(cliente_id=None):
         flash("Cliente não encontrado.", "erro")
         return redirect(url_for("clientes_lista"))
     qtd_apolices = repo.contar_apolices_do_cliente(cliente_id) if cliente_id else 0
+    qtd_servicos = repo.contar_servicos_do_cliente(cliente_id) if cliente_id else 0
     return render_template("clientes_form.html", ativo="clientes_lista", cliente=cliente,
-                           qtd_apolices=qtd_apolices,
+                           qtd_apolices=qtd_apolices, qtd_servicos=qtd_servicos,
                            status_opcoes=repo.listar_simples("status_cliente"))
 
 
@@ -491,7 +496,7 @@ def cliente_excluir(cliente_id):
         repo.excluir_cliente(cliente_id)
         flash("Cliente excluído.", "ok")
     except IntegrityError:
-        flash("Não é possível excluir: este cliente tem apólice(s) ou consórcio(s) cadastrado(s). "
+        flash("Não é possível excluir: este cliente tem apólice(s), consórcio(s) ou serviço(s) cadastrado(s). "
               "Exclua-os primeiro.", "erro")
     return redirect(url_for("clientes_lista"))
 
@@ -1067,6 +1072,138 @@ def consorcio_excluir(consorcio_id):
     return redirect(url_for("consorcios_lista"))
 
 
+# ---------- Serviços ----------
+
+_CAMPOS_SERVICO = (
+    "cliente_id", "seguradora_id", "tipo_servico_id", "status_apolice_id", "numero_apolice",
+    "vigencia_inicio", "vigencia_fim", "veiculo_placa", "veiculo_descricao",
+    "premio_liquido", "iof", "premio_total",
+    "forma_pagamento_id", "comissao_percentual",
+    "comissao_valor_seguralta_receber", "comissao_valor_plenus_receber",
+    "comissao_valor_seguralta_recebido", "comissao_valor_plenus_recebido",
+    "data_seguralta_recebido", "data_plenus_recebido", "recibo_id",
+    "comissao_parcelada", "comissao_cocorretagem", "data_deposito_cc",
+    "previsto_relatorio_seguralta", "recebido_relatorio_seguralta",
+    "previsto_relatorio_plenus", "recebido_relatorio_plenus",
+    "lancado_quiver", "link_onedrive", "observacao",
+)
+
+
+def _dados_form_servico():
+    return dict(
+        clientes=repo.listar_clientes(),
+        seguradoras=repo.listar_simples("seguradora"),
+        tipos_servico=repo.listar_simples("tipo_servico"),
+        formas=repo.listar_simples("forma_pagamento"),
+        status_apolice_opcoes=repo.listar_simples("status_apolice"),
+    )
+
+
+@app.route("/servicos")
+def servicos_lista():
+    cliente_id = request.args.get("cliente", type=int)
+    tipo_id = request.args.get("tipo", type=int)
+    seguradora_id = request.args.get("seguradora", type=int)
+    status_id = request.args.get("status", type=int)
+    busca = request.args.get("busca", "").strip()
+    quiver_arg = request.args.get("quiver", "")
+    quiver = 1 if quiver_arg == "1" else 0 if quiver_arg == "0" else None
+    return render_template(
+        "servicos_lista.html", ativo="servicos_lista",
+        servicos=repo.listar_servicos(cliente_id=cliente_id, busca=busca or None, quiver=quiver,
+                                      tipo_servico_id=tipo_id, seguradora_id=seguradora_id,
+                                      status_apolice_id=status_id),
+        cliente_filtro=repo.obter_cliente(cliente_id) if cliente_id else None,
+        busca=busca, quiver=quiver_arg, tipo_id=tipo_id, seguradora_id=seguradora_id,
+        status_id=status_id,
+        tem_filtro=bool(busca or quiver_arg or tipo_id or seguradora_id or status_id),
+        tipos_servico=repo.listar_simples("tipo_servico"),
+        seguradoras=repo.listar_simples("seguradora"),
+        status_apolice_opcoes=repo.listar_simples("status_apolice"))
+
+
+@app.route("/servicos/novo", methods=["GET", "POST"])
+@app.route("/servicos/<int:servico_id>", methods=["GET", "POST"])
+def servico_form(servico_id=None):
+    voltar = request.form.get("voltar") or request.args.get("voltar") or ""
+    if not (voltar.startswith("/") and not voltar.startswith("//")):
+        voltar = ""
+    servico = repo.obter_servico(servico_id) if servico_id else None
+    if servico_id and not servico:
+        flash("Serviço não encontrado.", "erro")
+        return redirect(url_for("servicos_lista"))
+
+    if request.method == "POST":
+        dados = {k: request.form.get(k, "") for k in _CAMPOS_SERVICO}
+        parcelas, erros_parc = preparar_parcelas(
+            request.form.getlist("parcela_identificacao"),
+            request.form.getlist("parcela_data"),
+            request.form.getlist("parcela_valor"),
+            request.form.getlist("parcela_paga"),
+            request.form.getlist("parcela_aviso"),
+            request.form.getlist("parcela_enviado"))
+        comissoes, erros_com = preparar_comissoes(
+            request.form.getlist("comissao_parcela"),
+            request.form.getlist("comissao_previsto"),
+            request.form.getlist("comissao_recebido"),
+            request.form.getlist("comissao_data"))
+        repasses, erros_rep = preparar_repasses(
+            request.form.getlist("repasse_parcela"),
+            request.form.getlist("repasse_previsto"),
+            request.form.getlist("repasse_recebido"),
+            request.form.getlist("repasse_data"),
+            request.form.getlist("repasse_recibo_id"),
+            request.form.getlist("repasse_deposito_cc"))
+        # cocorretagem: repasse vazio é gerado dos 75% da comissão (igual à apólice)
+        if (dados.get("comissao_parcelada") and dados.get("comissao_cocorretagem")
+                and comissoes and not repasses):
+            repasses = gerar_repasses_cocorretagem(
+                comissoes, dados.get("premio_liquido"), dados.get("comissao_percentual"))
+        if not dados.get("comissao_parcelada"):  # modo "único": ignora as tabelas
+            comissoes, repasses, erros_com, erros_rep = [], [], [], []
+        erros = validar_servico(dados) + erros_parc + erros_com + erros_rep
+        if erros:
+            for e in erros:
+                flash(e, "erro")
+            sv = _apolice_para_form({**dados, "id": servico_id, "comissoes": comissoes,
+                                     "repasses": repasses}, parcelas=parcelas)
+            return render_template("servicos_form.html", ativo="servicos_lista", servico=sv,
+                                   voltar=voltar,
+                                   veiculos=repo.veiculos_do_cliente(dados.get("cliente_id")),
+                                   **_dados_form_servico())
+        if servico_id:
+            repo.atualizar_servico(servico_id, dados, parcelas, comissoes, repasses)
+            flash("Serviço atualizado.", "ok")
+        else:
+            servico_id = repo.criar_servico(dados, parcelas, comissoes, repasses)
+            flash("Serviço cadastrado.", "ok")
+        if request.form.get("permanecer") == "1":
+            return redirect(url_for("servico_form", servico_id=servico_id, voltar=voltar))
+        return redirect(voltar or url_for("servicos_lista"))
+
+    if servico is None:
+        cliente_id = request.args.get("cliente", type=int)
+        if cliente_id and repo.obter_cliente(cliente_id):
+            servico = {"cliente_id": cliente_id}
+    return render_template("servicos_form.html", ativo="servicos_lista",
+                           servico=_apolice_para_form(servico), voltar=voltar,
+                           veiculos=repo.veiculos_do_cliente((servico or {}).get("cliente_id")),
+                           **_dados_form_servico())
+
+
+@app.route("/servicos/veiculos/<int:cliente_id>")
+def servico_veiculos(cliente_id):
+    """Veículos já cadastrados do cliente (JSON) — o formulário troca a lista ao mudar o cliente."""
+    return jsonify(veiculos=repo.veiculos_do_cliente(cliente_id))
+
+
+@app.route("/servicos/<int:servico_id>/excluir", methods=["POST"])
+def servico_excluir(servico_id):
+    repo.excluir_servico(servico_id)
+    flash("Serviço excluído.", "ok")
+    return redirect(url_for("servicos_lista"))
+
+
 def _voltar_seguro(campo="voltar"):
     destino = request.form.get(campo)
     if destino and destino.startswith("/") and not destino.startswith("//"):
@@ -1076,7 +1213,7 @@ def _voltar_seguro(campo="voltar"):
 
 def _origem_parcela():
     o = request.form.get("origem")
-    return o if o in ("endosso", "consorcio") else "apolice"
+    return o if o in ("endosso", "consorcio", "servico") else "apolice"
 
 
 @app.route("/parcelas/<int:parcela_id>/pagamento", methods=["POST"])
@@ -1948,7 +2085,7 @@ def _calc_panorama(r):
     #    inteiro de meses (Σ recebido ≈ n × valor mensal). O "a receber" dos meses
     #    futuros NÃO é falta.
     #  - demais (e endossos): falta = repasse ainda pendente (ple_a_receber).
-    eh_vida = (not r.get("is_endosso") and not r.get("is_consorcio")
+    eh_vida = (not r.get("is_endosso") and not r.get("is_consorcio") and not r.get("is_servico")
                and "vida" in (r.get("tipo_seguro_nome") or "").lower())
     if eh_vida and r["com_plenus"]:
         n_meses = round(r["receb_plenus"] / r["com_plenus"])
@@ -2017,7 +2154,8 @@ def entradas_panorama():
         _calc_panorama(r)
     linhas.sort(key=lambda r: (_chave_grupo_panorama(r, g)[0],
                                repo._sem_acento_minusculo(r.get("cliente_nome") or ""),
-                               str(r.get("apolice_id") or r.get("consorcio_id") or "")))
+                               str(r.get("apolice_id") or r.get("consorcio_id")
+                                   or r.get("servico_id") or "")))
     grupos = []
     for r in linhas:
         chave, rotulo = _chave_grupo_panorama(r, g)
@@ -2172,6 +2310,7 @@ def _apolices_entrada(linhas, divs=None):
             "numero_apolice": cab.get("numero_apolice"),
             "is_endosso": bool(cab.get("is_endosso")),
             "is_consorcio": bool(cab.get("is_consorcio")),
+            "is_servico": bool(cab.get("is_servico")),
             "premio_liquido": cab.get("premio_liquido"),
             "comissao_percentual": cab.get("comissao_percentual"),
             "comissao_plenus": comissao_plenus,
@@ -2322,6 +2461,8 @@ def _blocos_entrada(apolices, chaves, situacao, data_ini=None, data_fim=None, la
             "is_consorcio": bool(ap.get("is_consorcio")),
             "consorcio_id": ap.get("consorcio_id"),
             "consorcio_grupo": ap.get("consorcio_grupo") or ap.get("numero_grupo"),
+            "is_servico": bool(ap.get("is_servico")),
+            "servico_id": ap.get("servico_id"),
             "linhas": linhas, "mes_key": mes_key, "mes_rotulo": mes_rotulo,
         })
     soma_filtrada = round(sum((b["soma_seguralta"] if lado == "seguralta" else b["soma_plenus"])
@@ -2421,6 +2562,49 @@ def entradas_salvar_endosso(endosso_id):
     }
     repo.salvar_comissao_endosso(endosso_id, valores)
     flash("Comissão do endosso atualizada.", "ok")
+    return _voltar_seguro()
+
+
+@app.route("/financeiro/entradas/servico/<int:servico_id>/comissoes", methods=["POST"])
+def entradas_salvar_servico(servico_id):
+    """Salva a comissão de um serviço, a partir do bloco editável de Entradas."""
+    if request.form.get("comissao_parcelada") == "1":
+        comissoes, erros_c = preparar_comissoes(
+            request.form.getlist("comissao_parcela"),
+            request.form.getlist("comissao_previsto"),
+            request.form.getlist("comissao_recebido"),
+            request.form.getlist("comissao_data"))
+        repasses, erros_r = preparar_repasses(
+            request.form.getlist("repasse_parcela"),
+            request.form.getlist("repasse_previsto"),
+            request.form.getlist("repasse_recebido"),
+            request.form.getlist("repasse_data"),
+            request.form.getlist("repasse_recibo_id"),
+            request.form.getlist("repasse_deposito_cc"))
+        erros = erros_c + erros_r
+        if erros:
+            for e in erros:
+                flash(e, "erro")
+        else:
+            repo.salvar_comissoes_repasses_servico(servico_id, comissoes, repasses)
+            flash("Comissão do serviço atualizada.", "ok")
+        return _voltar_seguro()
+    valores = {
+        "comissao_valor_seguralta_receber":
+            para_decimal(request.form.get("comissao_valor_seguralta_receber")),
+        "comissao_valor_seguralta_recebido":
+            para_decimal(request.form.get("comissao_valor_seguralta_recebido")),
+        "comissao_valor_plenus_receber":
+            para_decimal(request.form.get("comissao_valor_plenus_receber")),
+        "comissao_valor_plenus_recebido":
+            para_decimal(request.form.get("comissao_valor_plenus_recebido")),
+        "data_seguralta_recebido": (request.form.get("data_seguralta_recebido") or "").strip(),
+        "data_plenus_recebido": (request.form.get("data_plenus_recebido") or "").strip(),
+        "recibo_id": request.form.get("recibo_id"),
+        "data_deposito_cc": (request.form.get("data_deposito_cc") or "").strip(),
+    }
+    repo.salvar_comissao_servico(servico_id, valores)
+    flash("Comissão do serviço atualizada.", "ok")
     return _voltar_seguro()
 
 

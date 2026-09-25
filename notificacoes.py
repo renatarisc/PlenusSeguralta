@@ -222,13 +222,15 @@ def texto_vencimento(ap, dias):
 
 
 def texto_boleto(p, dias):
-    """Devolve (assunto, corpo) do aviso de parcela de boleto (apólice, endosso ou consórcio)."""
+    """Devolve (assunto, corpo) do aviso de parcela de boleto (apólice, endosso, serviço ou consórcio)."""
     ident = p.get("identificacao") or "?"
     if p.get("origem") == "consorcio":
         grupo = p.get("consorcio_grupo") or "—"
         cota = f" / cota {p.get('consorcio_cota')}" if p.get("consorcio_cota") else ""
         ref = f"do consórcio grupo {grupo}{cota}"
         ref_curto = f"consórcio grupo {grupo}"
+    elif p.get("origem") == "servico":
+        ref = ref_curto = f"do serviço {_rotulo_servico(p)}"
     else:
         num = p.get("numero_apolice") or "(sem número)"
         if p.get("origem") == "endosso":
@@ -246,15 +248,26 @@ def texto_boleto(p, dias):
 
 
 def _ref_boleto(p):
-    """Rótulo curto da origem de um boleto a enviar (apólice / endosso / consórcio)."""
+    """Rótulo curto da origem de um boleto a enviar (apólice / endosso / serviço / consórcio)."""
     if p.get("origem") == "consorcio":
         grupo = p.get("numero_grupo") or "—"
         cota = f" / cota {p.get('numero_cota')}" if p.get("numero_cota") else ""
         return f"consórcio grupo {grupo}{cota}"
+    if p.get("origem") == "servico":
+        return f"serviço {_rotulo_servico(p)}"
     num = p.get("numero_apolice") or "(sem número)"
     if p.get("origem") == "endosso":
         return f"apólice {num} (endosso {p.get('endosso_numero') or ''})".replace(" )", ")")
     return f"apólice {num}"
+
+
+def _rotulo_servico(p):
+    """'<tipo> <nº da apólice> (placa XXX)' — o que identifica um serviço no e-mail."""
+    partes = [p.get("tipo_seguro_nome") or "", p.get("numero_apolice") or ""]
+    txt = " ".join(x for x in partes if x).strip() or "(sem número)"
+    if p.get("veiculo_placa"):
+        txt += f" (placa {p['veiculo_placa']})"
+    return txt
 
 
 def texto_boletos_a_enviar(itens):

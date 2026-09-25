@@ -58,7 +58,7 @@ TIPOS = {
     },
     "boleto_enviar_apolice": {
         "email": True,
-        "titulo": "Boletos a enviar — apólice e endosso",
+        "titulo": "Boletos a enviar — apólice, endosso e serviço",
         "campos": {"data_vencimento": ("Vencimento da parcela", "do vencimento da parcela")},
         "chaves": {"data_vencimento": "data"},
         "resolvido": "você marcar a parcela como enviada",

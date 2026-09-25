@@ -278,7 +278,8 @@ def excluir_cliente(cliente_id):
 # ---------- cadastros simples (tipo_seguro, forma_pagamento) - só nome ----------
 
 _TABELAS_SIMPLES = {"tipo_seguro", "forma_pagamento", "seguradora", "categoria_saida",
-                     "tipo_consorcio", "status_cliente", "conta_origem", "status_apolice"}
+                     "tipo_consorcio", "status_cliente", "conta_origem", "status_apolice",
+                     "tipo_servico"}
 
 
 def listar_simples(tabela, busca=None):
@@ -778,7 +779,8 @@ def obter_apolice(apolice_id):
 
 def _tabela_parcela(origem):
     return {"endosso": "apolice_endosso_parcela",
-            "consorcio": "consorcio_boleto"}.get(origem, "apolice_parcela")
+            "consorcio": "consorcio_boleto",
+            "servico": "servico_parcela"}.get(origem, "apolice_parcela")
 
 
 def marcar_parcela_paga(parcela_id, paga, origem="apolice"):
@@ -1256,6 +1258,282 @@ def excluir_consorcio(consorcio_id):
     fazer_backup()
 
 
+# ---------- serviços (assistência, vidros, rastreador... ligados ao carro do cliente) ----------
+
+_COLS_SERVICO = (
+    "cliente_id", "seguradora_id", "tipo_servico_id", "status_apolice_id", "numero_apolice",
+    "vigencia_inicio", "vigencia_fim", "veiculo_placa", "veiculo_descricao",
+    "premio_liquido", "iof", "premio_total",
+    "forma_pagamento_id", "comissao_percentual",
+    "comissao_valor_seguralta_receber", "comissao_valor_plenus_receber",
+    "comissao_valor_seguralta_recebido", "comissao_valor_plenus_recebido",
+    "data_seguralta_recebido", "data_plenus_recebido", "recibo_id",
+    "comissao_parcelada", "comissao_cocorretagem", "data_deposito_cc",
+    "previsto_relatorio_seguralta", "recebido_relatorio_seguralta",
+    "previsto_relatorio_plenus", "recebido_relatorio_plenus",
+    "lancado_quiver", "link_onedrive", "observacao",
+)
+
+
+def _valores_servico(d):
+    return [
+        _int_ou_none(d.get("cliente_id")),
+        _int_ou_none(d.get("seguradora_id")),
+        _int_ou_none(d.get("tipo_servico_id")),
+        _int_ou_none(d.get("status_apolice_id")),
+        (d.get("numero_apolice") or "").strip() or None,
+        (d.get("vigencia_inicio") or "").strip() or None,
+        (d.get("vigencia_fim") or "").strip() or None,
+        (d.get("veiculo_placa") or "").strip().upper() or None,
+        (d.get("veiculo_descricao") or "").strip() or None,
+        para_decimal(d.get("premio_liquido")),
+        para_decimal(d.get("iof")),
+        para_decimal(d.get("premio_total")),
+        _int_ou_none(d.get("forma_pagamento_id")),
+        para_decimal(d.get("comissao_percentual")),
+        para_decimal(d.get("comissao_valor_seguralta_receber")),
+        para_decimal(d.get("comissao_valor_plenus_receber")),
+        para_decimal(d.get("comissao_valor_seguralta_recebido")),
+        para_decimal(d.get("comissao_valor_plenus_recebido")),
+        (d.get("data_seguralta_recebido") or "").strip() or None,
+        (d.get("data_plenus_recebido") or "").strip() or None,
+        _int_ou_none(d.get("recibo_id")),
+        _sim_nao(d.get("comissao_parcelada")),
+        _sim_nao(d.get("comissao_cocorretagem")),
+        (d.get("data_deposito_cc") or "").strip() or None,
+        para_decimal(d.get("previsto_relatorio_seguralta")),
+        para_decimal(d.get("recebido_relatorio_seguralta")),
+        para_decimal(d.get("previsto_relatorio_plenus")),
+        para_decimal(d.get("recebido_relatorio_plenus")),
+        _sim_nao(d.get("lancado_quiver")),
+        (d.get("link_onedrive") or "").strip() or None,
+        (d.get("observacao") or "").strip() or None,
+    ]
+
+
+def _inserir_servico_parcelas(con, servico_id, parcelas):
+    hoje = date.today().isoformat()
+    for p in parcelas or []:
+        paga = 1 if p.get("paga") in (1, "1", True, "sim", "on") else 0
+        pago_em = (p.get("pago_em") or "").strip() or (hoje if paga else None)
+        aviso = 1 if p.get("aviso_ok") in (1, "1", True, "sim", "on") else 0
+        aviso_em = (p.get("aviso_ok_em") or "").strip() or (hoje if aviso else None)
+        enviado = 1 if p.get("enviado") in (1, "1", True, "sim", "on") else 0
+        enviado_em = (p.get("enviado_em") or "").strip() or (hoje if enviado else None)
+        con.execute(
+            "INSERT INTO servico_parcela "
+            "(servico_id, identificacao, data, valor, paga, pago_em, aviso_ok, aviso_ok_em, "
+            " enviado, enviado_em) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+            (servico_id, p.get("identificacao"), p.get("data"), p.get("valor"),
+             paga, pago_em, aviso, aviso_em, enviado, enviado_em))
+
+
+def _inserir_servico_comissoes(con, servico_id, linhas):
+    for i, c in enumerate(linhas or []):
+        con.execute(
+            "INSERT INTO servico_comissao "
+            "(servico_id, parcela, valor_previsto, valor_recebido, data, ordem) "
+            "VALUES (%s, %s, %s, %s, %s, %s)",
+            (servico_id, c.get("parcela"), c.get("valor_previsto"),
+             c.get("valor_recebido"), c.get("data"), i))
+
+
+def _inserir_servico_repasses(con, servico_id, linhas):
+    for i, r in enumerate(linhas or []):
+        con.execute(
+            "INSERT INTO servico_repasse "
+            "(servico_id, parcela, valor_previsto, valor_recebido, data, recibo_id, "
+            " data_deposito_cc, ordem) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+            (servico_id, r.get("parcela"), r.get("valor_previsto"),
+             r.get("valor_recebido"), r.get("data"), _int_ou_none(r.get("recibo_id")),
+             r.get("data_deposito_cc"), i))
+
+
+_SQL_SERVICO_SEL = """
+SELECT sv.*,
+       c.nome AS cliente_nome, c.tipo_pessoa AS cliente_tipo_pessoa,
+       s.nome AS seguradora_nome, ts.nome AS tipo_servico_nome,
+       sa.nome AS status_apolice_nome, f.nome AS forma_pagamento_nome,
+       (SELECT p.data FROM servico_parcela p
+          WHERE p.servico_id = sv.id AND COALESCE(p.paga, 0) = 0 AND p.data IS NOT NULL
+          ORDER BY p.data LIMIT 1) AS proxima_parcela_data,
+       (SELECT COUNT(*) FROM servico_parcela p WHERE p.servico_id = sv.id) AS total_parcelas
+  FROM servico sv
+  LEFT JOIN cliente c         ON c.id = sv.cliente_id
+  LEFT JOIN seguradora s      ON s.id = sv.seguradora_id
+  LEFT JOIN tipo_servico ts   ON ts.id = sv.tipo_servico_id
+  LEFT JOIN status_apolice sa ON sa.id = sv.status_apolice_id
+  LEFT JOIN forma_pagamento f ON f.id = sv.forma_pagamento_id
+"""
+
+
+def listar_servicos(cliente_id=None, busca=None, quiver=None, tipo_servico_id=None,
+                    seguradora_id=None, status_apolice_id=None):
+    sql, params, filtros = _SQL_SERVICO_SEL, [], []
+    for coluna, valor in (("sv.cliente_id", cliente_id), ("sv.tipo_servico_id", tipo_servico_id),
+                          ("sv.seguradora_id", seguradora_id),
+                          ("sv.status_apolice_id", status_apolice_id)):
+        if valor:
+            filtros.append(f"{coluna} = %s")
+            params.append(valor)
+    if quiver in (0, 1, True, False):
+        filtros.append("COALESCE(sv.lancado_quiver, 0) = %s")
+        params.append(1 if quiver in (1, True) else 0)
+    if filtros:
+        sql += " WHERE " + " AND ".join(filtros)
+    sql += " ORDER BY sv.criado_em DESC, sv.id DESC"
+    with conexao() as con:
+        linhas = [dict(l) for l in con.execute(sql, params).fetchall()]
+    termo = (busca or "").strip()
+    if termo:
+        alvo = _sem_acento_minusculo(termo)
+        linhas = [l for l in linhas
+                  if alvo in _sem_acento_minusculo(l.get("cliente_nome") or "")
+                  or alvo in _sem_acento_minusculo(l.get("numero_apolice") or "")
+                  or alvo in _sem_acento_minusculo(l.get("veiculo_placa") or "")]
+    return linhas
+
+
+def obter_servico(servico_id):
+    with conexao() as con:
+        l = con.execute(_SQL_SERVICO_SEL + " WHERE sv.id = %s", (servico_id,)).fetchone()
+        if not l:
+            return None
+        sv = dict(l)
+        if sv.get("recibo_id"):
+            rec = con.execute("SELECT numero FROM recibo WHERE id = %s", (sv["recibo_id"],)).fetchone()
+            sv["recibo_numero"] = rec["numero"] if rec else None
+        sv["parcelas"] = [dict(p) for p in con.execute(
+            "SELECT id, identificacao, data, valor, paga, pago_em, aviso_ok, aviso_ok_em, "
+            "       enviado, enviado_em "
+            "FROM servico_parcela WHERE servico_id = %s ORDER BY COALESCE(data, ''), id",
+            (servico_id,)).fetchall()]
+        sv["comissoes"] = [dict(x) for x in con.execute(
+            "SELECT id, parcela, valor_previsto, valor_recebido, data "
+            "FROM servico_comissao WHERE servico_id = %s ORDER BY ordem, id",
+            (servico_id,)).fetchall()]
+        sv["repasses"] = [dict(x) for x in con.execute(
+            "SELECT r.id, r.parcela, r.valor_previsto, r.valor_recebido, r.data, r.recibo_id, "
+            "       r.data_deposito_cc, rec.numero AS recibo_numero "
+            "FROM servico_repasse r LEFT JOIN recibo rec ON rec.id = r.recibo_id "
+            "WHERE r.servico_id = %s ORDER BY r.ordem, r.id",
+            (servico_id,)).fetchall()]
+        return sv
+
+
+def criar_servico(dados, parcelas=None, comissoes=None, repasses=None):
+    with conexao() as con:
+        marc = ", ".join("%s" for _ in _COLS_SERVICO)
+        cur = con.execute(
+            f"INSERT INTO servico ({', '.join(_COLS_SERVICO)}) VALUES ({marc})",
+            _valores_servico(dados))
+        novo_id = cur.lastrowid
+        _inserir_servico_parcelas(con, novo_id, parcelas)
+        _inserir_servico_comissoes(con, novo_id, comissoes)
+        _inserir_servico_repasses(con, novo_id, repasses)
+    fazer_backup()
+    return novo_id
+
+
+def atualizar_servico(servico_id, dados, parcelas=None, comissoes=None, repasses=None):
+    with conexao() as con:
+        atrib = ", ".join(f"{c} = %s" for c in _COLS_SERVICO)
+        con.execute(
+            f"UPDATE servico SET {atrib}, atualizado_em = NOW() WHERE id = %s",
+            _valores_servico(dados) + [servico_id])
+        for tab in ("servico_parcela", "servico_comissao", "servico_repasse"):
+            con.execute(f"DELETE FROM {tab} WHERE servico_id = %s", (servico_id,))
+        _inserir_servico_parcelas(con, servico_id, parcelas)
+        _inserir_servico_comissoes(con, servico_id, comissoes)
+        _inserir_servico_repasses(con, servico_id, repasses)
+    fazer_backup()
+
+
+def excluir_servico(servico_id):
+    with conexao() as con:
+        con.execute("DELETE FROM servico WHERE id = %s", (servico_id,))
+    fazer_backup()
+
+
+def contar_servicos_do_cliente(cliente_id):
+    with conexao() as con:
+        return _um(con.execute("SELECT COUNT(*) FROM servico WHERE cliente_id = %s", (cliente_id,)))
+
+
+def veiculos_do_cliente(cliente_id):
+    """Veículos já gravados para o cliente (apólices, endossos de troca de veículo e
+    outros serviços), um por placa — o mais recente vence. Devolve
+    [{placa, descricao, origem}], para o formulário de serviço oferecer "é o mesmo carro"."""
+    if not cliente_id:
+        return []
+    with conexao() as con:
+        linhas = con.execute(
+            "SELECT veiculo_placa AS placa, veiculo_descricao AS descricao, "
+            "       'apólice' AS origem, numero_apolice AS ref, atualizado_em AS quando "
+            "  FROM apolice WHERE cliente_id = %s "
+            "   AND (COALESCE(veiculo_placa, '') <> '' OR COALESCE(veiculo_descricao, '') <> '') "
+            "UNION ALL "
+            "SELECT e.veiculo_placa, e.veiculo_descricao, 'endosso', "
+            "       CONCAT(COALESCE(a.numero_apolice, ''), ' / ', COALESCE(e.numero, '')), "
+            "       e.atualizado_em "
+            "  FROM apolice_endosso e JOIN apolice a ON a.id = e.apolice_id "
+            " WHERE a.cliente_id = %s "
+            "   AND (COALESCE(e.veiculo_placa, '') <> '' OR COALESCE(e.veiculo_descricao, '') <> '') "
+            "UNION ALL "
+            "SELECT veiculo_placa, veiculo_descricao, 'serviço', numero_apolice, atualizado_em "
+            "  FROM servico WHERE cliente_id = %s "
+            "   AND (COALESCE(veiculo_placa, '') <> '' OR COALESCE(veiculo_descricao, '') <> '') "
+            "ORDER BY quando DESC",
+            (cliente_id, cliente_id, cliente_id)).fetchall()
+    vistos, saida = set(), []
+    for l in linhas:
+        placa = (l["placa"] or "").strip().upper()
+        chave = placa or _sem_acento_minusculo(l["descricao"] or "")
+        if chave in vistos:
+            continue
+        vistos.add(chave)
+        saida.append({"placa": placa, "descricao": (l["descricao"] or "").strip(),
+                      "origem": f"{l['origem']} {l['ref'] or ''}".strip()})
+    return saida
+
+
+def salvar_comissoes_repasses_servico(servico_id, comissoes, repasses):
+    """Regrava só as tabelas-filhas de comissão parcelada de UM serviço (grade de Entradas)."""
+    with conexao() as con:
+        con.execute("DELETE FROM servico_comissao WHERE servico_id = %s", (servico_id,))
+        _inserir_servico_comissoes(con, servico_id, comissoes)
+        con.execute("DELETE FROM servico_repasse WHERE servico_id = %s", (servico_id,))
+        _inserir_servico_repasses(con, servico_id, repasses)
+        con.execute("UPDATE servico SET atualizado_em = NOW() WHERE id = %s", (servico_id,))
+    fazer_backup()
+
+
+def salvar_comissao_servico(servico_id, valores):
+    """Grava só a comissão (valores achatados) de um serviço, a partir do bloco
+    editável de Entradas. Mesmas chaves de `salvar_comissao_unica`."""
+    with conexao() as con:
+        con.execute(
+            "UPDATE servico SET "
+            "  comissao_valor_seguralta_receber = %s, comissao_valor_seguralta_recebido = %s, "
+            "  comissao_valor_plenus_receber = %s, comissao_valor_plenus_recebido = %s, "
+            "  data_seguralta_recebido = %s, data_plenus_recebido = %s, "
+            "  recibo_id = %s, data_deposito_cc = %s, atualizado_em = NOW() "
+            "WHERE id = %s",
+            (valores.get("comissao_valor_seguralta_receber"),
+             valores.get("comissao_valor_seguralta_recebido"),
+             valores.get("comissao_valor_plenus_receber"),
+             valores.get("comissao_valor_plenus_recebido"),
+             (valores.get("data_seguralta_recebido") or None),
+             (valores.get("data_plenus_recebido") or None),
+             _int_ou_none(valores.get("recibo_id")),
+             (valores.get("data_deposito_cc") or None),
+             servico_id),
+        )
+    fazer_backup()
+
+
 def obter_apolice_basico(apolice_id):
     """id, número, cliente e seguradora — sem carregar parcelas/comissões."""
     with conexao() as con:
@@ -1431,7 +1709,8 @@ def email_vigencia_enviado_hoje(apolice_id):
 
 def _tabela_notif_parcela(origem):
     return {"endosso": "notificacao_endosso_parcela",
-            "consorcio": "notificacao_consorcio_boleto"}.get(origem, "notificacao_parcela")
+            "consorcio": "notificacao_consorcio_boleto",
+            "servico": "notificacao_servico_parcela"}.get(origem, "notificacao_parcela")
 
 
 def email_boleto_enviado_hoje(parcela_id, origem="apolice"):
@@ -1483,6 +1762,25 @@ SELECT 'endosso' AS origem, p.id AS parcela_id, e.id AS endosso_id, e.numero AS 
    AND COALESCE(p.paga, 0) = 0
 """
 
+_SQL_PARCELAS_BOLETO_SERV = """
+SELECT 'servico' AS origem, p.id AS parcela_id, NULL AS endosso_id, NULL AS endosso_numero,
+       NULL AS consorcio_id, NULL AS consorcio_grupo, NULL AS consorcio_cota, NULL AS boleto_status,
+       p.identificacao, p.data, p.valor, p.aviso_ok, p.enviado, p.enviado_em,
+       NULL AS apolice_id, sv.numero_apolice, sv.vigencia_inicio, sv.vigencia_fim,
+       sv.id AS servico_id, sv.veiculo_placa,
+       c.nome AS cliente_nome, s.nome AS seguradora_nome, ts.nome AS tipo_seguro_nome,
+       f.nome AS forma_pagamento_nome
+  FROM servico_parcela p
+  JOIN servico sv           ON sv.id = p.servico_id
+  LEFT JOIN cliente c       ON c.id = sv.cliente_id
+  LEFT JOIN seguradora s    ON s.id = sv.seguradora_id
+  LEFT JOIN tipo_servico ts ON ts.id = sv.tipo_servico_id
+  JOIN forma_pagamento f    ON f.id = sv.forma_pagamento_id
+ WHERE lower(f.nome) LIKE '%boleto%'
+   AND p.data IS NOT NULL AND p.data <> ''
+   AND COALESCE(p.paga, 0) = 0
+"""
+
 # boletos do consórcio: são boletos por natureza — não filtra pela forma de pagamento
 _SQL_PARCELAS_BOLETO_CONS = """
 SELECT 'consorcio' AS origem, b.id AS parcela_id, NULL AS endosso_id, NULL AS endosso_numero,
@@ -1504,10 +1802,11 @@ SELECT 'consorcio' AS origem, b.id AS parcela_id, NULL AS endosso_id, NULL AS en
 
 
 def parcelas_boleto_pendentes():
-    """Boletos com data e não pagos — de apólices, endossos E consórcios."""
+    """Boletos com data e não pagos — de apólices, endossos, serviços E consórcios."""
     with conexao() as con:
         linhas = [dict(l) for l in con.execute(_SQL_PARCELAS_BOLETO).fetchall()]
         linhas += [dict(l) for l in con.execute(_SQL_PARCELAS_BOLETO_END).fetchall()]
+        linhas += [dict(l) for l in con.execute(_SQL_PARCELAS_BOLETO_SERV).fetchall()]
         linhas += [dict(l) for l in con.execute(_SQL_PARCELAS_BOLETO_CONS).fetchall()]
     linhas.sort(key=lambda l: l.get("data") or "")
     return linhas
@@ -2168,6 +2467,8 @@ _ORIGENS_REPASSE = {
     "endosso_repasse": ("apolice_endosso_repasse", "recibo_id", False),
     "apolice_unica": ("apolice", "recibo_id", True),
     "endosso_unica": ("apolice_endosso", "recibo_id", True),
+    "servico_repasse": ("servico_repasse", "recibo_id", False),
+    "servico_unica": ("servico", "recibo_id", True),
     "saida_desconto": ("saida", "recibo_id", True),
 }
 
@@ -2241,7 +2542,47 @@ def parcelas_repasse_por_data(data, recibo_id=None):
                            "valor_recebido": r["valor_recebido"],
                            "numero_apolice": f"{r['numero_apolice']} (endosso {r['endosso_numero']})",
                            "cliente_nome": r["cliente_nome"], "parcela_rotulo": "única"})
+        rows = con.execute(
+            "SELECT r.id, r.recibo_id, r.valor_recebido, r.parcela, sv.numero_apolice, "
+            "       ts.nome AS tipo_servico_nome, c.nome AS cliente_nome, "
+            "       (SELECT COUNT(DISTINCT r2.parcela) FROM servico_repasse r2 WHERE r2.servico_id = r.servico_id) AS total_parcelas "
+            "  FROM servico_repasse r "
+            "  JOIN servico sv ON sv.id = r.servico_id "
+            "  LEFT JOIN tipo_servico ts ON ts.id = sv.tipo_servico_id "
+            "  LEFT JOIN cliente c ON c.id = sv.cliente_id "
+            " WHERE r.data = %s AND r.valor_recebido IS NOT NULL "
+            "   AND COALESCE(sv.comissao_cocorretagem, 0) = 0 "
+            "   AND (r.recibo_id IS NULL OR r.recibo_id = %s)",
+            (data, recibo_id)).fetchall()
+        for r in rows:
+            linhas.append({"origem": "servico_repasse", "id": r["id"], "recibo_id": r["recibo_id"],
+                           "valor_recebido": r["valor_recebido"],
+                           "numero_apolice": _rotulo_servico(r),
+                           "cliente_nome": r["cliente_nome"],
+                           "parcela_rotulo": f"{r['parcela'] or '?'}/{r['total_parcelas']}"})
+        rows = con.execute(
+            "SELECT sv.id, sv.recibo_id, sv.comissao_valor_plenus_recebido AS valor_recebido, "
+            "       sv.numero_apolice, ts.nome AS tipo_servico_nome, c.nome AS cliente_nome "
+            "  FROM servico sv "
+            "  LEFT JOIN tipo_servico ts ON ts.id = sv.tipo_servico_id "
+            "  LEFT JOIN cliente c ON c.id = sv.cliente_id "
+            " WHERE sv.data_plenus_recebido = %s AND sv.comissao_valor_plenus_recebido IS NOT NULL "
+            "   AND COALESCE(sv.comissao_cocorretagem, 0) = 0 "
+            "   AND COALESCE(sv.comissao_parcelada, 0) = 0 "
+            "   AND (sv.recibo_id IS NULL OR sv.recibo_id = %s)",
+            (data, recibo_id)).fetchall()
+        for r in rows:
+            linhas.append({"origem": "servico_unica", "id": r["id"], "recibo_id": r["recibo_id"],
+                           "valor_recebido": r["valor_recebido"],
+                           "numero_apolice": _rotulo_servico(r),
+                           "cliente_nome": r["cliente_nome"], "parcela_rotulo": "única"})
     return linhas
+
+
+def _rotulo_servico(r):
+    """'<nº da apólice> (serviço <tipo>)' — como o serviço aparece nas listas de comissão."""
+    tipo = (r.get("tipo_servico_nome") or "").strip()
+    return f"{r.get('numero_apolice') or '—'} (serviço{' ' + tipo if tipo else ''})"
 
 
 def saidas_desconto_por_data(data, recibo_id=None):
@@ -2429,6 +2770,31 @@ def extrato_conta_corrente():
             item = f"{r['cliente_nome'] or 'sem cliente'} — consórcio grupo {r['numero_grupo'] or '—'}"
             _junta_coco(r["data"], r["seguradora_nome"], r["valor"], item)
 
+        for r in con.execute(
+            "SELECT r.data_deposito_cc AS data, r.valor_recebido AS valor, r.parcela, "
+            "       sv.numero_apolice, c.nome AS cliente_nome, sg.nome AS seguradora_nome "
+            "  FROM servico_repasse r "
+            "  JOIN servico sv ON sv.id = r.servico_id "
+            "  LEFT JOIN cliente c ON c.id = sv.cliente_id "
+            "  LEFT JOIN seguradora sg ON sg.id = sv.seguradora_id "
+            " WHERE sv.comissao_cocorretagem = 1 "
+            "   AND r.valor_recebido IS NOT NULL AND r.data_deposito_cc IS NOT NULL"
+        ).fetchall():
+            item = (f"{r['cliente_nome'] or 'sem cliente'} — serviço {r['numero_apolice'] or '—'} "
+                    f"(parcela {r['parcela'] or '?'})")
+            _junta_coco(r["data"], r["seguradora_nome"], r["valor"], item)
+
+        for r in con.execute(
+            "SELECT sv.data_deposito_cc AS data, sv.comissao_valor_plenus_recebido AS valor, "
+            "       sv.numero_apolice, c.nome AS cliente_nome, sg.nome AS seguradora_nome "
+            "  FROM servico sv LEFT JOIN cliente c ON c.id = sv.cliente_id "
+            "  LEFT JOIN seguradora sg ON sg.id = sv.seguradora_id "
+            " WHERE sv.comissao_cocorretagem = 1 AND COALESCE(sv.comissao_parcelada, 0) = 0 "
+            "   AND sv.comissao_valor_plenus_recebido IS NOT NULL AND sv.data_deposito_cc IS NOT NULL"
+        ).fetchall():
+            item = f"{r['cliente_nome'] or 'sem cliente'} — serviço {r['numero_apolice'] or '—'}"
+            _junta_coco(r["data"], r["seguradora_nome"], r["valor"], item)
+
         for (data, seguradora_nome), g in coco_grupos.items():
             n = len(g["itens"])
             if n == 1:
@@ -2562,6 +2928,35 @@ def listar_entradas_repasse(data_ini=None, data_fim=None):
             "  LEFT JOIN seguradora sg     ON sg.id = co.seguradora_id "
             " ORDER BY co.id, r.ordem, r.id"
         ).fetchall()
+        cols_serv = (
+            "       c.nome AS cliente_nome, ts.nome AS tipo_seguro_nome, "
+            "       sg.nome AS seguradora_nome, "
+            "       sv.numero_apolice, sv.premio_liquido, sv.comissao_percentual, "
+            "       COALESCE(sv.comissao_cocorretagem, 0) AS comissao_cocorretagem ")
+        serv_joins = (" LEFT JOIN cliente c       ON c.id = sv.cliente_id "
+                      " LEFT JOIN tipo_servico ts ON ts.id = sv.tipo_servico_id "
+                      " LEFT JOIN seguradora sg   ON sg.id = sv.seguradora_id ")
+        # serviços: repasse parcelado (linhas de servico_repasse) ou único (campos achatados)
+        servicos_parc = con.execute(
+            "SELECT sv.id AS _serv_id, " + cols_serv + ", "
+            "       r.parcela, r.data, r.valor_previsto, r.valor_recebido, "
+            "       r.recibo_id, rec.numero AS recibo_numero "
+            "  FROM servico_repasse r JOIN servico sv ON sv.id = r.servico_id "
+            + serv_joins +
+            "  LEFT JOIN recibo rec ON rec.id = r.recibo_id "
+            " ORDER BY sv.id, r.ordem, r.id"
+        ).fetchall()
+        servicos = con.execute(
+            "SELECT sv.id AS _serv_id, " + cols_serv + ", "
+            "       sv.comissao_valor_plenus_receber  AS valor_previsto, "
+            "       sv.comissao_valor_plenus_recebido AS valor_recebido, "
+            "       sv.data_plenus_recebido           AS data, "
+            "       sv.recibo_id, rec.numero AS recibo_numero "
+            "  FROM servico sv " + serv_joins +
+            "  LEFT JOIN recibo rec ON rec.id = sv.recibo_id "
+            " WHERE NOT EXISTS (SELECT 1 FROM servico_repasse r WHERE r.servico_id = sv.id) "
+            " ORDER BY sv.id"
+        ).fetchall()
 
     linhas = []
     for row in parceladas:
@@ -2613,6 +3008,20 @@ def listar_entradas_repasse(data_ini=None, data_fim=None):
                                + (" / cota " + d["numero_cota"] if d.get("numero_cota") else ""))
         d["parcela"] = ("consórcio " + parc).strip()
         d["origem"] = "consorcio"
+        linhas.append(d)
+
+    for row in servicos_parc:
+        d = dict(row)
+        sid = d.pop("_serv_id")
+        d.update(apolice_id=f"serv:{sid}", servico_id=sid, is_servico=True, origem="servico")
+        linhas.append(d)
+    for row in servicos:
+        d = dict(row)
+        if d.get("valor_previsto") is None and d.get("valor_recebido") is None:
+            continue  # serviço sem repasse — fora do relatório
+        sid = d.pop("_serv_id")
+        d.update(apolice_id=f"serv:{sid}", servico_id=sid, is_servico=True, origem="servico",
+                 parcela="única")
         linhas.append(d)
 
     # o período recorta as parcelas COM data; as parcelas ainda SEM data
@@ -2747,8 +3156,46 @@ def panorama_comissoes(busca=None, data_ini=None, data_fim=None):
             "    OR co.comissao_valor_plenus_receber IS NOT NULL "
             "    OR co.comissao_valor_plenus_recebido IS NOT NULL"
         ).fetchall()]
+        # serviços — mesma regra da apólice (prêmio líquido × %)
+        servicos = [dict(r) for r in con.execute(
+            "SELECT sv.id AS servico_id, sv.numero_apolice, sv.vigencia_inicio, "
+            "       c.nome AS cliente_nome, ts.nome AS tipo_seguro_nome, "
+            "       COALESCE(s.nome, '(sem seguradora)') AS seguradora_nome, "
+            "       sv.premio_liquido, sv.comissao_percentual, "
+            "       COALESCE(sv.comissao_cocorretagem, 0) AS cocorretagem, "
+            "       CASE WHEN EXISTS (SELECT 1 FROM servico_comissao x WHERE x.servico_id = sv.id) "
+            "            THEN (SELECT SUM(x.valor_recebido) FROM servico_comissao x WHERE x.servico_id = sv.id) "
+            "            ELSE sv.comissao_valor_seguralta_recebido END AS receb_seguralta, "
+            "       CASE WHEN EXISTS (SELECT 1 FROM servico_repasse x WHERE x.servico_id = sv.id) "
+            "            THEN (SELECT SUM(x.valor_recebido) FROM servico_repasse x WHERE x.servico_id = sv.id) "
+            "            ELSE sv.comissao_valor_plenus_recebido END AS receb_plenus, "
+            "       (SELECT COUNT(DISTINCT x.parcela) FROM servico_comissao x "
+            "          WHERE x.servico_id = sv.id AND x.valor_recebido IS NOT NULL) AS n_seg_pagas, "
+            "       (SELECT COUNT(DISTINCT x.parcela) FROM servico_repasse x "
+            "          WHERE x.servico_id = sv.id AND x.valor_recebido IS NOT NULL) AS n_ple_pagas, "
+            "       CASE WHEN EXISTS (SELECT 1 FROM servico_repasse x WHERE x.servico_id = sv.id) "
+            "            THEN (SELECT COALESCE(SUM(x.valor_previsto), 0) FROM servico_repasse x "
+            "                    WHERE x.servico_id = sv.id AND x.valor_recebido IS NULL) "
+            "            WHEN sv.comissao_valor_plenus_recebido IS NULL "
+            "            THEN COALESCE(sv.comissao_valor_plenus_receber, 0) "
+            "            ELSE 0 END AS ple_a_receber, "
+            "       sv.recebido_relatorio_seguralta AS rel_receb_seguralta, "
+            "       sv.recebido_relatorio_plenus    AS rel_receb_plenus, "
+            "       1 AS is_servico "
+            "  FROM servico sv "
+            "  LEFT JOIN cliente c        ON c.id = sv.cliente_id "
+            "  LEFT JOIN seguradora s     ON s.id = sv.seguradora_id "
+            "  LEFT JOIN tipo_servico ts  ON ts.id = sv.tipo_servico_id "
+            " WHERE COALESCE(sv.comissao_parcelada, 0) = 1 "
+            "    OR sv.comissao_percentual IS NOT NULL "
+            "    OR sv.comissao_valor_seguralta_receber IS NOT NULL "
+            "    OR sv.comissao_valor_seguralta_recebido IS NOT NULL "
+            "    OR sv.comissao_valor_plenus_receber IS NOT NULL "
+            "    OR sv.comissao_valor_plenus_recebido IS NOT NULL"
+        ).fetchall()]
     rows += endossos
     rows += consorcios
+    rows += servicos
     if data_ini:
         rows = [r for r in rows if (r.get("vigencia_inicio") or "") >= data_ini]
     if data_fim:
@@ -2781,7 +3228,19 @@ def repasse_vs_relatorio_plenus():
             " WHERE a.previsto_relatorio_plenus IS NOT NULL "
             "    OR a.recebido_relatorio_plenus IS NOT NULL"
         ).fetchall()
-    return {r["apolice_id"]: dict(r) for r in rows}
+        rows_serv = con.execute(
+            "SELECT CONCAT('serv:', sv.id) AS apolice_id, "
+            "       sv.previsto_relatorio_plenus  AS prev_relatorio, "
+            "       sv.recebido_relatorio_plenus  AS receb_relatorio, "
+            "       COALESCE((SELECT SUM(r.valor_previsto) FROM servico_repasse r "
+            "                   WHERE r.servico_id = sv.id), 0) AS prev_sistema, "
+            "       COALESCE((SELECT SUM(r.valor_recebido) FROM servico_repasse r "
+            "                   WHERE r.servico_id = sv.id), 0) AS receb_sistema "
+            "  FROM servico sv "
+            " WHERE sv.previsto_relatorio_plenus IS NOT NULL "
+            "    OR sv.recebido_relatorio_plenus IS NOT NULL"
+        ).fetchall()
+    return {r["apolice_id"]: dict(r) for r in list(rows) + list(rows_serv)}
 
 
 def comissoes_repasses_por_apolice(data_ini=None, data_fim=None, lado="plenus"):
@@ -2878,6 +3337,32 @@ def comissoes_repasses_por_apolice(data_ini=None, data_fim=None, lado="plenus"):
             "  LEFT JOIN tipo_consorcio tc ON tc.id = co.tipo_consorcio_id "
             "  LEFT JOIN seguradora sg    ON sg.id = co.seguradora_id "
             " ORDER BY co.id"
+        ).fetchall()
+        serv_com = con.execute(
+            "SELECT servico_id, parcela, valor_previsto, valor_recebido, data "
+            "  FROM servico_comissao ORDER BY servico_id, ordem, id").fetchall()
+        serv_rep = con.execute(
+            "SELECT r.servico_id, r.parcela, r.valor_previsto, r.valor_recebido, r.data, "
+            "       r.recibo_id, r.data_deposito_cc, rec.numero AS recibo_numero "
+            "  FROM servico_repasse r LEFT JOIN recibo rec ON rec.id = r.recibo_id "
+            " ORDER BY r.servico_id, r.ordem, r.id").fetchall()
+        servicos = con.execute(
+            "SELECT sv.id AS servico_id, sv.numero_apolice, "
+            "       c.nome AS cliente_nome, NULL AS tipo_seguro_id, ts.nome AS tipo_seguro_nome, "
+            "       sg.nome AS seguradora_nome, "
+            "       sv.premio_liquido, sv.comissao_percentual, "
+            "       COALESCE(sv.comissao_parcelada, 0) AS comissao_parcelada, "
+            "       COALESCE(sv.comissao_cocorretagem, 0) AS comissao_cocorretagem, "
+            "       sv.comissao_valor_seguralta_receber, sv.comissao_valor_seguralta_recebido, "
+            "       sv.comissao_valor_plenus_receber, sv.comissao_valor_plenus_recebido, "
+            "       sv.data_seguralta_recebido, sv.data_plenus_recebido, sv.data_deposito_cc, "
+            "       sv.recibo_id, rec.numero AS recibo_numero "
+            "  FROM servico sv "
+            "  LEFT JOIN cliente c        ON c.id = sv.cliente_id "
+            "  LEFT JOIN tipo_servico ts  ON ts.id = sv.tipo_servico_id "
+            "  LEFT JOIN seguradora sg    ON sg.id = sv.seguradora_id "
+            "  LEFT JOIN recibo rec       ON rec.id = sv.recibo_id "
+            " ORDER BY sv.id"
         ).fetchall()
 
     por_apolice_com, por_apolice_rep = {}, {}
@@ -3003,4 +3488,40 @@ def comissoes_repasses_por_apolice(data_ini=None, data_fim=None, lado="plenus"):
         co["comissoes"] = com
         co["repasses"] = rep
         saida.append(co)
+
+    por_serv_com, por_serv_rep = {}, {}
+    for r in serv_com:
+        por_serv_com.setdefault(r["servico_id"], []).append(dict(r))
+    for r in serv_rep:
+        por_serv_rep.setdefault(r["servico_id"], []).append(dict(r))
+    for row in servicos:
+        sv = dict(row)
+        sid = sv["servico_id"]
+        if sv["comissao_parcelada"]:
+            com = por_serv_com.get(sid, [])
+            rep = por_serv_rep.get(sid, [])
+            if not com and not rep:
+                continue
+        else:
+            valores = (sv["comissao_valor_seguralta_receber"], sv["comissao_valor_seguralta_recebido"],
+                       sv["comissao_valor_plenus_receber"], sv["comissao_valor_plenus_recebido"])
+            if all(v is None for v in valores):
+                continue
+            com = [{"parcela": "única",
+                    "valor_previsto": sv["comissao_valor_seguralta_receber"],
+                    "valor_recebido": sv["comissao_valor_seguralta_recebido"],
+                    "data": sv["data_seguralta_recebido"]}]
+            rep = [{"parcela": "única",
+                    "valor_previsto": sv["comissao_valor_plenus_receber"],
+                    "valor_recebido": sv["comissao_valor_plenus_recebido"],
+                    "data": sv["data_plenus_recebido"],
+                    "recibo_id": sv["recibo_id"], "recibo_numero": sv.get("recibo_numero"),
+                    "data_deposito_cc": sv.get("data_deposito_cc")}]
+        if not _no_periodo(com if lado == "seguralta" else rep):
+            continue
+        sv["is_servico"] = True
+        sv["apolice_id"] = f"serv:{sid}"
+        sv["comissoes"] = com
+        sv["repasses"] = rep
+        saida.append(sv)
     return saida

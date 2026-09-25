@@ -74,6 +74,8 @@ def _passo_email(cfg, forcar, seco, regras):
             ref_rot = f"consórcio grupo {p.get('consorcio_grupo') or ''}"
         elif orig == "endosso":
             ref_rot = f"{p.get('numero_apolice')} endosso {p.get('endosso_numero')}"
+        elif orig == "servico":
+            ref_rot = f"serviço {p.get('numero_apolice') or p.get('servico_id')}"
         else:
             ref_rot = f"{p.get('numero_apolice')}"
         rot = f"e-mail boleto {ref_rot} parc {p.get('identificacao')} ({d}d)"
@@ -92,7 +94,7 @@ def _passo_email(cfg, forcar, seco, regras):
 
 def _passo_envio(cfg, seco, regras):
     """Lembrete diário (um e-mail consolidado) dos boletos que a corretora ainda precisa
-    repassar ao cliente — apólice, endosso e consórcio."""
+    repassar ao cliente — apólice, endosso, serviço e consórcio."""
     itens = (avisos.itens("boleto_enviar_consorcio", regras)
              + avisos.itens("boleto_enviar_apolice", regras))
     itens.sort(key=lambda p: p.get("data") or "9999")
@@ -133,11 +135,13 @@ def _passo_agenda(cfg, seco):
         d = dias_ate_data(p.get("data"))
         if d is None or d < 0:
             continue
-        _suf = {"endosso": "-end", "consorcio": "-cons"}.get(p.get("origem"), "")
+        _suf = {"endosso": "-end", "consorcio": "-cons", "servico": "-serv"}.get(p.get("origem"), "")
         chave = f"boleto{_suf}:{p['parcela_id']}"
         ativos.add(chave)
         if p.get("origem") == "consorcio":
             titulo = f"Boleto {p.get('identificacao') or ''} consórcio grupo {p.get('consorcio_grupo') or ''}".strip()
+        elif p.get("origem") == "servico":
+            titulo = f"Boleto {p.get('identificacao') or ''} serviço {p.get('numero_apolice') or ''}".strip()
         else:
             titulo = f"Boleto {p.get('identificacao') or ''} apólice {p.get('numero_apolice') or ''}".strip()
         if p.get("cliente_nome"):

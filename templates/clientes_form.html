@@ -6,6 +6,7 @@
 {% block acoes %}
 {% if c.id %}
 <a class="btn btn--primario" href="{{ url_for('apolices', cliente=c.id) }}">{{ icone('apolices') }} Apólices ({{ qtd_apolices }})</a>
+<a class="btn btn--primario" href="{{ url_for('servicos_lista', cliente=c.id) }}">{{ icone('servico') }} Serviços ({{ qtd_servicos or 0 }})</a>
 {% endif %}
 <a class="btn btn--linha" href="{{ url_for('clientes_lista') }}">{{ icone('voltar') }} Voltar</a>
 {% if c.id %}

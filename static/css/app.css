@@ -758,3 +758,12 @@ dialog.dlg::backdrop { background: rgba(20, 20, 25, .45); }
   .rel-linha1 { flex-wrap: wrap; }
   .rel-linha1 > .campo { flex-basis: 100%; }
 }
+
+/* serviço: escolha do veículo do cliente (mesmo carro × outro carro) */
+.veic-opcoes { display: flex; flex-direction: column; gap: 6px; margin-bottom: 4px; }
+.veic-opcao { display: flex; align-items: center; gap: 8px; padding: 8px 10px; cursor: pointer;
+              border: 1px solid var(--linha); border-radius: 8px; font-size: 13px; }
+.veic-opcao:hover { border-color: var(--laranja); }
+.veic-opcao:has(input:checked) { border-color: var(--laranja); background: var(--laranja-fraco); }
+.veic-opcao input { accent-color: var(--laranja); margin: 0; }
+#veiculo-campos input[readonly] { background: var(--fundo); color: var(--texto-suave); }

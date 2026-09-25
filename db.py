@@ -146,6 +146,12 @@ CREATE TABLE IF NOT EXISTS status_apolice (
     UNIQUE KEY ix_status_apolice_nome_unico (nome)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS tipo_servico (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nome VARCHAR(191) NOT NULL,
+    UNIQUE KEY ix_tipo_servico_nome_unico (nome)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- regras dos avisos (painel, contador do menu, listas e e-mail diario); uma linha por tipo
 CREATE TABLE IF NOT EXISTS regra_aviso (
     tipo VARCHAR(40) PRIMARY KEY,
@@ -584,6 +590,115 @@ CREATE TABLE IF NOT EXISTS recibo (
         REFERENCES nota_fiscal(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- servico (ex.: assistencia, vidros, rastreador) contratado para o carro do cliente:
+-- mesmos campos de pagamento/comissao da apolice. O veiculo fica gravado no proprio
+-- servico (placa + descricao), escolhido entre os das apolices/endossos do cliente.
+CREATE TABLE IF NOT EXISTS servico (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    cliente_id INT,
+    seguradora_id INT,
+    tipo_servico_id INT,
+    status_apolice_id INT,                       -- reusa as opcoes do status da apolice
+    numero_apolice TEXT,
+    vigencia_inicio TEXT,
+    vigencia_fim TEXT,
+    veiculo_placa TEXT,
+    veiculo_descricao TEXT,                      -- marca / modelo / ano
+    premio_liquido REAL,
+    iof REAL,
+    premio_total REAL,
+    forma_pagamento_id INT,
+    comissao_percentual REAL,
+    comissao_valor_seguralta_receber REAL,
+    comissao_valor_plenus_receber REAL,
+    comissao_valor_seguralta_recebido REAL,
+    comissao_valor_plenus_recebido REAL,
+    data_seguralta_recebido TEXT,
+    data_plenus_recebido TEXT,
+    recibo_id INT,                               -- repasse unico: recibo ao qual esta associado
+    comissao_parcelada INT NOT NULL DEFAULT 0,
+    comissao_cocorretagem INT NOT NULL DEFAULT 0,
+    data_deposito_cc TEXT,
+    previsto_relatorio_seguralta REAL,
+    recebido_relatorio_seguralta REAL,
+    previsto_relatorio_plenus REAL,
+    recebido_relatorio_plenus REAL,
+    lancado_quiver INT NOT NULL DEFAULT 0,
+    link_onedrive TEXT,
+    observacao TEXT,
+    criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    atualizado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY ix_servico_cliente (cliente_id),
+    CONSTRAINT fk_servico_cliente    FOREIGN KEY (cliente_id)         REFERENCES cliente(id),
+    CONSTRAINT fk_servico_seguradora FOREIGN KEY (seguradora_id)      REFERENCES seguradora(id),
+    CONSTRAINT fk_servico_tipo       FOREIGN KEY (tipo_servico_id)    REFERENCES tipo_servico(id),
+    CONSTRAINT fk_servico_status     FOREIGN KEY (status_apolice_id)  REFERENCES status_apolice(id),
+    CONSTRAINT fk_servico_formapgto  FOREIGN KEY (forma_pagamento_id) REFERENCES forma_pagamento(id),
+    CONSTRAINT fk_servico_recibo     FOREIGN KEY (recibo_id)          REFERENCES recibo(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS servico_parcela (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    servico_id INT NOT NULL,
+    identificacao TEXT,
+    data TEXT,
+    valor REAL,
+    paga INT NOT NULL DEFAULT 0,
+    pago_em TEXT,
+    aviso_ok INT NOT NULL DEFAULT 0,
+    aviso_ok_em TEXT,
+    enviado INT NOT NULL DEFAULT 0,
+    enviado_em TEXT,
+    KEY ix_servico_parcela_servico (servico_id),
+    CONSTRAINT fk_servico_parcela_servico FOREIGN KEY (servico_id)
+        REFERENCES servico(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS servico_comissao (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    servico_id INT NOT NULL,
+    parcela TEXT,
+    valor_previsto REAL,
+    valor_recebido REAL,
+    data TEXT,
+    ordem INT NOT NULL DEFAULT 0,
+    KEY ix_servico_comissao_servico (servico_id),
+    CONSTRAINT fk_servico_comissao_servico FOREIGN KEY (servico_id)
+        REFERENCES servico(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS servico_repasse (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    servico_id INT NOT NULL,
+    parcela TEXT,
+    valor_previsto REAL,
+    valor_recebido REAL,
+    data TEXT,
+    recibo_id INT,
+    data_deposito_cc TEXT,
+    ordem INT NOT NULL DEFAULT 0,
+    KEY ix_servico_repasse_servico (servico_id),
+    CONSTRAINT fk_servico_repasse_servico FOREIGN KEY (servico_id)
+        REFERENCES servico(id) ON DELETE CASCADE,
+    CONSTRAINT fk_servico_repasse_recibo FOREIGN KEY (recibo_id)
+        REFERENCES recibo(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- controle de aviso de vencimento, para as parcelas de boleto do SERVICO
+CREATE TABLE IF NOT EXISTS notificacao_servico_parcela (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    parcela_id INT NOT NULL,
+    marco INT NOT NULL,
+    data_vencimento VARCHAR(32),
+    canal TEXT,
+    destino TEXT,
+    resultado TEXT,
+    enviado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY ix_notif_servico_parcela_unico (parcela_id, marco, data_vencimento),
+    CONSTRAINT fk_notif_servico_parcela FOREIGN KEY (parcela_id)
+        REFERENCES servico_parcela(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- eventos criados no Google Agenda (1 por apolice/parcela) para nao duplicar
 CREATE TABLE IF NOT EXISTS evento_agenda (
     chave VARCHAR(191) PRIMARY KEY,  -- 'vigencia:<apolice_id>' | 'boleto:<parcela_id>'
@@ -620,6 +735,7 @@ _COLUNAS_ESPERADAS = {
     "tipo_consorcio": {"nome": "VARCHAR(191)"},
     "conta_origem": {"nome": "VARCHAR(191)"},
     "status_apolice": {"nome": "VARCHAR(191)"},
+    "tipo_servico": {"nome": "VARCHAR(191)"},
     "regra_aviso": {
         "ativo": "INT NOT NULL DEFAULT 1", "campo_base": "VARCHAR(40) NOT NULL DEFAULT ''",
         "dias_inicio": "INT NOT NULL DEFAULT 0", "dias_parar_apos": "INT",
@@ -794,6 +910,46 @@ _COLUNAS_ESPERADAS = {
         "data_envio": "TEXT", "observacao": "TEXT",
         "criado_em": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
         "atualizado_em": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+    },
+    "servico": {
+        "cliente_id": "INT", "seguradora_id": "INT", "tipo_servico_id": "INT",
+        "status_apolice_id": "INT", "numero_apolice": "TEXT",
+        "vigencia_inicio": "TEXT", "vigencia_fim": "TEXT",
+        "veiculo_placa": "TEXT", "veiculo_descricao": "TEXT",
+        "premio_liquido": "REAL", "iof": "REAL", "premio_total": "REAL",
+        "forma_pagamento_id": "INT", "comissao_percentual": "REAL",
+        "comissao_valor_seguralta_receber": "REAL", "comissao_valor_plenus_receber": "REAL",
+        "comissao_valor_seguralta_recebido": "REAL", "comissao_valor_plenus_recebido": "REAL",
+        "data_seguralta_recebido": "TEXT", "data_plenus_recebido": "TEXT", "recibo_id": "INT",
+        "comissao_parcelada": "INT NOT NULL DEFAULT 0",
+        "comissao_cocorretagem": "INT NOT NULL DEFAULT 0",
+        "data_deposito_cc": "TEXT",
+        "previsto_relatorio_seguralta": "REAL", "recebido_relatorio_seguralta": "REAL",
+        "previsto_relatorio_plenus": "REAL", "recebido_relatorio_plenus": "REAL",
+        "lancado_quiver": "INT NOT NULL DEFAULT 0", "link_onedrive": "TEXT",
+        "observacao": "TEXT",
+        "criado_em": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+        "atualizado_em": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+    },
+    "servico_parcela": {
+        "servico_id": "INT", "identificacao": "TEXT", "data": "TEXT", "valor": "REAL",
+        "paga": "INT NOT NULL DEFAULT 0", "pago_em": "TEXT",
+        "aviso_ok": "INT NOT NULL DEFAULT 0", "aviso_ok_em": "TEXT",
+        "enviado": "INT NOT NULL DEFAULT 0", "enviado_em": "TEXT",
+    },
+    "servico_comissao": {
+        "servico_id": "INT", "parcela": "TEXT", "valor_previsto": "REAL",
+        "valor_recebido": "REAL", "data": "TEXT", "ordem": "INT NOT NULL DEFAULT 0",
+    },
+    "servico_repasse": {
+        "servico_id": "INT", "parcela": "TEXT", "valor_previsto": "REAL",
+        "valor_recebido": "REAL", "data": "TEXT", "recibo_id": "INT",
+        "data_deposito_cc": "TEXT", "ordem": "INT NOT NULL DEFAULT 0",
+    },
+    "notificacao_servico_parcela": {
+        "parcela_id": "INT", "marco": "INT", "data_vencimento": "VARCHAR(32)",
+        "canal": "TEXT", "destino": "TEXT", "resultado": "TEXT",
+        "enviado_em": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
     },
     "notificacao_vencimento": {
         "apolice_id": "INT", "marco": "INT", "vigencia_fim": "VARCHAR(32)",

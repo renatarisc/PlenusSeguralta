@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block titulo %}Serviços{% endblock %}
+{% block cabecalho %}Serviços{% if cliente_filtro %} · <span style="color:var(--texto-suave);font-weight:600">{{ cliente_filtro.nome }}</span>{% endif %}{% endblock %}
+
+{% block acoes %}
+{% if cliente_filtro %}
+<a class="btn btn--linha" href="{{ url_for('servicos_lista') }}">{{ icone('servico') }} Ver todos</a>
+{% endif %}
+<a class="btn btn--primario" href="{{ url_for('servico_form', cliente=cliente_filtro.id) if cliente_filtro else url_for('servico_form') }}">{{ icone('mais') }} Novo serviço</a>
+{% endblock %}
+
+{% block conteudo %}
+{% if not cliente_filtro %}
+<form class="cartao filtros" method="get">
+  <div class="grade">
+    <div class="campo c-4">
+      <label for="f-busca">Buscar</label>
+      <div class="campo-busca">
+        {{ icone('busca') }}
+        <input id="f-busca" type="search" name="busca" value="{{ busca }}"
+               placeholder="Cliente, nº da apólice ou placa" onfocus="this.select()">
+      </div>
+    </div>
+    <div class="campo c-2">
+      <label for="f-tipo">Tipo de serviço</label>
+      <select id="f-tipo" name="tipo">
+        <option value="">Todos</option>
+        {% for t in tipos_servico %}
+        <option value="{{ t.id }}" {{ 'selected' if tipo_id == t.id }}>{{ t.nome }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="campo c-2">
+      <label for="f-seguradora">Seguradora</label>
+      <select id="f-seguradora" name="seguradora">
+        <option value="">Todas</option>
+        {% for s in seguradoras %}
+        <option value="{{ s.id }}" {{ 'selected' if seguradora_id == s.id }}>{{ s.nome }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="campo c-2">
+      <label for="f-status">Status</label>
+      <select id="f-status" name="status">
+        <option value="">Todos</option>
+        {% for st in status_apolice_opcoes %}
+        <option value="{{ st.id }}" {{ 'selected' if status_id == st.id }}>{{ st.nome }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="campo c-2">
+      <label for="f-quiver">Lançado no Quiver</label>
+      <select id="f-quiver" name="quiver">
+        <option value="">Todos</option>
+        <option value="1" {{ 'selected' if quiver == '1' }}>Sim</option>
+        <option value="0" {{ 'selected' if quiver == '0' }}>Não</option>
+      </select>
+    </div>
+  </div>
+  <div class="filtros__acoes">
+    <button class="btn btn--primario" type="submit">{{ icone('busca') }} Buscar</button>
+    {% if tem_filtro %}<a class="btn btn--linha" href="{{ url_for('servicos_lista') }}">Limpar</a>{% endif %}
+  </div>
+</form>
+{% endif %}
+
+{% set url_lista = url_for('servicos_lista', **request.args) %}
+<div class="cartao" style="padding:0">
+  {% if servicos %}
+  <div class="tabela-wrap">
+    <table class="lista">
+      <thead>
+        <tr>
+          <th class="col-cliente">Cliente</th>
+          <th>Tipo de serviço</th>
+          <th>Veículo</th>
+          <th>Número da apólice</th>
+          <th>Seguradora</th>
+          <th style="width:150px">Vigência</th>
+          <th style="width:110px">Status</th>
+          <th style="width:150px" class="col-prox">Próxima parcela</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in servicos %}
+        <tr>
+          <td class="col-cliente">{% if s.cliente_tipo_pessoa == 'J' %}<span class="tag-pj" title="Pessoa jurídica">PJ</span>{% endif %}<a class="cel-nome" href="{{ url_for('servico_form', servico_id=s.id, voltar=url_lista) }}">{{ s.cliente_nome or 'Sem cliente' }}</a></td>
+          <td>{{ s.tipo_servico_nome or '—' }}</td>
+          <td>{% if s.veiculo_placa or s.veiculo_descricao %}<strong>{{ s.veiculo_placa or '' }}</strong>{% if s.veiculo_descricao %} <span class="meta">{{ s.veiculo_descricao }}</span>{% endif %}{% else %}—{% endif %}</td>
+          <td>{{ s.numero_apolice or '—' }}</td>
+          <td>{{ s.seguradora_nome or '—' }}</td>
+          <td class="vig-datas">
+            {% if s.vigencia_inicio or s.vigencia_fim %}{{ s.vigencia_inicio|data_br }} a {{ s.vigencia_fim|data_br }}{% else %}—{% endif %}
+          </td>
+          <td>{{ s.status_apolice_nome or '—' }}</td>
+          <td class="col-prox">
+            {% if s.proxima_parcela_data %}
+              {{ s.proxima_parcela_data|data_br }}
+              {% set pd = dias_ate(s.proxima_parcela_data) %}
+              {% if pd is not none and pd < 0 %}<span class="tag-venc tag-venc--fim">vencida há {{ -pd }}d</span>
+              {% elif pd is not none and pd <= 10 %}<span class="tag-venc">{{ 'vence hoje' if pd == 0 else 'vence em ' ~ pd ~ 'd' }}</span>{% endif %}
+            {% elif s.total_parcelas %}<span class="selo-quitado" title="Todas as parcelas quitadas">{{ icone('ok') }}</span>
+            {% else %}—{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="vazio">{% if tem_filtro %}Nenhum serviço encontrado para o filtro.{% elif cliente_filtro %}Nenhum serviço cadastrado para este cliente.{% else %}Nenhum serviço cadastrado ainda.{% endif %}</p>
+  {% endif %}
+</div>
+{% endblock %}

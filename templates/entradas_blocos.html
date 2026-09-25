@@ -71,10 +71,11 @@
 {% endmacro %}
 
 {% macro bloco(b) %}
-<section class="ent-bloco{{ ' ent-bloco--endosso' if b.is_endosso or b.is_consorcio }}" data-bloco{% if b.is_consorcio %} data-consorcio="1"{% endif %}{% if b.cocorretagem %} data-coco="1"{% endif %}>
+<section class="ent-bloco{{ ' ent-bloco--endosso' if b.is_endosso or b.is_consorcio or b.is_servico }}" data-bloco{% if b.is_consorcio %} data-consorcio="1"{% endif %}{% if b.cocorretagem %} data-coco="1"{% endif %}>
   <header class="ent-bloco__cab">
     <strong>{{ b.cliente_nome }}</strong>
     <small>{% if b.is_consorcio %}· <a href="{{ url_for('consorcio_form', consorcio_id=b.consorcio_id) }}" class="ent-ap-link" target="_blank" rel="noopener">consórcio grupo {{ b.consorcio_grupo or '' }}</a>
+      {%- elif b.is_servico %}· <a href="{{ url_for('servico_form', servico_id=b.servico_id) }}" class="ent-ap-link" target="_blank" rel="noopener" title="Abrir o serviço em outra aba">serviço{{ ' ' ~ b.tipo_seguro_nome if b.tipo_seguro_nome }} {{ b.numero_apolice or '' }}</a>
       {%- else %}· apólice
       <a href="{{ url_for('apolice_form', apolice_id=b.apolice_id) }}" class="ent-ap-link"
          target="_blank" rel="noopener" title="Abrir a apólice em outra aba">{{ b.numero_apolice or 'abrir' }}</a>
@@ -82,11 +83,11 @@
       {%- if b.seguradora_nome %} · {{ b.seguradora_nome }}{% endif %}
       · {{ 'valor da carta' if b.is_consorcio else 'valor' if b.is_endosso else 'prêmio líquido' }} {{ b.premio_liquido|moeda }}
       · comissão {% if b.comissao_percentual is not none %}{{ (b.comissao_percentual|numero).rstrip('0').rstrip(',') }}%{% else %}—{% endif %}
-      {%- if b.comissao_valor is not none %} (Seguralta {{ b.comissao_seguralta|moeda }} | Plenus {{ b.comissao_plenus|moeda }}{% if b.tipo_seguro_nome and 'vida' in b.tipo_seguro_nome|lower and not b.is_endosso and not b.is_consorcio %} - Valores mensais{% endif %}){% endif %}
+      {%- if b.comissao_valor is not none %} (Seguralta {{ b.comissao_seguralta|moeda }} | Plenus {{ b.comissao_plenus|moeda }}{% if b.tipo_seguro_nome and 'vida' in b.tipo_seguro_nome|lower and not b.is_endosso and not b.is_consorcio and not b.is_servico %} - Valores mensais{% endif %}){% endif %}
       {%- if not b.comissao_parcelada %} · repasse único{% endif %}
       {%- if b.cocorretagem %} · COCORRETAGEM{% endif %}</small>
   </header>
-  <form method="post" action="{{ url_for('entradas_salvar_consorcio', consorcio_id=b.consorcio_id) if b.is_consorcio else url_for('entradas_salvar_endosso', endosso_id=b.endosso_id) if b.is_endosso else url_for('entradas_salvar_apolice', apolice_id=b.apolice_id) }}" class="ent-bloco__form">
+  <form method="post" action="{{ url_for('entradas_salvar_consorcio', consorcio_id=b.consorcio_id) if b.is_consorcio else url_for('entradas_salvar_servico', servico_id=b.servico_id) if b.is_servico else url_for('entradas_salvar_endosso', endosso_id=b.endosso_id) if b.is_endosso else url_for('entradas_salvar_apolice', apolice_id=b.apolice_id) }}" class="ent-bloco__form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="voltar" value="{{ url_for('entradas_lista', **request.args) }}">
     <input type="hidden" name="comissao_parcelada" value="{{ '1' if b.comissao_parcelada else '0' }}">
@@ -128,7 +129,7 @@
       <button type="button" class="btn btn--linha btn--mini" data-ver-todas>Ver +{{ escondidas|length }} parcela{{ 's' if escondidas|length != 1 else '' }} fora do filtro</button>
       {% endif %}
       {% endif %}
-      <button type="submit" class="btn btn--primario btn--mini">Salvar {{ 'este consórcio' if b.is_consorcio else 'este endosso' if b.is_endosso else 'esta apólice' }}</button>
+      <button type="submit" class="btn btn--primario btn--mini">Salvar {{ 'este consórcio' if b.is_consorcio else 'este serviço' if b.is_servico else 'este endosso' if b.is_endosso else 'esta apólice' }}</button>
       <small class="ent-bloco__soma">
         <span data-soma>Seguralta recebido {{ b.soma_seguralta|moeda }} | Plenus pago {{ b.soma_plenus|moeda }}</span>
       </small>

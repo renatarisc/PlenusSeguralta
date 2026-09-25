@@ -79,7 +79,7 @@
 {% macro apolice_ent(ap, modo='completo', topo=false) %}
 <tr class="rel-cab rel-cab--3{{ ' rel-ap-topo' if topo }}"><td colspan="6">
   <strong>{{ ap.cliente_nome }}</strong>
-  <small>· {{ 'consórcio' if ap.is_consorcio else 'endosso' if ap.is_endosso else 'apólice' }} {{ ap.numero_apolice or '—' }}
+  <small>· {{ 'consórcio' if ap.is_consorcio else 'serviço' if ap.is_servico else 'endosso' if ap.is_endosso else 'apólice' }} {{ ap.numero_apolice or '—' }}
     · {{ 'valor da carta' if ap.is_consorcio else 'prêmio líquido' }} {{ ap.premio_liquido|moeda }}
     · comissão {% if ap.comissao_percentual is not none %}{{ (ap.comissao_percentual|numero).rstrip('0').rstrip(',') }}%{% else %}—{% endif %}
     {%- if ap.comissao_plenus is not none %} (Plenus {{ ap.comissao_plenus|moeda }}){% endif %}</small>

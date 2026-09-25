@@ -324,7 +324,12 @@ def validar_apolice(dados):
         erros.append("Selecione a seguradora.")
     if not (dados.get("numero_apolice") or "").strip():
         erros.append("Informe o número da apólice.")
+    return erros + _erros_vigencia_valores(dados)
 
+
+def _erros_vigencia_valores(dados):
+    """Regras comuns a apólice e serviço: vigência, campos numéricos e percentual."""
+    erros = []
     ini = (dados.get("vigencia_inicio") or "").strip()
     fim = (dados.get("vigencia_fim") or "").strip()
     if ini and fim and fim < ini:
@@ -346,6 +351,19 @@ def validar_apolice(dados):
         erros.append("Comissão (%) deve ficar entre 0 e 100.")
 
     return erros
+
+
+# ---------- validação do serviço ----------
+
+def validar_servico(dados):
+    erros = []
+    if not (dados.get("cliente_id") or "").strip():
+        erros.append("Selecione o cliente.")
+    if not (dados.get("tipo_servico_id") or "").strip():
+        erros.append("Selecione o tipo de serviço.")
+    if not (dados.get("seguradora_id") or "").strip():
+        erros.append("Selecione a seguradora.")
+    return erros + _erros_vigencia_valores(dados)
 
 
 # ---------- validação do endosso ----------

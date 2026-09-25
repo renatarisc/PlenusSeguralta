@@ -372,8 +372,9 @@ def _walk_ent(node, nivel, rows, sty, modo="completo"):
             pct = "—"
         if ap.get("comissao_plenus") is not None:
             pct += " (Plenus %s)" % _m(ap["comissao_plenus"])
-        cab = "%s   ·   apólice %s   ·   prêmio líquido %s   ·   comissão %s" % (
-            ap["cliente_nome"], ap.get("numero_apolice") or "—",
+        cab = "%s   ·   %s %s   ·   prêmio líquido %s   ·   comissão %s" % (
+            ap["cliente_nome"], "serviço" if ap.get("is_servico") else "apólice",
+            ap.get("numero_apolice") or "—",
             _m(ap.get("premio_liquido")), pct)
         _cab_ent(rows, sty, 3, cab, fundo_ap, 0.4)
         if ap.get("divergencia"):

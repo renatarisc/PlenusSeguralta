@@ -79,6 +79,9 @@
             {% if p.origem == 'consorcio' %}
               <a class="cel-link" href="{{ url_for('consorcio_form', consorcio_id=p.consorcio_id) }}">{{ p.tipo_seguro_nome or 'Consórcio' }}{% if p.seguradora_nome %} · {{ p.seguradora_nome }}{% endif %}</a>
               <span class="tag-endosso">consórcio</span>
+            {% elif p.origem == 'servico' %}
+              <a class="cel-link" href="{{ url_for('servico_form', servico_id=p.servico_id) }}">{{ p.numero_apolice or '—' }}</a>
+              <span class="tag-endosso">serviço{{ ' ' ~ p.tipo_seguro_nome if p.tipo_seguro_nome }}</span>
             {% else %}
               <a class="cel-link" href="{{ url_for('apolice_form', apolice_id=p.apolice_id) }}">{{ p.numero_apolice or '—' }}</a>
               {% if p.origem == 'endosso' %}<span class="tag-endosso">endosso {{ p.endosso_numero or '' }}</span>{% endif %}
@@ -118,7 +121,7 @@
     </table>
   </div>
   <p style="margin:12px 0 0;font-size:12px;color:var(--texto-suave)">
-    Parcelas de apólices, endossos e consórcios com pagamento em boleto. {{ aviso_desc('boleto_vencer') }}
+    Parcelas de apólices, endossos, serviços e consórcios com pagamento em boleto. {{ aviso_desc('boleto_vencer') }}
     O e-mail se repete todo dia enquanto estiver pendente.
   </p>
 </div>
@@ -140,6 +143,9 @@
             {% if p.origem == 'consorcio' %}
               <a class="cel-link" href="{{ url_for('consorcio_form', consorcio_id=p.consorcio_id) }}">{{ p.tipo_consorcio_nome or 'Consórcio' }}{% if p.seguradora_nome %} · {{ p.seguradora_nome }}{% endif %}</a>
               <span class="tag-endosso">consórcio</span>
+            {% elif p.origem == 'servico' %}
+              <a class="cel-link" href="{{ url_for('servico_form', servico_id=p.servico_id) }}">{{ p.numero_apolice or '—' }}</a>
+              <span class="tag-endosso">serviço{{ ' ' ~ p.tipo_seguro_nome if p.tipo_seguro_nome }}</span>
             {% else %}
               <a class="cel-link" href="{{ url_for('apolice_form', apolice_id=p.apolice_id) }}">{{ p.numero_apolice or '—' }}</a>
               {% if p.origem == 'endosso' %}<span class="tag-endosso">endosso {{ p.endosso_numero or '' }}</span>{% endif %}
@@ -175,7 +181,7 @@
     Boletos que a Plenus precisa repassar ao cliente. Clique em <strong>✓ enviei</strong> só
     depois de mandar o boleto para o cliente.<br>
     Consórcio: {{ aviso_desc('boleto_enviar_consorcio') }}<br>
-    Apólice e endosso: {{ aviso_desc('boleto_enviar_apolice') }}
+    Apólice, endosso e serviço: {{ aviso_desc('boleto_enviar_apolice') }}
   </p>
 </div>
 {% endif %}
