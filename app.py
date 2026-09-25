@@ -725,7 +725,8 @@ def apolice_form(apolice_id=None):
                 parcelas=parcelas)
             return render_template("apolices_form.html", ativo="apolices",
                                    apolice=apolice, **_dados_form_apolice(),
-                                   qtd_endossos=repo.contar_endossos_por_apolice(apolice_id) if apolice_id else 0)
+                                   qtd_endossos=repo.contar_endossos_por_apolice(apolice_id) if apolice_id else 0,
+                           qtd_servicos=repo.contar_servicos_por_apolice(apolice_id) if apolice_id else 0)
         if apolice_id:
             repo.atualizar_apolice(apolice_id, dados, parcelas, comissoes, repasses)
             flash("Apólice atualizada.", "ok")
@@ -747,12 +748,18 @@ def apolice_form(apolice_id=None):
             apolice = {"cliente_id": cliente_id}
     return render_template("apolices_form.html", ativo="apolices",
                            apolice=_apolice_para_form(apolice), **_dados_form_apolice(),
-                           qtd_endossos=repo.contar_endossos_por_apolice(apolice_id) if apolice_id else 0)
+                           qtd_endossos=repo.contar_endossos_por_apolice(apolice_id) if apolice_id else 0,
+                           qtd_servicos=repo.contar_servicos_por_apolice(apolice_id) if apolice_id else 0)
 
 
 @app.route("/apolices/<int:apolice_id>/excluir", methods=["POST"])
 def apolice_excluir(apolice_id):
-    repo.excluir_apolice(apolice_id)
+    try:
+        repo.excluir_apolice(apolice_id)
+    except IntegrityError:
+        flash("Não é possível excluir: esta apólice tem serviço(s) vinculado(s). "
+              "Exclua-os ou troque a apólice deles primeiro.", "erro")
+        return redirect(url_for("apolice_form", apolice_id=apolice_id))
     flash("Apólice excluída.", "ok")
     return redirect(url_for("apolices"))
 
@@ -1075,8 +1082,8 @@ def consorcio_excluir(consorcio_id):
 # ---------- Serviços ----------
 
 _CAMPOS_SERVICO = (
-    "cliente_id", "seguradora_id", "tipo_servico_id", "status_apolice_id", "numero_apolice",
-    "vigencia_inicio", "vigencia_fim", "veiculo_placa", "veiculo_descricao",
+    "cliente_id", "apolice_id", "seguradora_id", "tipo_servico_id", "status_apolice_id",
+    "numero_proposta", "vigencia_inicio", "vigencia_fim",
     "premio_liquido", "iof", "premio_total",
     "forma_pagamento_id", "comissao_percentual",
     "comissao_valor_seguralta_receber", "comissao_valor_plenus_receber",
@@ -1102,18 +1109,21 @@ def _dados_form_servico():
 @app.route("/servicos")
 def servicos_lista():
     cliente_id = request.args.get("cliente", type=int)
+    apolice_id = request.args.get("apolice", type=int)
     tipo_id = request.args.get("tipo", type=int)
     seguradora_id = request.args.get("seguradora", type=int)
     status_id = request.args.get("status", type=int)
     busca = request.args.get("busca", "").strip()
     quiver_arg = request.args.get("quiver", "")
     quiver = 1 if quiver_arg == "1" else 0 if quiver_arg == "0" else None
+    apolice_filtro = repo.obter_apolice_basico(apolice_id) if apolice_id else None
     return render_template(
         "servicos_lista.html", ativo="servicos_lista",
         servicos=repo.listar_servicos(cliente_id=cliente_id, busca=busca or None, quiver=quiver,
                                       tipo_servico_id=tipo_id, seguradora_id=seguradora_id,
-                                      status_apolice_id=status_id),
+                                      status_apolice_id=status_id, apolice_id=apolice_id),
         cliente_filtro=repo.obter_cliente(cliente_id) if cliente_id else None,
+        apolice_filtro=apolice_filtro, apolice_id=apolice_id,
         busca=busca, quiver=quiver_arg, tipo_id=tipo_id, seguradora_id=seguradora_id,
         status_id=status_id,
         tem_filtro=bool(busca or quiver_arg or tipo_id or seguradora_id or status_id),
@@ -1162,6 +1172,10 @@ def servico_form(servico_id=None):
         if not dados.get("comissao_parcelada"):  # modo "único": ignora as tabelas
             comissoes, repasses, erros_com, erros_rep = [], [], [], []
         erros = validar_servico(dados) + erros_parc + erros_com + erros_rep
+        ap = (repo.obter_apolice_basico(int(dados["apolice_id"]))
+              if dados["apolice_id"].isdigit() else None)
+        if dados["apolice_id"] and (not ap or str(ap.get("cliente_id")) != dados["cliente_id"]):
+            erros.append("A apólice escolhida não é deste cliente.")
         if erros:
             for e in erros:
                 flash(e, "erro")
@@ -1169,7 +1183,7 @@ def servico_form(servico_id=None):
                                      "repasses": repasses}, parcelas=parcelas)
             return render_template("servicos_form.html", ativo="servicos_lista", servico=sv,
                                    voltar=voltar,
-                                   veiculos=repo.veiculos_do_cliente(dados.get("cliente_id")),
+                                   apolices=_apolices_do_cliente(dados.get("cliente_id")),
                                    **_dados_form_servico())
         if servico_id:
             repo.atualizar_servico(servico_id, dados, parcelas, comissoes, repasses)
@@ -1182,19 +1196,37 @@ def servico_form(servico_id=None):
         return redirect(voltar or url_for("servicos_lista"))
 
     if servico is None:
-        cliente_id = request.args.get("cliente", type=int)
+        # "Novo serviço" vindo da apólice (?apolice=) ou da ficha do cliente (?cliente=)
+        ap_id = request.args.get("apolice", type=int)
+        ap = repo.obter_apolice_basico(ap_id) if ap_id else None
+        cliente_id = (ap or {}).get("cliente_id") or request.args.get("cliente", type=int)
         if cliente_id and repo.obter_cliente(cliente_id):
             servico = {"cliente_id": cliente_id}
+            if ap:
+                servico["apolice_id"] = ap["id"]
     return render_template("servicos_form.html", ativo="servicos_lista",
                            servico=_apolice_para_form(servico), voltar=voltar,
-                           veiculos=repo.veiculos_do_cliente((servico or {}).get("cliente_id")),
+                           apolices=_apolices_do_cliente((servico or {}).get("cliente_id")),
                            **_dados_form_servico())
 
 
-@app.route("/servicos/veiculos/<int:cliente_id>")
-def servico_veiculos(cliente_id):
-    """Veículos já cadastrados do cliente (JSON) — o formulário troca a lista ao mudar o cliente."""
-    return jsonify(veiculos=repo.veiculos_do_cliente(cliente_id))
+def _apolices_do_cliente(cliente_id):
+    """Apólices do cliente para o card "Apólice" do serviço (mais nova primeiro)."""
+    if not str(cliente_id or "").isdigit():
+        return []
+    return [{"id": a["id"], "numero_apolice": a.get("numero_apolice") or "",
+             "tipo_seguro_nome": a.get("tipo_seguro_nome") or "",
+             "seguradora_nome": a.get("seguradora_nome") or "",
+             "status_apolice_nome": a.get("status_apolice_nome") or "",
+             "vigencia": " a ".join(formatar_data_br(v) for v in (a.get("vigencia_inicio"),
+                                                                 a.get("vigencia_fim")) if v)}
+            for a in repo.listar_apolices(cliente_id=int(cliente_id))]
+
+
+@app.route("/servicos/apolices/<int:cliente_id>")
+def servico_apolices(cliente_id):
+    """Apólices do cliente (JSON) — o formulário troca a lista ao mudar o cliente."""
+    return jsonify(apolices=_apolices_do_cliente(cliente_id))
 
 
 @app.route("/servicos/<int:servico_id>/excluir", methods=["POST"])

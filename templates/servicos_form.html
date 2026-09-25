@@ -52,7 +52,7 @@
              target="_blank" rel="noopener" {{ 'hidden' if not a.cliente_id }}>abrir ficha</a>
         </label>
         <select id="cliente_id" name="cliente_id" required
-                data-url-veiculos="{{ url_for('servico_veiculos', cliente_id=0) }}">
+                data-url-apolices="{{ url_for('servico_apolices', cliente_id=0) }}">
           <option value="">—</option>
           {% for c in clientes %}
           <option value="{{ c.id }}" {{ 'selected' if a.cliente_id|string == c.id|string }}>{{ c.nome }}</option>
@@ -83,8 +83,8 @@
         </select>
       </div>
       <div class="campo c-2">
-        <label for="numero_apolice">Número da apólice</label>
-        <input id="numero_apolice" name="numero_apolice" value="{{ a.numero_apolice or '' }}">
+        <label for="numero_proposta">Número da proposta</label>
+        <input id="numero_proposta" name="numero_proposta" value="{{ a.numero_proposta or '' }}">
       </div>
       <div class="campo c-2">
         <label for="vigencia_inicio">Vigência — início</label>
@@ -108,38 +108,30 @@
     </div>
   </div>
 
-  {# veículo: lista os carros que o cliente já tem cadastrados (apólices, endossos, outros
-     serviços) para confirmar que é o mesmo, ou libera os campos para um carro novo.
-     servico.js monta/atualiza a lista quando o cliente muda. #}
-  <div class="cartao" id="card-veiculo-servico">
-    <h2>Veículo</h2>
-    <div id="veiculos-cliente" class="veic-opcoes"
-         data-placa="{{ a.veiculo_placa or '' }}" data-descricao="{{ a.veiculo_descricao or '' }}">
-      {% for v in veiculos or [] %}
-      <label class="veic-opcao">
-        <input type="radio" name="veiculo_escolha" value="{{ loop.index0 }}"
-               data-placa="{{ v.placa }}" data-descricao="{{ v.descricao }}">
-        <span><strong>{{ v.placa or 'sem placa' }}</strong> {{ v.descricao or '' }}
-          <small class="meta">— {{ v.origem }}</small></span>
+  {# apólice: o serviço fica ligado a uma apólice que o cliente já tem.
+     servico.js troca a lista quando o cliente muda. #}
+  <div class="cartao" id="card-apolice-servico">
+    <h2>Apólice *</h2>
+    <div id="apolices-cliente" class="ap-opcoes">
+      {% for ap in apolices or [] %}
+      <label class="ap-opcao">
+        <input type="radio" name="apolice_id" value="{{ ap.id }}"
+               {{ 'checked' if a.apolice_id|string == ap.id|string }}>
+        <span><strong>{{ ap.numero_apolice or 'sem número' }}</strong>
+          {% if ap.tipo_seguro_nome %} · {{ ap.tipo_seguro_nome }}{% endif %}
+          {% if ap.seguradora_nome %} · {{ ap.seguradora_nome }}{% endif %}
+          {% if ap.vigencia %} <small class="meta">· vigência {{ ap.vigencia }}</small>{% endif %}
+          {% if ap.status_apolice_nome %} <small class="meta">· {{ ap.status_apolice_nome }}</small>{% endif %}</span>
+        <a class="link-abrir" href="{{ url_for('apolice_form', apolice_id=ap.id) }}" target="_blank" rel="noopener">abrir</a>
       </label>
       {% endfor %}
-      <label class="veic-opcao">
-        <input type="radio" name="veiculo_escolha" value="novo">
-        <span>Cadastrar outro carro</span>
-      </label>
     </div>
-    <p class="dica" id="veiculos-dica" style="margin:4px 0 12px"></p>
-    <div class="grade" id="veiculo-campos">
-      <div class="campo c-3">
-        <label for="veiculo_placa">Placa</label>
-        <input id="veiculo_placa" name="veiculo_placa" maxlength="8" autocapitalize="characters"
-               style="text-transform:uppercase" value="{{ a.veiculo_placa or '' }}">
-      </div>
-      <div class="campo c-9">
-        <label for="veiculo_descricao">Veículo (marca / modelo / ano)</label>
-        <input id="veiculo_descricao" name="veiculo_descricao" value="{{ a.veiculo_descricao or '' }}">
-      </div>
-    </div>
+    <p class="dica" id="apolices-dica" style="margin:4px 0 0">
+      {% if not a.cliente_id %}Selecione o cliente para ver as apólices dele.
+      {% elif not apolices %}Este cliente ainda não tem apólice cadastrada —
+        <a href="{{ url_for('apolice_form', cliente=a.cliente_id) }}" target="_blank" rel="noopener">cadastrar apólice</a>.
+      {% else %}Escolha a apólice à qual este serviço está ligado.{% endif %}
+    </p>
   </div>
 
   <div class="cartao">

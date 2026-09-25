@@ -262,12 +262,9 @@ def _ref_boleto(p):
 
 
 def _rotulo_servico(p):
-    """'<tipo> <nº da apólice> (placa XXX)' — o que identifica um serviço no e-mail."""
-    partes = [p.get("tipo_seguro_nome") or "", p.get("numero_apolice") or ""]
-    txt = " ".join(x for x in partes if x).strip() or "(sem número)"
-    if p.get("veiculo_placa"):
-        txt += f" (placa {p['veiculo_placa']})"
-    return txt
+    """'<tipo> da apólice <nº>' — o que identifica um serviço no e-mail."""
+    tipo = p.get("tipo_seguro_nome") or ""
+    return f"{tipo} da apólice {p.get('numero_apolice') or '(sem número)'}".strip()
 
 
 def texto_boletos_a_enviar(itens):

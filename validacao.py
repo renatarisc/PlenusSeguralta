@@ -361,6 +361,8 @@ def validar_servico(dados):
         erros.append("Selecione o cliente.")
     if not (dados.get("tipo_servico_id") or "").strip():
         erros.append("Selecione o tipo de serviço.")
+    if not (dados.get("apolice_id") or "").strip():
+        erros.append("Escolha a apólice do cliente à qual o serviço está ligado.")
     if not (dados.get("seguradora_id") or "").strip():
         erros.append("Selecione a seguradora.")
     return erros + _erros_vigencia_valores(dados)

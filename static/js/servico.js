@@ -1,124 +1,79 @@
-/* Formulário de serviço: card "Veículo".
-   Mostra os carros que o cliente já tem cadastrados (apólices, endossos, outros serviços)
-   para confirmar que é o mesmo, ou "Cadastrar outro carro" (libera placa/descrição).
-   Pagamento e comissão são os mesmos da apólice (apolice.js + comissao.js). */
+/* Formulário de serviço: card "Apólice".
+   Lista as apólices do cliente escolhido para ligar o serviço a uma delas; ao trocar o
+   cliente, a lista é recarregada. Pagamento e comissão são os mesmos da apólice
+   (apolice.js + comissao.js). */
 (function () {
   "use strict";
 
   const selCliente = document.getElementById("cliente_id");
-  const box = document.getElementById("veiculos-cliente");
-  const campos = document.getElementById("veiculo-campos");
-  const dica = document.getElementById("veiculos-dica");
-  const inPlaca = document.getElementById("veiculo_placa");
-  const inDesc = document.getElementById("veiculo_descricao");
-  if (!selCliente || !box || !campos || !inPlaca || !inDesc) return;
+  const box = document.getElementById("apolices-cliente");
+  const dica = document.getElementById("apolices-dica");
+  if (!selCliente || !box || !dica) return;
 
-  const norm = (s) => (s || "").trim().toUpperCase();
-  const radios = () => Array.from(box.querySelectorAll('input[name="veiculo_escolha"]'));
-  const radioNovo = () => box.querySelector('input[name="veiculo_escolha"][value="novo"]');
-  const qtdVeiculos = () => radios().length - 1;
-
-  function travarCampos(travar) {
-    [inPlaca, inDesc].forEach((el) => {
-      if (travar) el.setAttribute("readonly", "readonly");
-      else el.removeAttribute("readonly");
-    });
-  }
-
-  function aplicar(radio, focar) {
-    if (!radio) {                       // nada escolhido ainda: esconde os campos
-      campos.hidden = true;
-      return;
-    }
-    campos.hidden = false;
-    if (radio.value === "novo") {
-      // vindo de um carro da lista: limpa pra digitar o novo
-      if (inPlaca.hasAttribute("readonly")) { inPlaca.value = ""; inDesc.value = ""; }
-      travarCampos(false);
-      if (focar) inPlaca.focus();
-    } else {
-      inPlaca.value = radio.dataset.placa || "";
-      inDesc.value = radio.dataset.descricao || "";
-      travarCampos(true);
-    }
-  }
-
-  function atualizarDica() {
-    const n = qtdVeiculos();
-    dica.textContent = !selCliente.value
-      ? "Selecione o cliente para ver os veículos dele."
-      : n === 0
-        ? "Este cliente ainda não tem veículo cadastrado — informe o carro abaixo."
-        : "Confirme se é um destes carros do cliente ou cadastre outro.";
-  }
-
-  // escolha inicial: o carro gravado no serviço, se estiver na lista; senão "outro carro"
-  function selecionarInicial(placa, descricao) {
-    const alvo = radios().find((r) => r.value !== "novo" && (
-      norm(placa) ? norm(r.dataset.placa) === norm(placa)
-                  : norm(descricao) && norm(r.dataset.descricao) === norm(descricao)));
-    let escolhido = alvo || null;
-    if (!escolhido && (norm(placa) || norm(descricao) || qtdVeiculos() === 0)) escolhido = radioNovo();
-    radios().forEach((r) => { r.checked = r === escolhido; });
-    if (escolhido && escolhido.value === "novo") {
-      travarCampos(false);
-      campos.hidden = false;
-    } else {
-      aplicar(escolhido, false);
-    }
-  }
-
-  function montarOpcoes(veiculos) {
+  function montarOpcoes(apolices) {
     box.innerHTML = "";
-    const opcao = (valor, montarTexto, dados) => {
+    apolices.forEach((ap) => {
       const lbl = document.createElement("label");
-      lbl.className = "veic-opcao";
+      lbl.className = "ap-opcao";
       const r = document.createElement("input");
       r.type = "radio";
-      r.name = "veiculo_escolha";
-      r.value = valor;
-      if (dados) { r.dataset.placa = dados.placa || ""; r.dataset.descricao = dados.descricao || ""; }
+      r.name = "apolice_id";
+      r.value = ap.id;
       const span = document.createElement("span");
-      montarTexto(span);
-      lbl.append(r, span);
-      box.appendChild(lbl);
-    };
-    veiculos.forEach((v, i) => opcao(String(i), (span) => {
       const b = document.createElement("strong");
-      b.textContent = v.placa || "sem placa";
-      const sm = document.createElement("small");
-      sm.className = "meta";
-      sm.textContent = "— " + (v.origem || "");
-      span.append(b, " " + (v.descricao || "") + " ", sm);
-    }, v));
-    opcao("novo", (span) => { span.textContent = "Cadastrar outro carro"; });
+      b.textContent = ap.numero_apolice || "sem número";
+      span.appendChild(b);
+      [ap.tipo_seguro_nome, ap.seguradora_nome].forEach((t) => { if (t) span.append(" · " + t); });
+      [ap.vigencia ? "vigência " + ap.vigencia : "", ap.status_apolice_nome].forEach((t) => {
+        if (!t) return;
+        const sm = document.createElement("small");
+        sm.className = "meta";
+        sm.textContent = " · " + t;
+        span.appendChild(sm);
+      });
+      const abrir = document.createElement("a");
+      abrir.className = "link-abrir";
+      abrir.href = "/apolices/" + ap.id;
+      abrir.target = "_blank";
+      abrir.rel = "noopener";
+      abrir.textContent = "abrir";
+      lbl.append(r, span, abrir);
+      box.appendChild(lbl);
+    });
+    if (apolices.length === 1) box.querySelector("input").checked = true;
   }
 
-  box.addEventListener("change", (e) => {
-    if (e.target.name === "veiculo_escolha") aplicar(e.target, true);
-  });
+  function atualizarDica(qtd) {
+    dica.textContent = "";
+    if (!selCliente.value) {
+      dica.textContent = "Selecione o cliente para ver as apólices dele.";
+    } else if (!qtd) {
+      dica.append("Este cliente ainda não tem apólice cadastrada — ");
+      const a = document.createElement("a");
+      a.href = "/apolices/nova?cliente=" + encodeURIComponent(selCliente.value);
+      a.target = "_blank";
+      a.rel = "noopener";
+      a.textContent = "cadastrar apólice";
+      dica.append(a, ".");
+    } else {
+      dica.textContent = "Escolha a apólice à qual este serviço está ligado.";
+    }
+  }
 
   selCliente.addEventListener("change", () => {
-    inPlaca.value = "";
-    inDesc.value = "";
-    travarCampos(false);
     if (!selCliente.value) {
       montarOpcoes([]);
-      selecionarInicial("", "");
-      atualizarDica();
+      atualizarDica(0);
       return;
     }
-    const url = (selCliente.dataset.urlVeiculos || "").replace(/\/0$/, "/" + selCliente.value);
+    const url = (selCliente.dataset.urlApolices || "").replace(/\/0$/, "/" + selCliente.value);
     fetch(url, { headers: { Accept: "application/json" }, credentials: "same-origin" })
-      .then((r) => (r.ok ? r.json() : { veiculos: [] }))
-      .catch(() => ({ veiculos: [] }))
+      .then((r) => (r.ok ? r.json() : { apolices: [] }))
+      .catch(() => ({ apolices: [] }))
       .then((j) => {
-        montarOpcoes(j.veiculos || []);
-        selecionarInicial("", "");
-        atualizarDica();
+        const lista = j.apolices || [];
+        montarOpcoes(lista);
+        atualizarDica(lista.length);
       });
   });
-
-  selecionarInicial(box.dataset.placa, box.dataset.descricao);
-  atualizarDica();
 })();

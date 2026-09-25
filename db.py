@@ -590,12 +590,14 @@ CREATE TABLE IF NOT EXISTS recibo (
         REFERENCES nota_fiscal(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- servico (ex.: assistencia, vidros, rastreador) contratado para o carro do cliente:
--- mesmos campos de pagamento/comissao da apolice. O veiculo fica gravado no proprio
--- servico (placa + descricao), escolhido entre os das apolices/endossos do cliente.
+-- servico (ex.: assistencia, vidros, rastreador) ligado a uma apolice que o cliente ja
+-- tem: mesmos campos de pagamento/comissao da apolice. O numero da apolice vem da
+-- apolice vinculada (apolice_id); numero_apolice/veiculo_* ficaram da 1a versao, sem uso.
 CREATE TABLE IF NOT EXISTS servico (
     id INT AUTO_INCREMENT PRIMARY KEY,
     cliente_id INT,
+    apolice_id INT,
+    numero_proposta TEXT,
     seguradora_id INT,
     tipo_servico_id INT,
     status_apolice_id INT,                       -- reusa as opcoes do status da apolice
@@ -629,6 +631,8 @@ CREATE TABLE IF NOT EXISTS servico (
     criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     atualizado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     KEY ix_servico_cliente (cliente_id),
+    KEY ix_servico_apolice (apolice_id),
+    CONSTRAINT fk_servico_apolice    FOREIGN KEY (apolice_id)         REFERENCES apolice(id),
     CONSTRAINT fk_servico_cliente    FOREIGN KEY (cliente_id)         REFERENCES cliente(id),
     CONSTRAINT fk_servico_seguradora FOREIGN KEY (seguradora_id)      REFERENCES seguradora(id),
     CONSTRAINT fk_servico_tipo       FOREIGN KEY (tipo_servico_id)    REFERENCES tipo_servico(id),
@@ -912,7 +916,8 @@ _COLUNAS_ESPERADAS = {
         "atualizado_em": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
     },
     "servico": {
-        "cliente_id": "INT", "seguradora_id": "INT", "tipo_servico_id": "INT",
+        "cliente_id": "INT", "apolice_id": "INT", "numero_proposta": "TEXT",
+        "seguradora_id": "INT", "tipo_servico_id": "INT",
         "status_apolice_id": "INT", "numero_apolice": "TEXT",
         "vigencia_inicio": "TEXT", "vigencia_fim": "TEXT",
         "veiculo_placa": "TEXT", "veiculo_descricao": "TEXT",
@@ -1049,6 +1054,7 @@ _FKS_ESPERADAS = {
     "cliente": [("fk_cliente_status", "status_cliente_id", "status_cliente")],
     "saida": [("fk_saida_contaorigem", "conta_origem_id", "conta_origem")],
     "apolice": [("fk_apolice_status", "status_apolice_id", "status_apolice")],
+    "servico": [("fk_servico_apolice", "apolice_id", "apolice")],
 }
 
 

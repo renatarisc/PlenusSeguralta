@@ -18,6 +18,9 @@
 <a class="btn btn--primario" href="{{ url_for('endossos_lista', apolice=a.id) }}" title="Endossos desta apólice">
   {{ icone('endosso') }} Endossos ({{ qtd_endossos or 0 }})
 </a>
+<a class="btn btn--primario" href="{{ url_for('servicos_lista', apolice=a.id) }}" title="Serviços ligados a esta apólice">
+  {{ icone('servico') }} Serviços ({{ qtd_servicos or 0 }})
+</a>
 {% endif %}
 <a class="btn btn--linha" href="{{ url_for('apolices') }}">{{ icone('voltar') }} Voltar</a>
 {% if a.id %}
