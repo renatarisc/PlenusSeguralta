@@ -16,6 +16,7 @@ import os
 import re
 import shutil
 import subprocess
+import threading
 import time
 import unicodedata
 from datetime import datetime
@@ -56,6 +57,9 @@ def config_db():
         except (json.JSONDecodeError, OSError):
             pass
     cfg["port"] = int(cfg.get("port") or 3306)
+    # os testes automáticos (tests/) apontam para um banco separado (plenus_teste)
+    if os.environ.get("PLENUS_DB_DATABASE"):
+        cfg["database"] = os.environ["PLENUS_DB_DATABASE"]
     return cfg
 
 
@@ -1059,7 +1063,7 @@ _FKS_ESPERADAS = {
 
 
 def inicializar_db():
-    fazer_backup()  # snapshot ANTES de qualquer criacao/migracao
+    fazer_backup(esperar=True)  # snapshot ANTES de qualquer criacao/migracao (espera terminar)
     with conexao() as con:
         con.execute("SET FOREIGN_KEY_CHECKS = 0")
         con.executescript(_ESQUEMA_SQL)
@@ -1251,6 +1255,7 @@ def _backfill_dados(con):
 # ---------- backup (mysqldump) ----------
 
 _ultimo_dump_mono = 0.0  # time.monotonic() do ultimo dump feito nesta execucao
+_trava_dump = threading.Lock()  # um mysqldump por vez
 
 
 def _mysqldump_bin():
@@ -1270,9 +1275,14 @@ def _ultimo_backup_ts():
     return ts
 
 
-def fazer_backup(forcar=False):
+def fazer_backup(forcar=False, esperar=None):
     """mysqldump do banco `plenus` para backups/<carimbo>/plenus.sql, com intervalo minimo
-    (BACKUP_INTERVALO_MIN_S) pra nao rodar a cada gravacao. Nunca levanta excecao."""
+    (BACKUP_INTERVALO_MIN_S) pra nao rodar a cada gravacao. Nunca levanta excecao.
+
+    Depois de uma gravacao comum o dump roda em SEGUNDO PLANO (a tela nao espera o
+    mysqldump); `esperar=True` (padrao quando `forcar=True`) roda na hora e devolve a pasta
+    — usado antes de migracao e no backup manual. A thread nao e daemon: um script que
+    grava e sai (ex.: verificar_vencimentos.py) ainda espera o dump terminar."""
     global _ultimo_dump_mono
     agora = time.monotonic()
     if not forcar:
@@ -1281,7 +1291,22 @@ def fazer_backup(forcar=False):
         if (time.time() - _ultimo_backup_ts()) < BACKUP_INTERVALO_MIN_S:
             _ultimo_dump_mono = agora
             return None
+    if esperar is None:
+        esperar = forcar
+    if not esperar:
+        _ultimo_dump_mono = agora   # reserva a vez: gravacoes seguidas nao disparam outro dump
+        threading.Thread(target=_executar_dump, args=(agora,), name="plenus-backup").start()
+        return None
+    return _executar_dump(agora)
 
+
+def _executar_dump(agora):
+    with _trava_dump:
+        return _executar_dump_sem_trava(agora)
+
+
+def _executar_dump_sem_trava(agora):
+    global _ultimo_dump_mono
     dump = _mysqldump_bin()
     if not dump:
         print("AVISO(backup): mysqldump nao encontrado no PATH nem em Program Files; backup pulado")

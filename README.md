@@ -91,6 +91,35 @@ o `servir.py` nem conectam direto no banco — só acessam o Plenus pelo navegad
 
 Teste sem enviar: `venv\Scripts\python.exe verificar_vencimentos.py --seco`
 
+## Backup
+
+- A cada gravação o sistema faz um `mysqldump` em `backups/` (no máximo 1 a cada 10 min,
+  em segundo plano — a tela não espera).
+- No VPS, cron das 02:30 roda `backup_db.py` → `/opt/plenus/backups_externos` (30 dias).
+- **Cópia fora do servidor:** a Tarefa Agendada do Windows **"Plenus - baixar backup"**
+  (10:00 e ao entrar no Windows; roda assim que der se o PC estava desligado) executa
+  `baixar_backup.py`, que baixa o backup diário do VPS para `%USERPROFILE%\PlenusBackups`
+  (fora do OneDrive — tem dados de clientes) e mantém 60. Log em `baixar_backup.log` lá.
+
+## Testes automáticos
+
+Rodam **só** no banco separado `plenus_teste` (recriado a cada execução; uma trava impede
+rodar em qualquer banco que não termine em `_teste`):
+
+O `plenus_teste` existe **no VPS** (criado em 2026-09-25). Rodar lá:
+
+```bash
+cd /opt/plenus && ./venv/bin/python -m unittest discover -s tests -t . -v
+```
+
+Para rodar neste PC também, crie o banco uma vez como root do MySQL local:
+`CREATE DATABASE plenus_teste CHARACTER SET utf8mb4; GRANT ALL PRIVILEGES ON plenus_teste.* TO 'plenus'@'localhost';`
+e rode `venv\Scripts\python.exe -m unittest discover -s tests -t . -v`.
+
+A regra de rateio da comissão (Plenus 75% / Seguralta 25% na cocorretagem) fica só em
+`validacao.py` (`PCT_PLENUS`, `PCT_SEGURALTA_COCO`, `rateio_comissao`); o `base.html`
+repassa para os JS em `window.PLENUS_RATEIO`.
+
 ## Feito
 
 - Cadastro de **Clientes** (dados pessoais, endereço, contato)

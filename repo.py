@@ -603,28 +603,40 @@ def _sincronizar_parcelas(con, tabela, col_dono, dono_id, parcelas):
         con.execute(f"DELETE FROM {tabela} WHERE id = %s", (pid,))
 
 
-def _inserir_comissoes(con, apolice_id, linhas):
+# comissão parcelada: tabelas-filhas por "dono" (quem tem a comissão).
+# dono -> (tabela do dono, tabela de comissão, tabela de repasse, coluna FK)
+_DONOS_COMISSAO = {
+    "apolice": ("apolice", "apolice_comissao", "apolice_repasse", "apolice_id"),
+    "endosso": ("apolice_endosso", "apolice_endosso_comissao", "apolice_endosso_repasse", "endosso_id"),
+    "servico": ("servico", "servico_comissao", "servico_repasse", "servico_id"),
+    "consorcio": ("consorcio", "consorcio_comissao", "consorcio_repasse", "consorcio_id"),
+}
+
+
+def _inserir_comissoes(con, dono, dono_id, linhas):
+    _, tab_com, _, col = _DONOS_COMISSAO[dono]
     for i, c in enumerate(linhas or []):
         con.execute(
-            "INSERT INTO apolice_comissao "
-            "(apolice_id, parcela, valor_previsto, valor_recebido, data, ordem) "
+            f"INSERT INTO {tab_com} ({col}, parcela, valor_previsto, valor_recebido, data, ordem) "
             "VALUES (%s, %s, %s, %s, %s, %s)",
-            (apolice_id, c.get("parcela"), c.get("valor_previsto"),
-             c.get("valor_recebido"), c.get("data"), i),
-        )
+            (dono_id, c.get("parcela"), c.get("valor_previsto"),
+             c.get("valor_recebido"), c.get("data"), i))
 
 
-def _inserir_repasses(con, apolice_id, linhas):
+def _inserir_repasses(con, dono, dono_id, linhas):
+    _, _, tab_rep, col = _DONOS_COMISSAO[dono]
     for i, r in enumerate(linhas or []):
+        if dono == "consorcio":
+            # consórcio ainda usa "conferido no banco" (0/1) em vez do vínculo com recibo
+            vinc_col = "conferido_banco"
+            vinc = 1 if r.get("conferido_banco") in (1, "1", True, "sim", "on") else 0
+        else:
+            vinc_col, vinc = "recibo_id", _int_ou_none(r.get("recibo_id"))
         con.execute(
-            "INSERT INTO apolice_repasse "
-            "(apolice_id, parcela, valor_previsto, valor_recebido, data, recibo_id, "
-            " data_deposito_cc, ordem) "
-            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
-            (apolice_id, r.get("parcela"), r.get("valor_previsto"),
-             r.get("valor_recebido"), r.get("data"), _int_ou_none(r.get("recibo_id")),
-             r.get("data_deposito_cc"), i),
-        )
+            f"INSERT INTO {tab_rep} ({col}, parcela, valor_previsto, valor_recebido, data, "
+            f"{vinc_col}, data_deposito_cc, ordem) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+            (dono_id, r.get("parcela"), r.get("valor_previsto"), r.get("valor_recebido"),
+             r.get("data"), vinc, r.get("data_deposito_cc"), i))
 
 
 def listar_apolices(cliente_id=None, tipo_seguro_id=None, mes_inicio=None, quiver=None,
@@ -880,8 +892,8 @@ def criar_apolice(dados, parcelas, comissoes=None, repasses=None):
         )
         novo_id = cur.lastrowid
         _inserir_parcelas(con, novo_id, parcelas)
-        _inserir_comissoes(con, novo_id, comissoes)
-        _inserir_repasses(con, novo_id, repasses)
+        _inserir_comissoes(con, "apolice", novo_id, comissoes)
+        _inserir_repasses(con, "apolice", novo_id, repasses)
     fazer_backup()
     return novo_id
 
@@ -895,9 +907,9 @@ def atualizar_apolice(apolice_id, dados, parcelas, comissoes=None, repasses=None
         )
         _sincronizar_parcelas(con, "apolice_parcela", "apolice_id", apolice_id, parcelas)
         con.execute("DELETE FROM apolice_comissao WHERE apolice_id = %s", (apolice_id,))
-        _inserir_comissoes(con, apolice_id, comissoes)
+        _inserir_comissoes(con, "apolice", apolice_id, comissoes)
         con.execute("DELETE FROM apolice_repasse WHERE apolice_id = %s", (apolice_id,))
-        _inserir_repasses(con, apolice_id, repasses)
+        _inserir_repasses(con, "apolice", apolice_id, repasses)
     fazer_backup()
 
 
@@ -955,28 +967,6 @@ def _valores_endosso(d):
         _sim_nao(d.get("lancado_quiver")),
         (d.get("link_onedrive") or "").strip() or None,
     ]
-
-
-def _inserir_endosso_comissoes(con, endosso_id, linhas):
-    for i, c in enumerate(linhas or []):
-        con.execute(
-            "INSERT INTO apolice_endosso_comissao "
-            "(endosso_id, parcela, valor_previsto, valor_recebido, data, ordem) "
-            "VALUES (%s, %s, %s, %s, %s, %s)",
-            (endosso_id, c.get("parcela"), c.get("valor_previsto"),
-             c.get("valor_recebido"), c.get("data"), i))
-
-
-def _inserir_endosso_repasses(con, endosso_id, linhas):
-    for i, r in enumerate(linhas or []):
-        con.execute(
-            "INSERT INTO apolice_endosso_repasse "
-            "(endosso_id, parcela, valor_previsto, valor_recebido, data, recibo_id, "
-            " data_deposito_cc, ordem) "
-            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
-            (endosso_id, r.get("parcela"), r.get("valor_previsto"),
-             r.get("valor_recebido"), r.get("data"), _int_ou_none(r.get("recibo_id")),
-             r.get("data_deposito_cc"), i))
 
 
 def _inserir_endosso_parcelas(con, endosso_id, parcelas):
@@ -1074,8 +1064,8 @@ def criar_endosso(dados, parcelas=None, comissoes=None, repasses=None):
             _valores_endosso(dados))
         novo_id = cur.lastrowid
         _inserir_endosso_parcelas(con, novo_id, parcelas)
-        _inserir_endosso_comissoes(con, novo_id, comissoes)
-        _inserir_endosso_repasses(con, novo_id, repasses)
+        _inserir_comissoes(con, "endosso", novo_id, comissoes)
+        _inserir_repasses(con, "endosso", novo_id, repasses)
     fazer_backup()
     return novo_id
 
@@ -1089,8 +1079,8 @@ def atualizar_endosso(endosso_id, dados, parcelas=None, comissoes=None, repasses
         _sincronizar_parcelas(con, "apolice_endosso_parcela", "endosso_id", endosso_id, parcelas)
         for tab in ("apolice_endosso_comissao", "apolice_endosso_repasse"):
             con.execute(f"DELETE FROM {tab} WHERE endosso_id = %s", (endosso_id,))
-        _inserir_endosso_comissoes(con, endosso_id, comissoes)
-        _inserir_endosso_repasses(con, endosso_id, repasses)
+        _inserir_comissoes(con, "endosso", endosso_id, comissoes)
+        _inserir_repasses(con, "endosso", endosso_id, repasses)
     fazer_backup()
 
 
@@ -1167,28 +1157,6 @@ def _inserir_consorcio_parcela_valores(con, consorcio_id, linhas):
             "INSERT INTO consorcio_parcela_valor (consorcio_id, valor, data, ordem) "
             "VALUES (%s, %s, %s, %s)",
             (consorcio_id, v.get("valor"), v.get("data"), i))
-
-
-def _inserir_consorcio_comissoes(con, consorcio_id, linhas):
-    for i, c in enumerate(linhas or []):
-        con.execute(
-            "INSERT INTO consorcio_comissao "
-            "(consorcio_id, parcela, valor_previsto, valor_recebido, data, ordem) "
-            "VALUES (%s, %s, %s, %s, %s, %s)",
-            (consorcio_id, c.get("parcela"), c.get("valor_previsto"),
-             c.get("valor_recebido"), c.get("data"), i))
-
-
-def _inserir_consorcio_repasses(con, consorcio_id, linhas):
-    for i, r in enumerate(linhas or []):
-        conf = 1 if r.get("conferido_banco") in (1, "1", True, "sim", "on") else 0
-        con.execute(
-            "INSERT INTO consorcio_repasse "
-            "(consorcio_id, parcela, valor_previsto, valor_recebido, data, conferido_banco, "
-            " data_deposito_cc, ordem) "
-            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
-            (consorcio_id, r.get("parcela"), r.get("valor_previsto"),
-             r.get("valor_recebido"), r.get("data"), conf, r.get("data_deposito_cc"), i))
 
 
 def _inserir_consorcio_boletos(con, consorcio_id, boletos):
@@ -1324,8 +1292,8 @@ def criar_consorcio(dados, parcela_valores=None, comissoes=None, repasses=None, 
             _valores_consorcio(dados))
         novo_id = cur.lastrowid
         _inserir_consorcio_parcela_valores(con, novo_id, parcela_valores)
-        _inserir_consorcio_comissoes(con, novo_id, comissoes)
-        _inserir_consorcio_repasses(con, novo_id, repasses)
+        _inserir_comissoes(con, "consorcio", novo_id, comissoes)
+        _inserir_repasses(con, "consorcio", novo_id, repasses)
         _inserir_consorcio_boletos(con, novo_id, boletos)
     fazer_backup()
     return novo_id
@@ -1341,8 +1309,8 @@ def atualizar_consorcio(consorcio_id, dados, parcela_valores=None, comissoes=Non
         for tab in ("consorcio_parcela_valor", "consorcio_comissao", "consorcio_repasse"):
             con.execute(f"DELETE FROM {tab} WHERE consorcio_id = %s", (consorcio_id,))
         _inserir_consorcio_parcela_valores(con, consorcio_id, parcela_valores)
-        _inserir_consorcio_comissoes(con, consorcio_id, comissoes)
-        _inserir_consorcio_repasses(con, consorcio_id, repasses)
+        _inserir_comissoes(con, "consorcio", consorcio_id, comissoes)
+        _inserir_repasses(con, "consorcio", consorcio_id, repasses)
         _sincronizar_consorcio_boletos(con, consorcio_id, boletos)
     fazer_backup()
 
@@ -1421,28 +1389,6 @@ def _inserir_servico_parcelas(con, servico_id, parcelas):
             "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
             (servico_id, p.get("identificacao"), p.get("data"), p.get("valor"),
              paga, pago_em, aviso, aviso_em, enviado, enviado_em))
-
-
-def _inserir_servico_comissoes(con, servico_id, linhas):
-    for i, c in enumerate(linhas or []):
-        con.execute(
-            "INSERT INTO servico_comissao "
-            "(servico_id, parcela, valor_previsto, valor_recebido, data, ordem) "
-            "VALUES (%s, %s, %s, %s, %s, %s)",
-            (servico_id, c.get("parcela"), c.get("valor_previsto"),
-             c.get("valor_recebido"), c.get("data"), i))
-
-
-def _inserir_servico_repasses(con, servico_id, linhas):
-    for i, r in enumerate(linhas or []):
-        con.execute(
-            "INSERT INTO servico_repasse "
-            "(servico_id, parcela, valor_previsto, valor_recebido, data, recibo_id, "
-            " data_deposito_cc, ordem) "
-            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
-            (servico_id, r.get("parcela"), r.get("valor_previsto"),
-             r.get("valor_recebido"), r.get("data"), _int_ou_none(r.get("recibo_id")),
-             r.get("data_deposito_cc"), i))
 
 
 _SQL_SERVICO_SEL = """
@@ -1537,8 +1483,8 @@ def criar_servico(dados, parcelas=None, comissoes=None, repasses=None):
             _valores_servico(dados))
         novo_id = cur.lastrowid
         _inserir_servico_parcelas(con, novo_id, parcelas)
-        _inserir_servico_comissoes(con, novo_id, comissoes)
-        _inserir_servico_repasses(con, novo_id, repasses)
+        _inserir_comissoes(con, "servico", novo_id, comissoes)
+        _inserir_repasses(con, "servico", novo_id, repasses)
     fazer_backup()
     return novo_id
 
@@ -1552,8 +1498,8 @@ def atualizar_servico(servico_id, dados, parcelas=None, comissoes=None, repasses
         _sincronizar_parcelas(con, "servico_parcela", "servico_id", servico_id, parcelas)
         for tab in ("servico_comissao", "servico_repasse"):
             con.execute(f"DELETE FROM {tab} WHERE servico_id = %s", (servico_id,))
-        _inserir_servico_comissoes(con, servico_id, comissoes)
-        _inserir_servico_repasses(con, servico_id, repasses)
+        _inserir_comissoes(con, "servico", servico_id, comissoes)
+        _inserir_repasses(con, "servico", servico_id, repasses)
     fazer_backup()
 
 
@@ -1571,41 +1517,6 @@ def contar_servicos_do_cliente(cliente_id):
 def contar_servicos_por_apolice(apolice_id):
     with conexao() as con:
         return _um(con.execute("SELECT COUNT(*) FROM servico WHERE apolice_id = %s", (apolice_id,)))
-
-
-def salvar_comissoes_repasses_servico(servico_id, comissoes, repasses):
-    """Regrava só as tabelas-filhas de comissão parcelada de UM serviço (grade de Entradas)."""
-    with conexao() as con:
-        con.execute("DELETE FROM servico_comissao WHERE servico_id = %s", (servico_id,))
-        _inserir_servico_comissoes(con, servico_id, comissoes)
-        con.execute("DELETE FROM servico_repasse WHERE servico_id = %s", (servico_id,))
-        _inserir_servico_repasses(con, servico_id, repasses)
-        con.execute("UPDATE servico SET atualizado_em = NOW() WHERE id = %s", (servico_id,))
-    fazer_backup()
-
-
-def salvar_comissao_servico(servico_id, valores):
-    """Grava só a comissão (valores achatados) de um serviço, a partir do bloco
-    editável de Entradas. Mesmas chaves de `salvar_comissao_unica`."""
-    with conexao() as con:
-        con.execute(
-            "UPDATE servico SET "
-            "  comissao_valor_seguralta_receber = %s, comissao_valor_seguralta_recebido = %s, "
-            "  comissao_valor_plenus_receber = %s, comissao_valor_plenus_recebido = %s, "
-            "  data_seguralta_recebido = %s, data_plenus_recebido = %s, "
-            "  recibo_id = %s, data_deposito_cc = %s, atualizado_em = NOW() "
-            "WHERE id = %s",
-            (valores.get("comissao_valor_seguralta_receber"),
-             valores.get("comissao_valor_seguralta_recebido"),
-             valores.get("comissao_valor_plenus_receber"),
-             valores.get("comissao_valor_plenus_recebido"),
-             (valores.get("data_seguralta_recebido") or None),
-             (valores.get("data_plenus_recebido") or None),
-             _int_ou_none(valores.get("recibo_id")),
-             (valores.get("data_deposito_cc") or None),
-             servico_id),
-        )
-    fazer_backup()
 
 
 def obter_apolice_basico(apolice_id):
@@ -1632,70 +1543,37 @@ def listar_apolices_select():
             " ORDER BY c.nome, a.criado_em DESC, a.id DESC").fetchall()]
 
 
-def salvar_comissoes_repasses(apolice_id, comissoes, repasses):
-    """Regrava SÓ as tabelas-filhas de comissão de UMA apólice (mesma lógica
-    wipe+reinsert de `atualizar_apolice`), sem tocar em nenhuma coluna da
-    `apolice` nem em outras apólices. Usado pela grade editável de Entradas."""
+def salvar_comissao_parcelada(dono, dono_id, comissoes, repasses):
+    """Regrava SÓ as tabelas-filhas de comissão parcelada de UM dono ("apolice",
+    "endosso", "servico" ou "consorcio"), sem tocar nas outras colunas dele.
+    Usado pela grade editável de Entradas."""
+    tab, tab_com, tab_rep, col = _DONOS_COMISSAO[dono]
     with conexao() as con:
-        con.execute("DELETE FROM apolice_comissao WHERE apolice_id = %s", (apolice_id,))
-        _inserir_comissoes(con, apolice_id, comissoes)
-        con.execute("DELETE FROM apolice_repasse WHERE apolice_id = %s", (apolice_id,))
-        _inserir_repasses(con, apolice_id, repasses)
-        con.execute("UPDATE apolice SET atualizado_em = NOW() WHERE id = %s",
-                    (apolice_id,))
+        con.execute(f"DELETE FROM {tab_com} WHERE {col} = %s", (dono_id,))
+        _inserir_comissoes(con, dono, dono_id, comissoes)
+        con.execute(f"DELETE FROM {tab_rep} WHERE {col} = %s", (dono_id,))
+        _inserir_repasses(con, dono, dono_id, repasses)
+        con.execute(f"UPDATE {tab} SET atualizado_em = NOW() WHERE id = %s", (dono_id,))
     fazer_backup()
 
 
-def salvar_comissao_unica(apolice_id, valores):
-    """Grava os valores achatados de comissão (repasse único / cocorretagem) de
-    uma apólice. `valores` = dict com as 7 chaves abaixo (float/str ou None)."""
+def salvar_comissao_unica(dono, dono_id, valores):
+    """Grava os valores achatados de comissão (repasse único / cocorretagem) de um dono,
+    a partir do bloco editável de Entradas. `valores`: os 4 valores, as 2 datas,
+    data_deposito_cc e o vínculo (recibo_id; no consórcio, plenus_conferido_banco)."""
+    tab = _DONOS_COMISSAO[dono][0]
+    if dono == "consorcio":
+        vinc_col = "plenus_conferido_banco"
+        vinc = 1 if valores.get("plenus_conferido_banco") in (1, "1", True, "sim", "on") else 0
+    else:
+        vinc_col, vinc = "recibo_id", _int_ou_none(valores.get("recibo_id"))
     with conexao() as con:
         con.execute(
-            "UPDATE apolice SET "
-            "  comissao_valor_seguralta_receber = %s, "
-            "  comissao_valor_seguralta_recebido = %s, "
-            "  comissao_valor_plenus_receber = %s, "
-            "  comissao_valor_plenus_recebido = %s, "
-            "  data_seguralta_recebido = %s, "
-            "  data_plenus_recebido = %s, "
-            "  recibo_id = %s, "
-            "  data_deposito_cc = %s, "
-            "  atualizado_em = NOW() "
-            "WHERE id = %s",
-            (valores.get("comissao_valor_seguralta_receber"),
-             valores.get("comissao_valor_seguralta_recebido"),
-             valores.get("comissao_valor_plenus_receber"),
-             valores.get("comissao_valor_plenus_recebido"),
-             (valores.get("data_seguralta_recebido") or None),
-             (valores.get("data_plenus_recebido") or None),
-             _int_ou_none(valores.get("recibo_id")),
-             (valores.get("data_deposito_cc") or None),
-             apolice_id),
-        )
-    fazer_backup()
-
-
-def salvar_comissoes_repasses_endosso(endosso_id, comissoes, repasses):
-    """Regrava só as tabelas-filhas de comissão parcelada de UM endosso (grade de Entradas)."""
-    with conexao() as con:
-        con.execute("DELETE FROM apolice_endosso_comissao WHERE endosso_id = %s", (endosso_id,))
-        _inserir_endosso_comissoes(con, endosso_id, comissoes)
-        con.execute("DELETE FROM apolice_endosso_repasse WHERE endosso_id = %s", (endosso_id,))
-        _inserir_endosso_repasses(con, endosso_id, repasses)
-        con.execute("UPDATE apolice_endosso SET atualizado_em = NOW() WHERE id = %s", (endosso_id,))
-    fazer_backup()
-
-
-def salvar_comissao_endosso(endosso_id, valores):
-    """Grava só a comissão (valores achatados) de um endosso, a partir do bloco
-    editável de Entradas. Mesmas 7 chaves de `salvar_comissao_unica`."""
-    with conexao() as con:
-        con.execute(
-            "UPDATE apolice_endosso SET "
+            f"UPDATE {tab} SET "
             "  comissao_valor_seguralta_receber = %s, comissao_valor_seguralta_recebido = %s, "
             "  comissao_valor_plenus_receber = %s, comissao_valor_plenus_recebido = %s, "
             "  data_seguralta_recebido = %s, data_plenus_recebido = %s, "
-            "  recibo_id = %s, data_deposito_cc = %s, atualizado_em = NOW() "
+            f"  {vinc_col} = %s, data_deposito_cc = %s, atualizado_em = NOW() "
             "WHERE id = %s",
             (valores.get("comissao_valor_seguralta_receber"),
              valores.get("comissao_valor_seguralta_recebido"),
@@ -1703,45 +1581,7 @@ def salvar_comissao_endosso(endosso_id, valores):
              valores.get("comissao_valor_plenus_recebido"),
              (valores.get("data_seguralta_recebido") or None),
              (valores.get("data_plenus_recebido") or None),
-             _int_ou_none(valores.get("recibo_id")),
-             (valores.get("data_deposito_cc") or None),
-             endosso_id),
-        )
-    fazer_backup()
-
-
-def salvar_comissoes_repasses_consorcio(consorcio_id, comissoes, repasses):
-    """Regrava só as tabelas-filhas de comissão parcelada de UM consórcio (grade de Entradas)."""
-    with conexao() as con:
-        con.execute("DELETE FROM consorcio_comissao WHERE consorcio_id = %s", (consorcio_id,))
-        _inserir_consorcio_comissoes(con, consorcio_id, comissoes)
-        con.execute("DELETE FROM consorcio_repasse WHERE consorcio_id = %s", (consorcio_id,))
-        _inserir_consorcio_repasses(con, consorcio_id, repasses)
-        con.execute("UPDATE consorcio SET atualizado_em = NOW() WHERE id = %s", (consorcio_id,))
-    fazer_backup()
-
-
-def salvar_comissao_consorcio(consorcio_id, valores):
-    """Grava só a comissão (valores achatados) de um consórcio, a partir do bloco
-    editável de Entradas. Mesmas 7 chaves de `salvar_comissao_unica`."""
-    with conexao() as con:
-        con.execute(
-            "UPDATE consorcio SET "
-            "  comissao_valor_seguralta_receber = %s, comissao_valor_seguralta_recebido = %s, "
-            "  comissao_valor_plenus_receber = %s, comissao_valor_plenus_recebido = %s, "
-            "  data_seguralta_recebido = %s, data_plenus_recebido = %s, "
-            "  plenus_conferido_banco = %s, data_deposito_cc = %s, atualizado_em = NOW() "
-            "WHERE id = %s",
-            (valores.get("comissao_valor_seguralta_receber"),
-             valores.get("comissao_valor_seguralta_recebido"),
-             valores.get("comissao_valor_plenus_receber"),
-             valores.get("comissao_valor_plenus_recebido"),
-             (valores.get("data_seguralta_recebido") or None),
-             (valores.get("data_plenus_recebido") or None),
-             1 if valores.get("plenus_conferido_banco") in (1, "1", True, "sim", "on") else 0,
-             (valores.get("data_deposito_cc") or None),
-             consorcio_id),
-        )
+             vinc, (valores.get("data_deposito_cc") or None), dono_id))
     fazer_backup()
 
 

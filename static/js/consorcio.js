@@ -225,6 +225,7 @@
 
   // ---------- comissão: botões "Calcular" do modo único ----------
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = fmt(v); };
+  const RATEIO = window.PLENUS_RATEIO || { plenus: 75, seguralta_coco: 25 };
   const btnSeg = document.getElementById("btn-calc-seg-consorcio");
   if (btnSeg) btnSeg.addEventListener("click", () => {
     const base = num((document.getElementById("carta") || {}).value);
@@ -232,7 +233,7 @@
     if (!base || !pct) { alert("Preencha o valor da carta e o percentual."); return; }
     const coco = document.getElementById("comissao_cocorretagem");
     const bruto = Math.round(base * pct) / 100;
-    set("comissao_valor_seguralta_receber", coco && coco.checked ? Math.round(bruto * 25) / 100 : bruto);
+    set("comissao_valor_seguralta_receber", coco && coco.checked ? Math.round(bruto * RATEIO.seguralta_coco) / 100 : bruto);
   });
   const btnPle = document.getElementById("btn-calc-plenus-consorcio");
   if (btnPle) btnPle.addEventListener("click", () => {
@@ -241,11 +242,11 @@
       const base = num((document.getElementById("carta") || {}).value);
       const pct = num((document.getElementById("comissao_percentual") || {}).value);
       if (!base || !pct) { alert("Preencha o valor da carta e o percentual."); return; }
-      set("comissao_valor_plenus_receber", Math.round(base * pct * 0.75) / 100);
+      set("comissao_valor_plenus_receber", Math.round(base * pct * RATEIO.plenus / 100) / 100);
       return;
     }
     const segReceb = num((document.getElementById("comissao_valor_seguralta_recebido") || {}).value);
     if (!segReceb) { alert("Preencha o valor recebido pela Seguralta."); return; }
-    set("comissao_valor_plenus_receber", Math.round(segReceb * 75) / 100);
+    set("comissao_valor_plenus_receber", Math.round(segReceb * RATEIO.plenus) / 100);
   });
 })();

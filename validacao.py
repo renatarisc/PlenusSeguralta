@@ -281,6 +281,21 @@ def preparar_repasses_consorcio(parcelas, previstos, recebidos, datas, conferido
     return linhas, erros
 
 
+# ---------- rateio da comissão (fonte única da regra; o base.html repassa ao JS) ----------
+# comissão cheia C = prêmio líquido × %. A Plenus fica sempre com 75% de C; na
+# cocorretagem a Seguralta recebe só 25% de C (sem cocorretagem recebe C inteira e repassa).
+PCT_PLENUS = 75
+PCT_SEGURALTA_COCO = 25
+FATOR_PLENUS = PCT_PLENUS / 100
+FATOR_SEGURALTA_COCO = PCT_SEGURALTA_COCO / 100
+
+
+def rateio_comissao(cheia, cocorretagem):
+    """(parte da Seguralta, parte da Plenus) da comissão cheia, arredondadas."""
+    seg = round(cheia * FATOR_SEGURALTA_COCO, 2) if cocorretagem else cheia
+    return seg, round(cheia * FATOR_PLENUS, 2)
+
+
 def gerar_repasses_cocorretagem(comissoes, premio_liquido, comissao_percentual):
     """Cocorretagem: a Plenus fica com 75% da comissão (a Seguralta com 25%).
     Monta as parcelas de repasse a partir das parcelas de comissão já lançadas
@@ -294,7 +309,7 @@ def gerar_repasses_cocorretagem(comissoes, premio_liquido, comissao_percentual):
     pct = para_decimal(comissao_percentual)
     if not comissoes or prem is None or pct is None:
         return []
-    total = round(prem * pct / 100 * 0.75, 2)
+    total = round(prem * pct / 100 * FATOR_PLENUS, 2)
     prevs = [float(c.get("valor_previsto") or 0.0) for c in comissoes]
     base = sum(prevs)
     n = len(comissoes)

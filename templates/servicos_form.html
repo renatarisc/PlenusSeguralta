@@ -260,7 +260,7 @@
         <label class="check">
           <input type="checkbox" id="comissao_cocorretagem" name="comissao_cocorretagem" value="1"
                  {{ 'checked' if a.comissao_cocorretagem }}>
-          Cocorretagem — Seguralta 25% e Plenus 75% da comissão
+          Cocorretagem — Seguralta {{ RATEIO.seguralta_coco }}% e Plenus {{ RATEIO.plenus }}% da comissão
         </label>
         <label class="check">
           <input type="checkbox" id="comissao_parcelada" name="comissao_parcelada" value="1"
@@ -302,7 +302,7 @@
         <div class="campo c-4">
           <label aria-hidden="true">&nbsp;</label>
           <button type="button" class="btn btn--primario" id="btn-calc-plenus-receber" style="width:100%">
-            Calcular 75% do recebido - Seguralta
+            Calcular {{ RATEIO.plenus }}% do recebido - Seguralta
           </button>
         </div>
         <div class="campo c-2">
@@ -411,7 +411,7 @@
 
       <h3 class="titulo-secao"><span id="tit-repasse-a">Repasses</span> <span id="tit-repasse-b">— a Plenus recebe da Seguralta</span></h3>
       <div id="repasse-coco-acao" hidden style="padding:2px 0 10px">
-        <button type="button" class="btn btn--primario" id="btn-repasse-coco">Gerar do 75% da comissão</button>
+        <button type="button" class="btn btn--primario" id="btn-repasse-coco">Gerar do {{ RATEIO.plenus }}% da comissão</button>
       </div>
       {% if pode_gerar_repasse %}
       <div class="gerador" id="gerador-repasse">

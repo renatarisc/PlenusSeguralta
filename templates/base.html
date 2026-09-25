@@ -131,6 +131,8 @@
 </div>
 
 <script>
+  // rateio da comissão (vem de validacao.py — fonte única da regra 75% / 25%)
+  window.PLENUS_RATEIO = {{ RATEIO|tojson }};
   const app = document.getElementById("app");
   function abrirMenuMobile()  { app.classList.add("menu-aberto"); }
   function fecharMenuMobile() { app.classList.remove("menu-aberto"); }

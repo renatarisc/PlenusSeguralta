@@ -245,13 +245,14 @@
     set("comissao_valor_seguralta_receber", Math.round(base * pct) / 100);
   });
 
+  const RATEIO = window.PLENUS_RATEIO || { plenus: 75, seguralta_coco: 25 };
   const btnPle = document.getElementById("btn-calc-plenus-endosso");
   if (btnPle) btnPle.addEventListener("click", () => {
     const segReceb = num((document.getElementById("comissao_valor_seguralta_recebido") || {}).value);
     if (!segReceb) { alert("Preencha o valor recebido pela Seguralta."); return; }
-    set("comissao_valor_plenus_receber", Math.round(segReceb * 75) / 100);
+    set("comissao_valor_plenus_receber", Math.round(segReceb * RATEIO.plenus) / 100);
   });
-  // a alternância único × parcelado e as duas tabelas ficam em endosso_comissao.js
+  // a alternância único × parcelado e as duas tabelas ficam em comissao.js
 
   // ---- link do OneDrive: "abrir ↗" acompanha o valor digitado ----
   const linkIn = document.getElementById("link_onedrive");

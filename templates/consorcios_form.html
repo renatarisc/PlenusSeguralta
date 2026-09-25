@@ -224,7 +224,7 @@
         <label class="check">
           <input type="checkbox" id="comissao_cocorretagem" name="comissao_cocorretagem" value="1"
                  {{ 'checked' if co.comissao_cocorretagem }}>
-          Cocorretagem — Seguralta 25% e Plenus 75% da comissão
+          Cocorretagem — Seguralta {{ RATEIO.seguralta_coco }}% e Plenus {{ RATEIO.plenus }}% da comissão
         </label>
         <label class="check">
           <input type="checkbox" id="comissao_parcelada" name="comissao_parcelada" value="1"
@@ -235,7 +235,7 @@
     </div>
 
     {# ---------- repasse único: valores achatados ---------- #}
-    <div id="comissao-consorcio-unico" {{ 'hidden' if co.comissao_parcelada }}>
+    <div id="comissao-unico" {{ 'hidden' if co.comissao_parcelada }}>
       <div class="grade" style="align-items:end;margin-top:16px">
         <div class="campo c-4">
           <label aria-hidden="true">&nbsp;</label>
@@ -263,7 +263,7 @@
         <div class="campo c-4">
           <label aria-hidden="true">&nbsp;</label>
           <button type="button" class="btn btn--primario" id="btn-calc-plenus-consorcio" style="width:100%">
-            Calcular 75% do recebido - Seguralta
+            Calcular {{ RATEIO.plenus }}% do recebido - Seguralta
           </button>
         </div>
         <div class="campo c-2">
@@ -296,7 +296,7 @@
     </div>
 
     {# ---------- comissão parcelada: resumo + botão que abre a janela ---------- #}
-    <div id="comissao-consorcio-parcelado" {{ 'hidden' if not co.comissao_parcelada }} style="margin-top:12px">
+    <div id="comissao-parcelado" {{ 'hidden' if not co.comissao_parcelada }} style="margin-top:12px">
       <button type="button" class="btn btn--primario" id="btn-abrir-comissao">
         {{ icone('apolices') }} Abrir tabelas de comissão
       </button>
@@ -306,7 +306,7 @@
       </span>
     </div>
 
-    <dialog id="dlg-comissao" class="dlg">
+    <dialog id="dlg-comissao" class="dlg" data-base-campo="carta" data-base-rotulo="valor da carta" data-pagador-coco="administradora">
       <div class="dlg__cab">
         <strong id="dlg-com-titulo">Comissão parcelada</strong>
         <button type="button" class="btn btn--linha btn--mini" data-fechar-comissao title="Fechar">{{ icone('x') }}</button>
@@ -369,7 +369,7 @@
 
         <h3 class="titulo-secao" style="margin-top:16px"><span id="tit-repasse-a">Repasses</span> <span id="tit-repasse-b">— a Plenus recebe da Seguralta</span></h3>
         <div id="repasse-coco-acao" hidden style="padding:2px 0 10px">
-          <button type="button" class="btn btn--primario" id="btn-repasse-coco">Gerar do 75% da comissão</button>
+          <button type="button" class="btn btn--primario" id="btn-repasse-coco">Gerar do {{ RATEIO.plenus }}% da comissão</button>
         </div>
         {% if pode_gerar_repasse %}
         <div class="gerador" id="gerador-repasse">
@@ -531,5 +531,5 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/consorcio.js') }}"></script>
-<script src="{{ url_for('static', filename='js/consorcio_comissao.js') }}"></script>
+<script src="{{ url_for('static', filename='js/comissao.js') }}"></script>
 {% endblock %}

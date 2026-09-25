@@ -322,14 +322,15 @@
   // ---- comissão do bloco "único" (muda quando é cocorretagem) ----
   const chkCoco = document.getElementById("comissao_cocorretagem");
   const ehCoco = () => !!(chkCoco && chkCoco.checked);
+  const RATEIO = window.PLENUS_RATEIO || { plenus: 75, seguralta_coco: 25 };
   const btnSeg = document.getElementById("btn-calc-seg-receber");
   const btnPlenus = document.getElementById("btn-calc-plenus-receber");
 
   function relabelComissao() {
     if (btnSeg) btnSeg.textContent = ehCoco()
-      ? "Calcular 25% da comissão" : "Calcular % do prêmio líquido";
+      ? "Calcular " + RATEIO.seguralta_coco + "% da comissão" : "Calcular % do prêmio líquido";
     if (btnPlenus) btnPlenus.textContent = ehCoco()
-      ? "Calcular 75% da comissão" : "Calcular 75% do recebido - Seguralta";
+      ? "Calcular " + RATEIO.plenus + "% da comissão" : "Calcular " + RATEIO.plenus + "% do recebido - Seguralta";
   }
   if (chkCoco) chkCoco.addEventListener("change", relabelComissao);
   relabelComissao();
@@ -344,7 +345,7 @@
     btnSeg.addEventListener("click", () => {
       const { premio, pct, base } = comissaoBase();
       if (!premio || !pct) { alert("Preencha o prêmio líquido e o percentual."); return; }
-      const v = ehCoco() ? Math.round(base * 25) / 100 : base;
+      const v = ehCoco() ? Math.round(base * RATEIO.seguralta_coco) / 100 : base;
       document.getElementById("comissao_valor_seguralta_receber").value = fmt(v);
     });
   }
@@ -354,12 +355,12 @@
         const { premio, pct, base } = comissaoBase();
         if (!premio || !pct) { alert("Preencha o prêmio líquido e o percentual."); return; }
         document.getElementById("comissao_valor_plenus_receber").value =
-          fmt(Math.round(base * 75) / 100);
+          fmt(Math.round(base * RATEIO.plenus) / 100);
       } else {
         const segRecebido = num(document.getElementById("comissao_valor_seguralta_recebido").value);
         if (!segRecebido) { alert("Preencha o valor recebido pela Seguralta."); return; }
         document.getElementById("comissao_valor_plenus_receber").value =
-          fmt(Math.round(segRecebido * 75) / 100);
+          fmt(Math.round(segRecebido * RATEIO.plenus) / 100);
       }
     });
   }

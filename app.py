@@ -31,6 +31,7 @@ from validacao import (
     validar_saida, preparar_lancamentos_saida, validar_endosso, validar_servico,
     validar_consorcio, preparar_parcela_valores, preparar_boletos,
     validar_nota_fiscal, validar_recibo, validar_entrada_simples, email_valido,
+    PCT_PLENUS, PCT_SEGURALTA_COCO, FATOR_PLENUS, rateio_comissao,
 )
 
 _HTTPS = os.environ.get("PLENUS_HTTPS") == "1"
@@ -104,6 +105,8 @@ app.jinja_env.filters["moeda"] = formatar_moeda
 app.jinja_env.filters["data_br"] = formatar_data_br
 app.jinja_env.globals["telefone"] = formatar_telefone
 app.jinja_env.globals["dias_ate"] = dias_ate_data
+# rateio da comissão para os JS (window.PLENUS_RATEIO no base.html)
+app.jinja_env.globals["RATEIO"] = {"plenus": PCT_PLENUS, "seguralta_coco": PCT_SEGURALTA_COCO}
 app.jinja_env.globals["MENU"] = [
     {"rota": "dashboard", "texto": "Painel", "icone": "painel"},
     {"rota": "clientes_lista", "texto": "Clientes", "icone": "clientes"},
@@ -2122,13 +2125,13 @@ def _calc_panorama(r):
     r["comissao_cheia"] = cheia
     if r.get("is_endosso") or r.get("is_consorcio"):
         # endosso / consórcio: usa os valores "a receber" lançados; se vazios, cai no prêmio×%
+        seg_calc, ple_calc = rateio_comissao(cheia, coco)
         seg = r.get("end_com_seg")
-        r["com_seguralta"] = seg if seg is not None else (round(cheia * 0.25, 2) if coco else cheia)
+        r["com_seguralta"] = seg if seg is not None else seg_calc
         ple = r.get("end_com_ple")
-        r["com_plenus"] = ple if ple is not None else round(cheia * 0.75, 2)
+        r["com_plenus"] = ple if ple is not None else ple_calc
     else:
-        r["com_seguralta"] = round(cheia * 0.25, 2) if coco else cheia
-        r["com_plenus"] = round(cheia * 0.75, 2)
+        r["com_seguralta"], r["com_plenus"] = rateio_comissao(cheia, coco)
     r["receb_seguralta"] = r.get("receb_seguralta") or 0
     r["receb_plenus"] = r.get("receb_plenus") or 0
     r["seguralta_a_receber"] = round(r["com_seguralta"] - r["receb_seguralta"], 2)
@@ -2356,7 +2359,7 @@ def _apolices_entrada(linhas, divs=None):
         prem, pct = cab.get("premio_liquido"), cab.get("comissao_percentual")
         cheia = round(prem * pct / 100, 2) if prem is not None and pct is not None else None
         # entrada da Plenus calculada pelo sistema = 75% da comissão cheia (ver _calc_panorama)
-        comissao_plenus = round(cheia * 0.75, 2) if cheia is not None else None
+        comissao_plenus = rateio_comissao(cheia, False)[1] if cheia is not None else None
         apolices.append({
             "apolice_id": cab.get("apolice_id"),
             "cliente_nome": cab.get("cliente_nome") or "Sem cliente",
@@ -2490,9 +2493,8 @@ def _blocos_entrada(apolices, chaves, situacao, data_ini=None, data_fim=None, la
         if comissao_valor is None:
             comissao_seguralta = comissao_plenus = None
         else:
-            comissao_plenus = round(comissao_valor * 0.75, 2)
-            comissao_seguralta = (round(comissao_valor * 0.25, 2)
-                                  if ap.get("comissao_cocorretagem") else comissao_valor)
+            comissao_seguralta, comissao_plenus = rateio_comissao(
+                comissao_valor, ap.get("comissao_cocorretagem"))
         blocos.append({
             "apolice_id": ap["apolice_id"],
             "cliente_nome": ap.get("cliente_nome") or "Sem cliente",
@@ -2532,176 +2534,62 @@ def _blocos_entrada(apolices, chaves, situacao, data_ini=None, data_fim=None, la
             soma_plenus_coco, soma_comissao_total)
 
 
-@app.route("/financeiro/entradas/<int:apolice_id>/comissoes", methods=["POST"])
-def entradas_salvar_apolice(apolice_id):
-    """Salva SÓ a comissão de uma apólice, a partir do bloco editável de Entradas."""
+def _salvar_comissao_entradas(dono, dono_id, rotulo):
+    """Salva SÓ a comissão de um dono ("apolice"/"endosso"/"servico"/"consorcio") a partir
+    do bloco editável de Entradas: tabelas parceladas ou os valores achatados (único)."""
+    consorcio = dono == "consorcio"
     if request.form.get("comissao_parcelada") == "1":
         comissoes, erros_c = preparar_comissoes(
             request.form.getlist("comissao_parcela"),
             request.form.getlist("comissao_previsto"),
             request.form.getlist("comissao_recebido"),
             request.form.getlist("comissao_data"))
-        repasses, erros_r = preparar_repasses(
+        # consórcio ainda usa "conferido no banco" (0/1) no lugar do vínculo com recibo
+        repasses, erros_r = (preparar_repasses_consorcio if consorcio else preparar_repasses)(
             request.form.getlist("repasse_parcela"),
             request.form.getlist("repasse_previsto"),
             request.form.getlist("repasse_recebido"),
             request.form.getlist("repasse_data"),
-            request.form.getlist("repasse_recibo_id"),
+            request.form.getlist("repasse_conferido" if consorcio else "repasse_recibo_id"),
             request.form.getlist("repasse_deposito_cc"))
         erros = erros_c + erros_r
         if erros:
             for e in erros:
                 flash(e, "erro")
         else:
-            repo.salvar_comissoes_repasses(apolice_id, comissoes, repasses)
-            flash("Comissão da apólice atualizada.", "ok")
-    else:
-        valores = {
-            "comissao_valor_seguralta_receber":
-                para_decimal(request.form.get("comissao_valor_seguralta_receber")),
-            "comissao_valor_seguralta_recebido":
-                para_decimal(request.form.get("comissao_valor_seguralta_recebido")),
-            "comissao_valor_plenus_receber":
-                para_decimal(request.form.get("comissao_valor_plenus_receber")),
-            "comissao_valor_plenus_recebido":
-                para_decimal(request.form.get("comissao_valor_plenus_recebido")),
-            "data_seguralta_recebido": (request.form.get("data_seguralta_recebido") or "").strip(),
-            "data_plenus_recebido": (request.form.get("data_plenus_recebido") or "").strip(),
-            "recibo_id": request.form.get("recibo_id"),
-            "data_deposito_cc": (request.form.get("data_deposito_cc") or "").strip(),
-        }
-        repo.salvar_comissao_unica(apolice_id, valores)
-        flash("Comissão da apólice atualizada.", "ok")
+            repo.salvar_comissao_parcelada(dono, dono_id, comissoes, repasses)
+            flash(f"Comissão {rotulo} atualizada.", "ok")
+        return _voltar_seguro()
+    campo_vinculo = "plenus_conferido_banco" if consorcio else "recibo_id"
+    valores = {k: para_decimal(request.form.get(k))
+               for k in ("comissao_valor_seguralta_receber", "comissao_valor_seguralta_recebido",
+                         "comissao_valor_plenus_receber", "comissao_valor_plenus_recebido")}
+    valores.update({k: (request.form.get(k) or "").strip()
+                    for k in ("data_seguralta_recebido", "data_plenus_recebido", "data_deposito_cc")})
+    valores[campo_vinculo] = request.form.get(campo_vinculo)
+    repo.salvar_comissao_unica(dono, dono_id, valores)
+    flash(f"Comissão {rotulo} atualizada.", "ok")
     return _voltar_seguro()
+
+
+@app.route("/financeiro/entradas/<int:apolice_id>/comissoes", methods=["POST"])
+def entradas_salvar_apolice(apolice_id):
+    return _salvar_comissao_entradas("apolice", apolice_id, "da apólice")
 
 
 @app.route("/financeiro/entradas/endosso/<int:endosso_id>/comissoes", methods=["POST"])
 def entradas_salvar_endosso(endosso_id):
-    """Salva a comissão de um endosso, a partir do bloco editável de Entradas."""
-    if request.form.get("comissao_parcelada") == "1":
-        comissoes, erros_c = preparar_comissoes(
-            request.form.getlist("comissao_parcela"),
-            request.form.getlist("comissao_previsto"),
-            request.form.getlist("comissao_recebido"),
-            request.form.getlist("comissao_data"))
-        repasses, erros_r = preparar_repasses(
-            request.form.getlist("repasse_parcela"),
-            request.form.getlist("repasse_previsto"),
-            request.form.getlist("repasse_recebido"),
-            request.form.getlist("repasse_data"),
-            request.form.getlist("repasse_recibo_id"),
-            request.form.getlist("repasse_deposito_cc"))
-        erros = erros_c + erros_r
-        if erros:
-            for e in erros:
-                flash(e, "erro")
-        else:
-            repo.salvar_comissoes_repasses_endosso(endosso_id, comissoes, repasses)
-            flash("Comissão do endosso atualizada.", "ok")
-        return _voltar_seguro()
-    valores = {
-        "comissao_valor_seguralta_receber":
-            para_decimal(request.form.get("comissao_valor_seguralta_receber")),
-        "comissao_valor_seguralta_recebido":
-            para_decimal(request.form.get("comissao_valor_seguralta_recebido")),
-        "comissao_valor_plenus_receber":
-            para_decimal(request.form.get("comissao_valor_plenus_receber")),
-        "comissao_valor_plenus_recebido":
-            para_decimal(request.form.get("comissao_valor_plenus_recebido")),
-        "data_seguralta_recebido": (request.form.get("data_seguralta_recebido") or "").strip(),
-        "data_plenus_recebido": (request.form.get("data_plenus_recebido") or "").strip(),
-        "recibo_id": request.form.get("recibo_id"),
-        "data_deposito_cc": (request.form.get("data_deposito_cc") or "").strip(),
-    }
-    repo.salvar_comissao_endosso(endosso_id, valores)
-    flash("Comissão do endosso atualizada.", "ok")
-    return _voltar_seguro()
+    return _salvar_comissao_entradas("endosso", endosso_id, "do endosso")
 
 
 @app.route("/financeiro/entradas/servico/<int:servico_id>/comissoes", methods=["POST"])
 def entradas_salvar_servico(servico_id):
-    """Salva a comissão de um serviço, a partir do bloco editável de Entradas."""
-    if request.form.get("comissao_parcelada") == "1":
-        comissoes, erros_c = preparar_comissoes(
-            request.form.getlist("comissao_parcela"),
-            request.form.getlist("comissao_previsto"),
-            request.form.getlist("comissao_recebido"),
-            request.form.getlist("comissao_data"))
-        repasses, erros_r = preparar_repasses(
-            request.form.getlist("repasse_parcela"),
-            request.form.getlist("repasse_previsto"),
-            request.form.getlist("repasse_recebido"),
-            request.form.getlist("repasse_data"),
-            request.form.getlist("repasse_recibo_id"),
-            request.form.getlist("repasse_deposito_cc"))
-        erros = erros_c + erros_r
-        if erros:
-            for e in erros:
-                flash(e, "erro")
-        else:
-            repo.salvar_comissoes_repasses_servico(servico_id, comissoes, repasses)
-            flash("Comissão do serviço atualizada.", "ok")
-        return _voltar_seguro()
-    valores = {
-        "comissao_valor_seguralta_receber":
-            para_decimal(request.form.get("comissao_valor_seguralta_receber")),
-        "comissao_valor_seguralta_recebido":
-            para_decimal(request.form.get("comissao_valor_seguralta_recebido")),
-        "comissao_valor_plenus_receber":
-            para_decimal(request.form.get("comissao_valor_plenus_receber")),
-        "comissao_valor_plenus_recebido":
-            para_decimal(request.form.get("comissao_valor_plenus_recebido")),
-        "data_seguralta_recebido": (request.form.get("data_seguralta_recebido") or "").strip(),
-        "data_plenus_recebido": (request.form.get("data_plenus_recebido") or "").strip(),
-        "recibo_id": request.form.get("recibo_id"),
-        "data_deposito_cc": (request.form.get("data_deposito_cc") or "").strip(),
-    }
-    repo.salvar_comissao_servico(servico_id, valores)
-    flash("Comissão do serviço atualizada.", "ok")
-    return _voltar_seguro()
+    return _salvar_comissao_entradas("servico", servico_id, "do serviço")
 
 
 @app.route("/financeiro/entradas/consorcio/<int:consorcio_id>/comissoes", methods=["POST"])
 def entradas_salvar_consorcio(consorcio_id):
-    """Salva a comissão de um consórcio, a partir do bloco editável de Entradas."""
-    if request.form.get("comissao_parcelada") == "1":
-        comissoes, erros_c = preparar_comissoes(
-            request.form.getlist("comissao_parcela"),
-            request.form.getlist("comissao_previsto"),
-            request.form.getlist("comissao_recebido"),
-            request.form.getlist("comissao_data"))
-        repasses, erros_r = preparar_repasses_consorcio(
-            request.form.getlist("repasse_parcela"),
-            request.form.getlist("repasse_previsto"),
-            request.form.getlist("repasse_recebido"),
-            request.form.getlist("repasse_data"),
-            request.form.getlist("repasse_conferido"),
-            request.form.getlist("repasse_deposito_cc"))
-        erros = erros_c + erros_r
-        if erros:
-            for e in erros:
-                flash(e, "erro")
-        else:
-            repo.salvar_comissoes_repasses_consorcio(consorcio_id, comissoes, repasses)
-            flash("Comissão do consórcio atualizada.", "ok")
-        return _voltar_seguro()
-    valores = {
-        "comissao_valor_seguralta_receber":
-            para_decimal(request.form.get("comissao_valor_seguralta_receber")),
-        "comissao_valor_seguralta_recebido":
-            para_decimal(request.form.get("comissao_valor_seguralta_recebido")),
-        "comissao_valor_plenus_receber":
-            para_decimal(request.form.get("comissao_valor_plenus_receber")),
-        "comissao_valor_plenus_recebido":
-            para_decimal(request.form.get("comissao_valor_plenus_recebido")),
-        "data_seguralta_recebido": (request.form.get("data_seguralta_recebido") or "").strip(),
-        "data_plenus_recebido": (request.form.get("data_plenus_recebido") or "").strip(),
-        "plenus_conferido_banco": request.form.get("plenus_conferido_banco"),
-        "data_deposito_cc": (request.form.get("data_deposito_cc") or "").strip(),
-    }
-    repo.salvar_comissao_consorcio(consorcio_id, valores)
-    flash("Comissão do consórcio atualizada.", "ok")
-    return _voltar_seguro()
+    return _salvar_comissao_entradas("consorcio", consorcio_id, "do consórcio")
 
 
 @app.route("/financeiro/relatorios")
